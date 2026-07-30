@@ -34,6 +34,7 @@ from godkiller_mcp.code_intel import (
     AutoSkillifyEngine,
     CouncilDebateEngine,
 )
+from godkiller_mcp.epistemic_router import EpistemicRouter
 from godkiller_mcp.evidence_store import EvidenceStore
 from godkiller_mcp.handoff_docs import SpecFeedbackStore
 from godkiller_mcp.loop_guard import LoopDetector
@@ -43,6 +44,7 @@ from godkiller_mcp.modes import MODES, ModeProtocolStore
 from godkiller_mcp.skill_catalog import build_catalog, filter_catalog, suggest_from_catalog
 from godkiller_mcp.policy import PolicyEngine, rubric_for_kind
 from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction, TaskKind
+from godkiller_mcp.secrets_loader import ScopeSafeSecretsLoader
 from godkiller_mcp.quality_gates import (
     LADDER_LEVELS,
     build_compare_delta,
@@ -52,6 +54,7 @@ from godkiller_mcp.quality_gates import (
     run_visual_critic,
 )
 from godkiller_mcp.verify_bundle import VerifyBundleRunner
+from godkiller_mcp.vision_bridge import VisionBridge
 
 ROOT = Path(__file__).resolve().parents[2]
 STORE_DIR = ROOT / "arena" / "results" / "tasks"
@@ -71,6 +74,9 @@ modes = ModeProtocolStore(ROOT / ".agents")
 verify_runner = VerifyBundleRunner()
 loops = LoopDetector()
 handoff = SpecFeedbackStore(HANDOFF_DIR)
+secrets = ScopeSafeSecretsLoader(ROOT / ".env")
+router = EpistemicRouter()
+vision = VisionBridge()
 
 
 def _json(data: Any) -> List[TextContent]:
@@ -80,6 +86,29 @@ def _json(data: Any) -> List[TextContent]:
 @app.list_tools()
 async def list_tools() -> List[Tool]:
     return [
+        Tool(
+            name="godkiller_route_intent",
+            description="Classify prompt intent into /ask|/plan|/debug|/ultradeep|/verify protocols.",
+            inputSchema={
+                "type": "object",
+                "properties": {"prompt": {"type": "string"}},
+                "required": ["prompt"],
+            },
+        ),
+        Tool(
+            name="godkiller_inspect_image",
+            description="Inspect a screenshot/image with Pillow (size, format, blank/solid detection).",
+            inputSchema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        ),
+        Tool(
+            name="godkiller_secret_keys",
+            description="List key names loaded from localized .env (values never returned).",
+            inputSchema={"type": "object", "properties": {}},
+        ),
         # --- Policy ---
         Tool(
             name="open_task",
@@ -942,6 +971,23 @@ async def list_tools() -> List[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    if name == "godkiller_route_intent":
+        decision = router.route_intent(arguments["prompt"])
+        return _json(decision.__dict__)
+
+    if name == "godkiller_inspect_image":
+        result = vision.analyze_screenshot(arguments["path"])
+        return _json(result.__dict__)
+
+    if name == "godkiller_secret_keys":
+        return _json(
+            {
+                "env_path": str(secrets.env_path),
+                "keys": sorted(secrets.get_all_secrets().keys()),
+                "note": "Secret values are never returned by this tool.",
+            }
+        )
+
     if name == "godkiller_exhaustive_read":
         dpath = arguments["dir_path"]
         mfiles = arguments.get("max_files", 200)
@@ -1405,16 +1451,22 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         path = arguments["path"]
         summary = arguments.get("summary") or "capture_shot evidence"
         p = Path(path)
+        vision_result = vision.analyze_screenshot(p)
         payload = {
             "source": "capture_shot",
             "exists": p.exists(),
             "path": str(p.resolve()) if p.exists() else path,
             "size": p.stat().st_size if p.exists() else 0,
+            "vision": vision_result.__dict__,
         }
         ev = store.submit_evidence(
             task_id=arguments["task_id"],
             evidence_type=EvidenceType.SCREENSHOT,
-            summary=summary if p.exists() else f"{summary} (MISSING FILE: {path})",
+            summary=(
+                summary
+                if vision_result.passed
+                else f"{summary} (VISION FAIL: {vision_result.description})"
+            ),
             payload=payload,
             uri=str(p.resolve()) if p.exists() else path,
         )

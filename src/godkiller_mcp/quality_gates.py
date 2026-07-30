@@ -15,6 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from godkiller_mcp.safe_exec import run_command_safely
 from godkiller_mcp.schema import EvidenceType, TaskKind, TaskState
 
 
@@ -225,13 +226,10 @@ def run_soak(
     cmd = command or ""
     if command and workspace:
         try:
-            proc = subprocess.run(
+            proc = run_command_safely(
                 command,
-                shell=True,
                 cwd=str(Path(workspace).resolve()),
-                capture_output=True,
-                text=True,
-                timeout=timeout_sec,
+                timeout_sec=timeout_sec,
             )
             exit_code = proc.returncode
             if proc.returncode != 0:
@@ -241,6 +239,10 @@ def run_soak(
             exit_code = 124
             errors = max(errors, 1)
             notes = (notes + "\nsoak command timeout").strip()
+        except Exception as exc:
+            exit_code = 1
+            errors = max(errors, 1)
+            notes = (notes + f"\nsoak command error: {exc}").strip()
 
     passed = errors == 0 and stuck_pct <= max_stuck_pct and (exit_code is None or exit_code == 0)
     return SoakResult(

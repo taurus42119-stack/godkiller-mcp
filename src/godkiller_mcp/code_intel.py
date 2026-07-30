@@ -183,15 +183,22 @@ class RepoMapGenerator:
         return full_text
 
 
-def _find_dev_binary(name: str, custom_dir: Optional[str | Path] = r"C:\Users\ASUS\Desktop\Awesome_Dev_Tools") -> Optional[str]:
+def _default_tools_dir() -> Optional[Path]:
+    """Optional tools root from GODKILLER_TOOLS_DIR (never hardcode a user machine path)."""
+    raw = os.environ.get("GODKILLER_TOOLS_DIR", "").strip()
+    return Path(raw) if raw else None
+
+
+def _find_dev_binary(name: str, custom_dir: Optional[str | Path] = None) -> Optional[str]:
     path_binary = shutil.which(name)
     if path_binary:
         return path_binary
-    if custom_dir:
-        cpath = Path(custom_dir) / name / f"{name}.exe"
+    root = Path(custom_dir) if custom_dir else _default_tools_dir()
+    if root:
+        cpath = root / name / f"{name}.exe"
         if cpath.exists():
             return str(cpath)
-        cpath_no_exe = Path(custom_dir) / name / name
+        cpath_no_exe = root / name / name
         if cpath_no_exe.exists():
             return str(cpath_no_exe)
     return None
@@ -200,7 +207,7 @@ def _find_dev_binary(name: str, custom_dir: Optional[str | Path] = r"C:\Users\AS
 class HyperSearchEngine:
     """Ripgrep-inspired fast pattern search with Python regex fallback."""
 
-    def __init__(self, default_tools_dir: Optional[str | Path] = r"C:\Users\ASUS\Desktop\Awesome_Dev_Tools"):
+    def __init__(self, default_tools_dir: Optional[str | Path] = None):
         self.rg_path = _find_dev_binary("rg", default_tools_dir)
 
     def search(self, pattern: str, search_path: str = ".", max_results: int = 100) -> Dict[str, Any]:
@@ -255,7 +262,7 @@ class HyperSearchEngine:
 class FastFindEngine:
     """fd-inspired fast file indexer with os.scandir fallback."""
 
-    def __init__(self, default_tools_dir: Optional[str | Path] = r"C:\Users\ASUS\Desktop\Awesome_Dev_Tools"):
+    def __init__(self, default_tools_dir: Optional[str | Path] = None):
         self.fd_path = _find_dev_binary("fd", default_tools_dir)
 
     def find(self, name_pattern: str, search_path: str = ".", max_results: int = 100) -> Dict[str, Any]:
@@ -300,7 +307,7 @@ class FastFindEngine:
 class ContextPreviewEngine:
     """bat-inspired styled code context viewer with plain text fallback."""
 
-    def __init__(self, default_tools_dir: Optional[str | Path] = r"C:\Users\ASUS\Desktop\Awesome_Dev_Tools"):
+    def __init__(self, default_tools_dir: Optional[str | Path] = None):
         self.bat_path = _find_dev_binary("bat", default_tools_dir)
 
     def preview(self, file_path: str, start_line: int = 1, end_line: int = 100) -> Dict[str, Any]:
@@ -338,7 +345,7 @@ class ContextPreviewEngine:
 class AstGrepEngine:
     """ast-grep inspired structural pattern search & refactoring engine."""
 
-    def __init__(self, default_tools_dir: Optional[str | Path] = r"C:\Users\ASUS\Desktop\MCP_Servers_Collection"):
+    def __init__(self, default_tools_dir: Optional[str | Path] = None):
         self.sg_path = _find_dev_binary("ast-grep", default_tools_dir) or _find_dev_binary("sg", default_tools_dir)
 
     def search(
@@ -408,7 +415,7 @@ class AstGrepEngine:
 class SecurityScanEngine:
     """Snyk/SonarQube inspired static vulnerability & code smell scanner."""
 
-    def __init__(self, default_tools_dir: Optional[str | Path] = r"C:\Users\ASUS\Desktop\MCP_Servers_Collection"):
+    def __init__(self, default_tools_dir: Optional[str | Path] = None):
         self.snyk_path = _find_dev_binary("snyk", default_tools_dir)
 
     def scan(self, target_path: str = ".", severity_threshold: str = "medium") -> Dict[str, Any]:

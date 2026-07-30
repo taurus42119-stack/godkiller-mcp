@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
+
+from godkiller_mcp.safe_exec import run_command_safely
 from godkiller_mcp.schema import TaskState
 
 
@@ -59,13 +60,10 @@ class VerifyBundleRunner:
                 )
 
             try:
-                proc = subprocess.run(
+                proc = run_command_safely(
                     cmd,
-                    shell=True,
                     cwd=work_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=self.timeout_sec,
+                    timeout_sec=self.timeout_sec,
                 )
                 if proc.returncode != 0:
                     return VerifyResult(

@@ -50,19 +50,23 @@ class VisionBridge:
             )
 
         if not HAS_PIL:
-            # Fallback file size inspection
+            # Fallback file size inspection only — do not invent dimensions
             file_size = path.stat().st_size
-            is_valid = file_size > 500  # At least 500 bytes for a real image
+            is_valid = file_size > 500
             return VisionAnalysisResult(
                 image_uri=str(image_uri),
                 passed=is_valid,
-                score=0.8 if is_valid else 0.2,
-                width=1920 if is_valid else 0,
-                height=1080 if is_valid else 0,
-                format=path.suffix.lstrip(".").upper(),
-                color_mode="RGB",
+                score=0.5 if is_valid else 0.1,
+                width=0,
+                height=0,
+                format=path.suffix.lstrip(".").upper() or "UNKNOWN",
+                color_mode="UNKNOWN",
                 is_blank_placeholder=not is_valid,
-                description=f"File size verified ({file_size} bytes)" if is_valid else "Tiny image placeholder detected"
+                description=(
+                    f"Pillow not installed; size-only check ({file_size} bytes)"
+                    if is_valid
+                    else "Tiny image placeholder detected (Pillow unavailable)"
+                ),
             )
 
         try:

@@ -8,7 +8,16 @@ __pycache__/
 # Local databases & history
 *.db
 lessons.db
+arena/
 
-# Build artifacts
+# Secrets
+.env
+.env.*
+
+# Build artifacts (do not commit wheels/sdists)
 build/
+dist/
 *.egg-info/
+.venv/
+venv/
+uv.lock
