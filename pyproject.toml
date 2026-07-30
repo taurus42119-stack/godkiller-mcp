@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "godkiller-mcp"
+version = "1.0.0"
+description = "GODKILLER MCP Server - Supreme Agentic Engineering & Quality Control Engine for Antigravity IDE"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "GODKILLER Team" }
+]
+dependencies = [
+    "mcp>=1.0.0",
+    "pytest>=8.0.0",
+    "pydantic>=2.0.0"
+]
+
+[project.scripts]
+godkiller-mcp = "godkiller_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

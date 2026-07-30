@@ -1,0 +1,40 @@
+Metadata-Version: 2.4
+Name: godkiller-mcp
+Version: 1.0.0
+Summary: GODKILLER MCP Server - Supreme Agentic Engineering & Quality Control Engine for Antigravity IDE
+Author: GODKILLER Team
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: pytest>=8.0.0
+Requires-Dist: pydantic>=2.0.0
+
+# ⚡ GODKILLER MCP SERVER (`godkiller-mcp`)
+
+Supreme Agentic Engineering & Quality Control Engine for Antigravity IDE & Claude Desktop.
+
+## 🚀 Instant 1-Line Setup (`mcp_config.json`):
+
+Add this block to your `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "godkiller": {
+      "command": "uvx",
+      "args": ["godkiller-mcp"]
+    }
+  }
+}
+```
+
+## 🎮 Supported Slash Commands:
+- `/ask`: Product Manager & Interview protocol (No code writes)
+- `/plan`: Blueprint & Spec planning protocol (Research + 9-step plan)
+- `/debug`: Systematic root-cause debugging protocol
+- `/ultradeep`: Supreme Orchestrator marathon relay protocol
+- `/verify`: Empirical proof quality gate protocol
+
+## 🛡️ Zero-Trust Verification:
+Guarantees 100% unvarnished code verification with dynamic `pytest` execution!
