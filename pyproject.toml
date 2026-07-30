@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "godkiller-mcp"
-version = "1.0.1"
-description = "GODKILLER MCP Server - local quality-control and engineering toolkit for LLM coding agents"
+version = "1.3.0"
+description = "GODKILLER MCP — Antigravity phase/evidence orchestrator with code, scan, and browser facades"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -21,9 +21,15 @@ dependencies = [
 
 [project.optional-dependencies]
 scrape = ["beautifulsoup4>=4.12.0"]
+browser = ["playwright>=1.40.0"]
+all = ["beautifulsoup4>=4.12.0", "playwright>=1.40.0"]
 
 [project.scripts]
 godkiller-mcp = "godkiller_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/taurus42119-stack/godkiller-mcp"
+Repository = "https://github.com/taurus42119-stack/godkiller-mcp"
 
 [tool.setuptools.packages.find]
 where = ["src"]

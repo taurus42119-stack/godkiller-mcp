@@ -4,14 +4,23 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-brightgreen.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Unit Tests](https://img.shields.io/badge/unit%20tests-6%2F6%20passed-success.svg)](tests/)
+[![Unit Tests](https://img.shields.io/badge/unit%20tests-passing-success.svg)](tests/)
 [![Status](https://img.shields.io/badge/status-active--development-orange.svg)](https://github.com/taurus42119-stack/godkiller-mcp)
+[![PyPI](https://img.shields.io/badge/pypi-godkiller--mcp-blue.svg)](https://pypi.org/project/godkiller-mcp/)
 
 ⭐ **If this project upgrades your AI agent workflow, please drop a Star on GitHub to support ongoing development!**
 
 💬 **Contact for Custom AI Agent Elevation & Enterprise MCP Integration:**
 - 📘 **Facebook:** [Pronphorm Pakdee](https://www.facebook.com/search/top?q=Pronphorm%20Pakdee)
 - 📸 **Instagram:** [@Kayvin.th](https://www.instagram.com/Kayvin.th)
+
+---
+
+## Origin (why this exists)
+
+**GODKILLER MCP was designed for Google Antigravity**: agents that refuse to split work into phases and skip planning. The core job is to force `/plan` → phase gates → evidence → disk verify → claim_done. Extra engines (code intel, browser, scan, memory graph) grew around that kernel.
+
+Lab artifacts from the isolated arena live in [`benchmarks/arena_logs/`](benchmarks/arena_logs/). Peer comparison checklist vs Cursor MCPs (`jcodemunch`, `codebase-memory-mcp`, `chrome-devtools`) is in [`benchmarks/cursor_peers/`](benchmarks/cursor_peers/).
 
 ---
 
@@ -87,16 +96,35 @@ graph TD
 
 ## 🛠️ Quick Installation & Setup
 
-### Local Installation (Recommended)
+### Install from PyPI / local
 
 ```bash
+pip install godkiller-mcp
+# optional: pip install 'godkiller-mcp[browser]' && playwright install chromium
+# optional: pip install 'godkiller-mcp[scrape]'
+
+# or from source:
 git clone https://github.com/taurus42119-stack/godkiller-mcp.git
 cd godkiller-mcp
-pip install -e ".[scrape]"
+pip install -e ".[all]"
 pytest -q
 ```
 
-Register in your `mcp_config.json` (Antigravity IDE or Claude Desktop):
+Slim MCP surface (**12 facade tools**): `gk_route`, `gk_task`, `gk_phase`, `gk_evidence`, `gk_verify`, `gk_memory`, `gk_code`, `gk_scan`, `gk_browser`, `gk_mode`, `gk_handoff`, `gk_meta`. Each takes `action=` + args (legacy handlers remain via dispatch).
+
+Register in your `mcp_config.json` (Antigravity IDE or Claude Desktop / Cursor):
+
+```json
+{
+  "mcpServers": {
+    "godkiller": {
+      "command": "godkiller-mcp"
+    }
+  }
+}
+```
+
+Or:
 
 ```json
 {
@@ -109,7 +137,17 @@ Register in your `mcp_config.json` (Antigravity IDE or Claude Desktop):
 }
 ```
 
-Optional: set `GODKILLER_TOOLS_DIR` if helper binaries (`rg`, `fd`, `snyk`, `ast-grep`) are not on `PATH`.
+Optional: set `GODKILLER_TOOLS_DIR` if helper binaries (`rg`, `fd`, `semgrep`, `ast-grep`) are not on `PATH`.
+
+### vs Cursor peer MCPs
+
+| Peer | Strength | GODKILLER edge |
+| --- | --- | --- |
+| jcodemunch | Code structure intel | Phase / plan / claim gates |
+| codebase-memory-mcp | Source graph memory | Workflow evidence graph (task→phase→evidence→lesson) |
+| chrome-devtools | Full CDP browser | Orchestrates verify+vision; optional Playwright `gk_browser` when peer not loaded |
+
+Harness: `python benchmarks/cursor_peers/score_harness.py`
 
 ---
 

@@ -1,4 +1,8 @@
-"""Browser evidence bridge — register UI journeys/screenshots into Evidence Graph."""
+"""Browser evidence bridge — register UI journeys/screenshots into Evidence Graph.
+
+For real browser control use `godkiller_mcp.browser_runtime.PlaywrightBrowser`
+(exposed via `gk_browser` actions: navigate/snapshot/screenshot/click/fill).
+"""
 
 from __future__ import annotations
 

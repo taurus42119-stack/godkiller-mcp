@@ -41,13 +41,35 @@ class VerifyResult:
     stderr: str = ""
     reason: str = ""
 
+    @property
+    def summary(self) -> str:
+        if self.hack_blocked:
+            return f"verify_bundle BLOCKED: {self.reason}"
+        if self.passed:
+            return "verify_bundle PASS"
+        return f"verify_bundle FAIL: {self.reason or self.stderr[:200]}"
+
+    def to_payload(self) -> dict:
+        return {
+            "source": "verify_bundle",
+            "passed": self.passed,
+            "hack_blocked": self.hack_blocked,
+            "exit_code": self.exit_code,
+            "stdout": self.stdout[-4000:],
+            "stderr": self.stderr[-4000:],
+            "reason": self.reason,
+            "summary": self.summary,
+        }
+
 
 class VerifyBundleRunner:
     def __init__(self, timeout_sec: int = 30):
         self.timeout_sec = timeout_sec
 
-    def run(self, cwd: str | Path, commands: List[str]) -> VerifyResult:
+    def run(self, cwd: str | Path, commands: List[str] | None = None) -> VerifyResult:
         work_dir = Path(cwd)
+        if not commands:
+            commands = ["python -m pytest -q"]
 
         for cmd in commands:
             is_hack, reason = detect_hacking(cmd)

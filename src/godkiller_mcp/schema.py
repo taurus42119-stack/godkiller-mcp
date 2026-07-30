@@ -47,6 +47,7 @@ class EvidenceType(str, Enum):
     HYPOTHESIS_SUPPORT = "hypothesis_support"
     HYPOTHESIS_REFUTE = "hypothesis_refute"
     LOG = "log"
+    LESSON = "lesson"
     OTHER = "other"
 
 
@@ -56,6 +57,7 @@ class PolicyAction(str, Enum):
     REPLAN = "replan"
     CONTINUE = "continue"
     ESCALATE_FRONTIER = "escalate_frontier"
+    ALLOW_CLAIM_DONE = "allow_claim_done"
 
 
 class Evidence(BaseModel):
@@ -102,6 +104,9 @@ class TaskState(BaseModel):
     hypotheses: List[Hypothesis] = Field(default_factory=list)
     phase_history: List[Phase] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    last_policy_action: Optional[PolicyAction] = None
+    failure_streak: int = 0
+    claim_allowed: bool = False
 
     @property
     def evidence(self) -> List[Evidence]:
