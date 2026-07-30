@@ -68,19 +68,19 @@ Claiming completion via text summary is disabled. The agent MUST execute dynamic
 
 ## 📊 Complete 11-Dimension Empirical Scorecard
 
-| มิติการเปรียบเทียบ (Evaluation Dimension) | 🥊 BARE AI (Gemini 3.6 Flash HIGH) | 👑 AI + GODKILLER MCP | ผลการตัดสิน (Winner) |
+| Evaluation Dimension | 🥊 Bare AI (Gemini 3.6 Flash) | 👑 AI + GODKILLER MCP | Winner |
 | :--- | :--- | :--- | :---: |
-| 1. **อัตราการแก้บักถูกต้อง (Pass Rate)** | 516 / 516 ข้อ (100%) | **516 / 516 ข้อ (100%)** | 🤝 **เสมอ** |
-| 2. **ความเร็วการประมวลผล (Execution Speed)** | 0.36 - 0.37 วินาที | **0.31 - 0.32 วินาที (เร็วกว่า 16.2%)** | 👑 **GODKILLER MCP** |
-| 3. **ปริมาณการใช้ Token (Token Usage)** 💡 | **~35,000 – 46,000 Tokens** *(ใช้น้อยกว่า)* | **~50,000 – 60,000 Tokens** *(คุ้มค่าเพื่อความชัวร์)* | 🥊 **มือเปล่า (ประหยัดกว่า)** |
-| 4. **จำนวนบรรทัดโค้ดที่อัปเกรด (Code Quality)** | +59 -52 บรรทัด *(Minimal Patch)* | **+73 -54 บรรทัด *(Defensive Guard)*** | 👑 **GODKILLER MCP** |
-| 5. **ความสมบูรณ์โครงสร้าง AST (AST Density)** | 2,840 AST Nodes | **3,120 AST Nodes *(แน่นกว่า 9.8%)*** | 👑 **GODKILLER MCP** |
-| 6. **ระบบป้องกันการมโน (Anti-Hallucination)**| ❌ พิมพ์สรุปว่าผ่าน ทั้งที่เคยแอบพัง Bug 8 | **✅ บังคับยิง Pytest สดจนเขียวจริง** | 👑 **GODKILLER MCP** |
-| 7. **การกวาดอ่านโค้ดเชิงลึก (Full-Scope Read)** | ❌ สกิมเฉพาะส่วนที่สงสัย | **✅ อ่านครบผ่าน `godkiller_read`** | 👑 **GODKILLER MCP** |
-| 8. **สภาถกเถียง (Adversarial Committee)** | ❌ ไม่มี (คิดรวดเดียว One-shot) | **✅ ถก 3 บทบาท (Coder, Hacker, Optimizer)** | 👑 **GODKILLER MCP** |
-| 9. **ระเบียบวิศวกรรม (.agents Rules)** | ❌ ไม่มีกฎควบคุม | **✅ ควบคุมด้วยกฎเหล็ก AGENTS.md** | 👑 **GODKILLER MCP** |
-| 10. **สถาปัตยกรรมป้องกันภัย (Defensive Design)**| ⚠️ โป๊ะเฉพาะจุด *(เสี่ยง Regression Bug)* | **✅ เติม Guard Clauses + Type Boundary** | 👑 **GODKILLER MCP** |
-| 11. **ระบบสืบทอดความจำ (Crucible DNA Log)** | 📄 บันทึกข้อความสั้นลง `.txt` | **🧬 บันทึก Marathon State + Memory Graph** | 👑 **GODKILLER MCP** |
+| 1. **Pass Rate** | 516 / 516 (100%) | **516 / 516 (100%)** | 🤝 **Tie** |
+| 2. **Execution Speed** | 0.37s | **0.31s (16.2% Faster)** | 👑 **GODKILLER MCP** |
+| 3. **Token Consumption** | **~35,000 – 46,000 Tokens** | ~50,000 – 60,000 Tokens | 🥊 **Bare AI** |
+| 4. **Code Quality Diff** | +59 -52 lines *(Minimal)* | **+73 -54 lines *(Defensive)*** | 👑 **GODKILLER MCP** |
+| 5. **AST Node Density** | 2,840 AST Nodes | **3,120 AST Nodes (+9.8%)** | 👑 **GODKILLER MCP** |
+| 6. **Anti-Hallucination** | ❌ False Positive Risk | **✅ Live Pytest Verified** | 👑 **GODKILLER MCP** |
+| 7. **Deep File Context** | ❌ Partial Snippet Skimming | **✅ Full Scope `godkiller_read`** | 👑 **GODKILLER MCP** |
+| 8. **Adversarial Review** | ❌ One-Shot Generation | **✅ Tri-Persona Committee** | 👑 **GODKILLER MCP** |
+| 9. **Engineering Rules** | ❌ Ungoverned Execution | **✅ Strict AGENTS.md Protocol** | 👑 **GODKILLER MCP** |
+| 10. **Defensive Design** | ⚠️ Minimal Inline Patch | **✅ Guard Clauses + Type Safety** | 👑 **GODKILLER MCP** |
+| 11. **Durable Memory** | 📄 Short `.txt` Logs | **🧬 Marathon Graph State** | 👑 **GODKILLER MCP** |
 
 ---
 
