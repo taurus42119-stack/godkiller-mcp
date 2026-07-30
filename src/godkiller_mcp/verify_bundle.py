@@ -6,7 +6,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-from godkiller.schema import TaskState
+from godkiller_mcp.schema import TaskState
 
 
 def detect_hacking(command: str) -> Tuple[bool, str]:

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Deque, Dict, List, Optional, Tuple
 
-from godkiller.schema import Phase, PolicyAction
+from godkiller_mcp.schema import Phase, PolicyAction
 
 
 def _utcnow() -> str:

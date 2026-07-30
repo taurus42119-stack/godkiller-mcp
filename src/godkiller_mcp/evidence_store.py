@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from godkiller.schema import (
+from godkiller_mcp.schema import (
     Evidence,
     EvidenceType,
     Hypothesis,

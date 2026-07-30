@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from godkiller.evidence_store import EvidenceStore
-from godkiller.schema import Evidence, EvidenceType
+from godkiller_mcp.evidence_store import EvidenceStore
+from godkiller_mcp.schema import Evidence, EvidenceType
 
 
 @dataclass
@@ -94,7 +94,7 @@ class BrowserEvidenceBridge:
         )
 
     def require_ui_proof_for_feature(self, task_id: str) -> tuple[bool, str]:
-        from godkiller.search_gates import needs_visual_loop
+        from godkiller_mcp.search_gates import needs_visual_loop
 
         state = self.store.get(task_id)
         if not needs_visual_loop(state):

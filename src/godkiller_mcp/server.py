@@ -12,8 +12,8 @@ from typing import Any, Dict, List
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
-from godkiller.browser_bridge import BrowserEvidenceBridge, JourneyResult, JourneyStep
-from godkiller.code_intel import (
+from godkiller_mcp.browser_bridge import BrowserEvidenceBridge, JourneyResult, JourneyStep
+from godkiller_mcp.code_intel import (
     blast_radius,
     check_edit_safe,
     get_failing_slice,
@@ -34,16 +34,16 @@ from godkiller.code_intel import (
     AutoSkillifyEngine,
     CouncilDebateEngine,
 )
-from godkiller.evidence_store import EvidenceStore
-from godkiller.handoff_docs import SpecFeedbackStore
-from godkiller.loop_guard import LoopDetector
-from godkiller.marathon import MarathonRelay
-from godkiller.memory_lessons import LessonMemory, MemoryTier
-from godkiller.modes import MODES, ModeProtocolStore
-from godkiller.skill_catalog import build_catalog, filter_catalog, suggest_from_catalog
-from godkiller.policy import PolicyEngine, rubric_for_kind
-from godkiller.schema import EvidenceType, Phase, PolicyAction, TaskKind
-from godkiller.quality_gates import (
+from godkiller_mcp.evidence_store import EvidenceStore
+from godkiller_mcp.handoff_docs import SpecFeedbackStore
+from godkiller_mcp.loop_guard import LoopDetector
+from godkiller_mcp.marathon import MarathonRelay
+from godkiller_mcp.memory_lessons import LessonMemory, MemoryTier
+from godkiller_mcp.modes import MODES, ModeProtocolStore
+from godkiller_mcp.skill_catalog import build_catalog, filter_catalog, suggest_from_catalog
+from godkiller_mcp.policy import PolicyEngine, rubric_for_kind
+from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction, TaskKind
+from godkiller_mcp.quality_gates import (
     LADDER_LEVELS,
     build_compare_delta,
     build_competitor_scan,
@@ -51,7 +51,7 @@ from godkiller.quality_gates import (
     run_soak,
     run_visual_critic,
 )
-from godkiller.verify_bundle import VerifyBundleRunner
+from godkiller_mcp.verify_bundle import VerifyBundleRunner
 
 ROOT = Path(__file__).resolve().parents[2]
 STORE_DIR = ROOT / "arena" / "results" / "tasks"
@@ -1078,7 +1078,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         )
 
     if name == "propose_hypothesis":
-        from godkiller.search_gates import assert_phase_search_gate
+        from godkiller_mcp.search_gates import assert_phase_search_gate
 
         hyp = store.propose_hypothesis(
             task_id=arguments["task_id"],
@@ -1098,8 +1098,8 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(hyp.model_dump())
 
     if name == "assert_phase":
-        from godkiller.search_gates import assert_phase_search_gate
-        from godkiller.skill_gates import assert_phase_skill_gate
+        from godkiller_mcp.search_gates import assert_phase_search_gate
+        from godkiller_mcp.skill_gates import assert_phase_skill_gate
 
         cur = store.get(arguments["task_id"])
         ok_s, reason_s = assert_phase_search_gate(cur, arguments["phase"])
@@ -1139,7 +1139,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         )
 
     if name == "submit_evidence":
-        from godkiller.search_gates import normalize_web_search_payload
+        from godkiller_mcp.search_gates import normalize_web_search_payload
 
         payload = arguments.get("payload") or {}
         if isinstance(payload, dict):
@@ -1347,7 +1347,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(loops.status(arguments["task_id"]))
 
     if name == "write_spec":
-        from godkiller.search_gates import write_spec_search_gate
+        from godkiller_mcp.search_gates import write_spec_search_gate
 
         require_search = arguments.get("require_search", True)
         kind = arguments.get("kind") or "feature"
@@ -1705,7 +1705,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json({"constitution_markdown": modes.get_constitution()})
 
     if name == "skill_catalog":
-        from godkiller.skill_gates import build_catalog_evidence_payload
+        from godkiller_mcp.skill_gates import build_catalog_evidence_payload
 
         skills_root = ROOT / ".agents" / "skills"
         entries = build_catalog(skills_root)
@@ -1725,7 +1725,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         }
         goal = arguments.get("goal") or query
         if goal:
-            from godkiller.modes import suggest_skills_for_goal
+            from godkiller_mcp.modes import suggest_skills_for_goal
 
             forced = suggest_skills_for_goal(goal).get("must_view_file") or []
             pack = suggest_from_catalog(entries, goal, limit=4, forced_paths=forced)
@@ -1760,7 +1760,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(out)
 
     if name == "record_skills_loaded":
-        from godkiller.skill_gates import build_loaded_payload, loaded_gate
+        from godkiller_mcp.skill_gates import build_loaded_payload, loaded_gate
 
         paths = arguments.get("paths") or []
         if len(paths) > 4:

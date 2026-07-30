@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
-from godkiller.schema import Phase, TaskKind, TaskState
+from godkiller_mcp.schema import Phase, TaskKind, TaskState
 
 
 # Minimum recorded search queries by kind

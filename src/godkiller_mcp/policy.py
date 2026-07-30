@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence
 
-from godkiller.schema import (
+from godkiller_mcp.schema import (
     EvidenceType,
     Phase,
     PolicyAction,
@@ -221,7 +221,7 @@ class PolicyEngine:
         require_competitor_loop: bool = True,
         min_ambition_ladder: str = "L1_presence",
     ) -> tuple[bool, List[RubricResult], str]:
-        from godkiller.verify_bundle import task_has_passing_verify_bundle
+        from godkiller_mcp.verify_bundle import task_has_passing_verify_bundle
 
         results = self.evaluate_rubric(state)
         if not self.all_passed(results):
@@ -261,8 +261,8 @@ class PolicyEngine:
             )
 
         # Forced epistemics — all domains (game, SaaS, accounting, API)
-        from godkiller.search_gates import claim_search_gate
-        from godkiller.skill_gates import claim_skill_gate
+        from godkiller_mcp.search_gates import claim_search_gate
+        from godkiller_mcp.skill_gates import claim_skill_gate
 
         ok_s, reason_s = claim_search_gate(state)
         if not ok_s:
@@ -273,7 +273,7 @@ class PolicyEngine:
             return False, results, reason_sk
 
         # Feature dissatisfaction loop (competitors + ladder; visual when UI)
-        from godkiller.quality_gates import quality_claim_gates
+        from godkiller_mcp.quality_gates import quality_claim_gates
 
         ok_q, reason_q = quality_claim_gates(
             state,

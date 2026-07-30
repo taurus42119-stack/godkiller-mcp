@@ -15,7 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from godkiller.schema import EvidenceType, TaskKind, TaskState
+from godkiller_mcp.schema import EvidenceType, TaskKind, TaskState
 
 
 def _utcnow() -> str:
@@ -335,7 +335,7 @@ def quality_claim_gates(
     Visual soak/critic when needs_visual_loop (default for FEATURE UI).
     BUGFIX/REFACTOR skip unless metadata forces them.
     """
-    from godkiller.search_gates import needs_visual_loop
+    from godkiller_mcp.search_gates import needs_visual_loop
 
     meta = state.handle.metadata or {}
     force = bool(meta.get("require_quality_loop"))

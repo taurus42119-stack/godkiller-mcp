@@ -138,7 +138,7 @@ class ModeProtocolStore:
 
         # Progressive: thin shortlist from catalog (descriptions only), not full bodies
         try:
-            from godkiller.skill_catalog import build_catalog, suggest_from_catalog
+            from godkiller_mcp.skill_catalog import build_catalog, suggest_from_catalog
 
             skills_root = self.agents_root / "skills"
             catalog = build_catalog(skills_root) if skills_root.is_dir() else []

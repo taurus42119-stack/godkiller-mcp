@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set
 
-from godkiller.schema import EvidenceType
+from godkiller_mcp.schema import EvidenceType
 
 
 @dataclass

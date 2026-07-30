@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from godkiller.schema import Phase, TaskKind, new_id
+from godkiller_mcp.schema import Phase, TaskKind, new_id
 
 
 def _utcnow() -> str:
@@ -134,7 +134,7 @@ class MarathonRelay:
         slug: str,
         min_queries: Optional[int] = None,
     ) -> tuple[bool, str]:
-        from godkiller.search_gates import min_queries_for_kind
+        from godkiller_mcp.search_gates import min_queries_for_kind
 
         state = self.load(slug)
         need = min_queries if min_queries is not None else min_queries_for_kind(state.kind)
