@@ -1,7 +1,8 @@
 {
+  "note": "Blank template — fill only after real runs. Do not invent peer scores for marketing.",
   "arms": [
     {
-      "name": "jcodemunch",
+      "name": "arm_a",
       "phase_split": 0,
       "plan_first": 0,
       "disk_verify": 0,
@@ -9,20 +10,20 @@
       "ui_proof": 0
     },
     {
-      "name": "codebase-memory",
+      "name": "arm_b",
       "phase_split": 0,
       "plan_first": 0,
       "disk_verify": 0,
-      "no_false_claim": 1,
+      "no_false_claim": 0,
       "ui_proof": 0
     },
     {
       "name": "godkiller",
-      "phase_split": 1,
-      "plan_first": 1,
-      "disk_verify": 1,
-      "no_false_claim": 1,
-      "ui_proof": 1
+      "phase_split": 0,
+      "plan_first": 0,
+      "disk_verify": 0,
+      "no_false_claim": 0,
+      "ui_proof": 0
     }
   ]
 }

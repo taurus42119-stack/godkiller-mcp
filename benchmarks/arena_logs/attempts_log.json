@@ -4,27 +4,27 @@
     "timestamp": "2026-07-30 20:50:10",
     "duration_seconds": 0.44,
     "status": "FAILED",
-    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\ASUS\\Desktop\\GODKILLER_ISOLATED_ARENA\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 2 items\n\n..\\hidden_oracle\\t"
+    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- <PYTHON>\ncachedir: .pytest_cache\nrootdir: <ARENA_ROOT>\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 2 items\n\n..\\hidden_oracle\\t"
   },
   {
     "attempt": 1,
     "timestamp": "2026-07-30 20:50:22",
     "duration_seconds": 0.38,
     "status": "PASSED",
-    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\ASUS\\Desktop\\GODKILLER_ISOLATED_ARENA\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 2 items\n\n..\\hidden_oracle\\t"
+    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- <PYTHON>\ncachedir: .pytest_cache\nrootdir: <ARENA_ROOT>\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 2 items\n\n..\\hidden_oracle\\t"
   },
   {
     "attempt": 1,
     "timestamp": "2026-07-30 20:52:51",
     "duration_seconds": 0.42,
     "status": "FAILED",
-    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\ASUS\\Desktop\\GODKILLER_ISOLATED_ARENA\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 3 items\n\n..\\hidden_oracle\\t"
+    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- <PYTHON>\ncachedir: .pytest_cache\nrootdir: <ARENA_ROOT>\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 3 items\n\n..\\hidden_oracle\\t"
   },
   {
     "attempt": 1,
     "timestamp": "2026-07-30 20:53:13",
     "duration_seconds": 0.44,
     "status": "PASSED",
-    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\ASUS\\Desktop\\GODKILLER_ISOLATED_ARENA\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 3 items\n\n..\\hidden_oracle\\t"
+    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- <PYTHON>\ncachedir: .pytest_cache\nrootdir: <ARENA_ROOT>\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 3 items\n\n..\\hidden_oracle\\t"
   }
 ]

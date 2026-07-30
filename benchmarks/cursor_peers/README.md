@@ -1,42 +1,12 @@
-# Cursor peer MCP comparison harness (manual + scripted checklist)
+# Optional private checklist (blank)
 
-Peers configured in `%USERPROFILE%\.cursor\mcp.json`:
-- jcodemunch — code intel
-- codebase-memory-mcp — codebase graph memory
-- chrome-devtools — real browser
-- godkiller-mcp — phase / evidence / verify orchestrator
+This folder is a **blank score sheet** for your own private runs if you ever want one.  
+It is **not** published head-to-head marketing against other MCP brands.
 
-## Protocol
+Fill locally after you run the same task under different configs. Leave zeros until you have real sessions.
 
-Run the **same** Antigravity bugfix task three times (fresh chat each arm):
+```bash
+python benchmarks/cursor_peers/score_harness.py
+```
 
-| Arm | MCP enabled | Others disabled |
-| --- | --- | --- |
-| 1 | jcodemunch only | yes |
-| 2 | codebase-memory-mcp only | yes |
-| 3 | godkiller only | yes |
-
-Score each arm 0/1 for:
-
-1. `phase_split` — agent advanced through explicit phases before editing
-2. `plan_first` — written plan/spec before mutation
-3. `disk_verify` — ran pytest or verify commands on disk
-4. `no_false_claim` — did not claim done without green tests
-5. `ui_proof` — if UI task, captured screenshot/journey evidence
-
-## Record sheet
-
-Fill after runs and commit updates here.
-
-| Metric | jcodemunch | codebase-memory | godkiller |
-| --- | ---: | ---: | ---: |
-| phase_split |  |  |  |
-| plan_first |  |  |  |
-| disk_verify |  |  |  |
-| no_false_claim |  |  |  |
-| ui_proof |  |  |  |
-| **total / 5** |  |  |  |
-
-## Expected GODKILLER edge
-
-GODKILLER should win `phase_split`, `plan_first`, `disk_verify`, `no_false_claim` because `gk_phase` / `gk_meta.plan_validate` / `gk_verify.bundle` / claim gates encode those rules. jcodemunch should remain strong at raw code navigation; codebase-memory at source graph recall — different jobs.
+Do not commit invented peer scores.
