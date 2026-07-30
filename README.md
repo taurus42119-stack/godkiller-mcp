@@ -41,35 +41,28 @@ User goal
 
 ## Lab results (our arena)
 
-Same isolated arena: **Bare AI** vs **AI + GODKILLER**. Only two evidence files (no clutter):
+Same isolated sandbox: **Bare AI** vs **AI + GODKILLER**, scored on *our* governance rubric (phases / evidence / verify / taste gates) — not “this MCP invents perfect code for every problem on Earth.”
+
+Evidence (2 files only):
 
 - [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)
 - [`benchmarks/arena_logs/real_200_benchmark_report.md`](benchmarks/arena_logs/real_200_benchmark_report.md)
 
-### 5-dimension audit
+### Snapshot — 5 dimensions (arena arms)
 
-| Dimension | Bare AI (no MCP) | AI + GODKILLER MCP |
+| Dimension | Bare AI | + GODKILLER |
 | --- | ---: | ---: |
-| Code correctness | 0.0 | **100.0** |
-| Reconnaissance / full read | 20.0 | **100.0** |
-| Security & hardening | 100.0 | **100.0** |
-| Anti-hallucination gate | 0.0 | **100.0** |
-| UI taste / aesthetics | 50.0 | **100.0** |
-| **Overall** | **34.0** | **100.0** |
+| Code correctness (arena pytest) | 0 | **100** |
+| Reconnaissance / full-read gate | 20 | **100** |
+| Security & hardening gate | 100 | **100** |
+| Anti-hallucination / evidence gate | 0 | **100** |
+| UI taste gate | 50 | **100** |
+| **Rubric overall** | **34** | **100** |
 | Pytest on disk | fail | **pass** |
 
-### Sealed-task summary
+`100` here means **the arm cleared that gate in this arena**, not a universal IQ score. Bare AI often fails gates that GODKILLER forces (evidence, verify, claim).
 
-| Metric | Bare AI | + GODKILLER |
-| --- | ---: | ---: |
-| Pass@1 code correctness | 6.8% | **100.0%** |
-| Reconnaissance coverage | 20.0% | **100.0%** |
-| Security & hardening | 40.0% | **100.0%** |
-| Anti-hallucination gate | 0.0% | **100.0%** |
-| Visual UI taste | 50.0% | **100.0%** |
-| **Overall score** | **23.4 / 100** | **100.0 / 100** |
-
-Lab evidence for the governance thesis — not a claim every public repo is solved.
+Broader sealed-task rollup (same thesis, more rows): see the report file linked above — same caveat applies.
 
 ### Package unit tests
 

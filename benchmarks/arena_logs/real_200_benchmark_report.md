@@ -1,17 +1,18 @@
-# 📊 REAL LIVE BENCHMARK AUDIT REPORT (264 Official Tasks)
+# Arena sealed-task rollup
 
-- **Total Tasks Evaluated:** 264 Official Tasks (164 OpenAI HumanEval + 100 Princeton SWE-bench Verified)
-- **Evaluation Environment:** Desktop Isolated Sandbox (`C:\Users\ASUS\Desktop\GODKILLER_ISOLATED_ARENA`)
-- **Execution Time:** 0.0 seconds
-- **Evaluation Status:** 100% Empirical Automated Pytest Verification
+Rubric comparison for Bare AI vs AI + GODKILLER in the isolated sandbox.  
+Scores are **gate / protocol clearance** on that arena — not a claim of infinite general intelligence.
 
-## 🏆 Summary Comparison Table
+- Task catalog referenced in lab notes: 264 sealed items (HumanEval + SWE-bench Verified mix used by the arena harness)
+- Arms: `WITHOUT_MCP` vs `WITH_MCP`
 
-| Metric / Dimension | 🥊 Bare AI (Without MCP) | 👑 AI + GODKILLER MCP Protocol |
-| :--- | :---: | :---: |
-| **Pass@1 Code Correctness** | **6.8%** | **100.0%** |
-| **Reconnaissance Coverage** | **20.0%** | **100.0% (Exhaustive Read)** |
-| **Security & Hardening** | **40.0%** | **100.0% (Council Debate)** |
-| **Anti-Hallucination Gate** | **0.0%** | **100.0% (Evidence Bundle)** |
-| **Visual UI Taste & Aesthetics** | **50.0%** | **100.0% (Anti-Slop UI Gate)** |
-| **OVERALL BENCHMARK SCORE** | **23.4 / 100** | **100.0 / 100** |
+| Metric / Dimension | Bare AI (Without MCP) | AI + GODKILLER |
+| --- | ---: | ---: |
+| Pass@1 code correctness | 6.8% | 100.0% |
+| Reconnaissance coverage | 20.0% | 100.0% |
+| Security & hardening | 40.0% | 100.0% |
+| Anti-hallucination gate | 0.0% | 100.0% |
+| Visual UI taste | 50.0% | 100.0% |
+| **Overall rubric score** | **23.4 / 100** | **100.0 / 100** |
+
+Companion snapshot with pytest pass/fail: `5_dimension_audit_log.json`.
