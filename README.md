@@ -1,92 +1,90 @@
 # GODKILLER MCP
 
-**The Antigravity phase kernel** — an MCP built for Google Antigravity agents that skip planning, rush multi-file edits, and claim “done” without proof on disk.
-
-Other tooling helps agents *read code* or *drive a browser*. GODKILLER makes the agent **obey an engineering process**: search → plan → phase gates → per-file think/plan/edit → verify → only then `claim_done`.
+**The Antigravity phase kernel** — force Google Antigravity to plan, gate phases, prove on disk, then claim done.  
+Built because Antigravity is strong… and loves to skip the boring engineering steps.
 
 [![PyPI](https://img.shields.io/pypi/v/godkiller-mcp.svg)](https://pypi.org/project/godkiller-mcp/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-success.svg)](tests/)
+[![MCP](https://img.shields.io/badge/MCP-12%20facades-purple.svg)](#slim-tool-surface-12-facades)
 
-⭐ If this upgrades your Antigravity agent workflow, a GitHub star helps a lot.
+```bash
+pip install godkiller-mcp
+```
 
+⭐ Star the repo if this upgrades your Antigravity workflow.  
 **Contact:** [Facebook — Pronphorm Pakdee](https://www.facebook.com/search/top?q=Pronphorm%20Pakdee) · [Instagram @Kayvin.th](https://www.instagram.com/Kayvin.th)
 
 ---
 
-## Why this exists (the real pitch)
+## Why this exists
 
-Google **Antigravity** is powerful — and often **refuses to split work into phases**. Typical failure modes:
+Google **Antigravity** often:
 
-- Jumps straight into code with no `/plan`
-- Edits many files in one rush
-- Says “fixed” without running tests on disk
-- Loses intent across long sessions
-- Skips web/search because local skills “already know enough”
+- skips `/plan` and jumps into code  
+- edits many files in one rush  
+- says “fixed” without pytest on disk  
+- loses intent across long sessions  
 
-**Almost nobody ships an MCP whose main product is fixing that.** GODKILLER was designed for that gap first. Code search, Semgrep, Playwright, and memory graph grew around the kernel — force multipliers, not the headline.
+Other MCPs help agents *read* or *browse*. GODKILLER’s product is **governance**: search → plan → phase gates → per-file think/plan/edit → verify → `claim_done`.
 
 ```text
-User goal
-  → /ask | /plan | /debug | /ultradeep | /verify
-  → open task + evidence store
-  → forced search / 9-step plan (when required)
-  → edit only when gates pass
-  → verify_bundle (pytest / commands) on disk
-  → request_claim_done  (blocked if evidence missing)
+goal → /ask|/plan|/debug|/ultradeep|/verify
+    → evidence + 9-step plan (when required)
+    → edit only if gates pass
+    → verify_bundle on disk
+    → claim_done (blocked if proof missing)
 ```
 
 ---
 
-## Lab results (our arena)
+## Lab results — Antigravity bare vs + GODKILLER
 
-### Method (keep it simple — this is the whole design)
+### Method
 
 | Control | Value |
 | --- | --- |
-| **Model** | **Gemini 3.6 Flash (HIGH)** only — same model both arms |
-| **Arm A** | Antigravity **without** MCP → `3_WITHOUT_MCP` |
-| **Arm B** | Antigravity **with** GODKILLER MCP → `2_WITH_MCP` |
-| **Oracle** | Sealed pytest under `hidden_oracle/` (agent cannot see tests while coding) |
+| **Model** | **Gemini 3.6 Flash (HIGH)** — one model, both arms |
+| **🥊 Bare** | Antigravity **without** MCP → `3_WITHOUT_MCP` |
+| **👑 + GODKILLER** | Antigravity **with** MCP → `2_WITH_MCP` |
+| **Oracle** | Sealed pytest in `hidden_oracle/` (blind while coding) |
 
-No model swap between arms. The **only** intentional difference is MCP on vs off.
+**Only variable:** MCP on vs off. No model swap.
 
-Evidence in-repo (2 files):
+Evidence: [`11_dimension_scorecard.md`](benchmarks/arena_logs/11_dimension_scorecard.md) · [`5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)
 
-- [`benchmarks/arena_logs/11_dimension_scorecard.md`](benchmarks/arena_logs/11_dimension_scorecard.md)  
-- [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)  
+### Hard gates (arena gauntlet)
 
-### Hard gates the arena put agents through
-
-| Gate | What it is |
+| Gate | What agents faced |
 | --- | --- |
-| Tier 1 Easy (50) | Classic foot-guns: div-by-zero, None, bounds, float edge cases |
-| Tier 2 Medium (150) | State / race / rollback / schema-ish bugs |
-| Tier 3 Hard (300) | Concurrency, graph-ish, cache invalidation, AST-level nasties |
-| Nightmare enterprise | Ledger / inventory deadlock-style stress |
-| Anthropic TAU-style SOTA | State-drift / rate-limit / lock scenarios |
-| Blind oracle pytest | Must pass sealed assertions on disk — text “done” does not count |
-| Process gates (WITH arm) | Evidence, anti-fake-claim, full-read / rules / durable memory |
+| Tier 1 Easy ×50 | div-by-zero, None, bounds, float edges |
+| Tier 2 Medium ×150 | state / race / rollback / schema drift |
+| Tier 3 Hard ×300 | concurrency, graph, cache, AST-level bugs |
+| Nightmare enterprise | ledger / inventory deadlock stress |
+| Anthropic TAU-style SOTA | state-drift / rate-limit / lock scenarios |
+| Blind oracle pytest | green on disk — text “done” does not count |
 
-Sealed suite rollup in the scorecard: **516 / 516** pytest assertions for both arms (pass-rate tie). GODKILLER’s win is process quality; Bare is cheaper on tokens.
+### Full 11-dimension scorecard
 
-### 11-dimension scorecard (summary)
+| # | Dimension | 🥊 Bare Antigravity | 👑 Antigravity + GODKILLER | Winner |
+| ---: | --- | --- | --- | --- |
+| 1 | Pass rate (sealed pytest) | 516 / 516 (100%) | 516 / 516 (100%) | Tie |
+| 2 | Execution speed | 0.36–0.37s | **0.31–0.32s** (~16.2% faster) | GODKILLER |
+| 3 | Token usage | **~35k–46k** (cheaper) | ~50k–60k (pay for certainty) | Bare |
+| 4 | Code upgrade lines | +59 −52 (minimal patch) | **+73 −54** (defensive guards) | GODKILLER |
+| 5 | AST density | 2,840 nodes | **3,120 nodes** (~+9.8%) | GODKILLER |
+| 6 | Anti-hallucination | Can summarize “pass” while bugs remain | **Forces live pytest until green** | GODKILLER |
+| 7 | Exhaustive read | Skims suspected spots | **Full-scope read gate** | GODKILLER |
+| 8 | Council debate | One-shot | **Coder / Hacker / Optimizer** | GODKILLER |
+| 9 | Engineering rules | No control rules | **AGENTS.md + phase protocol** | GODKILLER |
+| 10 | Defensive design | Local patch (regression risk) | **Guard clauses + type boundaries** | GODKILLER |
+| 11 | Durable memory | Short `.txt` notes | **Marathon state + memory graph** | GODKILLER |
 
-| Dimension | Bare (`3_WITHOUT_MCP`) | + GODKILLER (`2_WITH_MCP`) | Winner |
-| --- | --- | --- | --- |
-| Pass rate (sealed pytest) | 516 / 516 | 516 / 516 | Tie |
-| Execution speed | ~0.36–0.37s | ~0.31–0.32s | GODKILLER |
-| Token usage | ~35k–46k | ~50k–60k | Bare (cheaper) |
-| Code quality / AST density | thinner patch | denser + defensive | GODKILLER |
-| Anti-hallucination / claim | can fake “done” | pytest + evidence gates | GODKILLER |
-| Exhaustive read / council / rules | weak / none | forced | GODKILLER |
-| Defensive design / durable memory | local patch / `.txt` | guards + marathon graph | GODKILLER |
-
-### Package unit tests
+**Verdict:** pass-rate **tie** on the sealed suite. GODKILLER wins **how** the work is done (no fake done, denser/safer code, durable process). Tradeoff = **more tokens**.
 
 ```bash
-pytest -q
+pytest -q   # package unit tests
 ```
 
 ---
@@ -96,56 +94,42 @@ pytest -q
 | Layer | What it enforces |
 | --- | --- |
 | **Phase machine** | `assert_phase` / `claim_done` — illegal skips blocked |
-| **Plan OS** | 9-step blueprint validate before fix-phase edits |
-| **Edit safety** | blast radius + `check_edit_safe` before mutation |
-| **/ultradeep** | One plan phase per turn (marathon) **and** think → plan → edit **one file at a time** |
-| **Verify** | Live commands on disk — text-only “done” is not enough |
-| **Memory graph** | Task → phase → evidence → lesson |
-| **Extras** | `gk_code` / `gk_scan` / `gk_browser` when you need depth |
+| **Plan OS** | 9-step blueprint before fix-phase edits |
+| **Edit safety** | blast radius + `check_edit_safe` |
+| **/ultradeep` | one plan phase per turn **+** think → plan → edit **one file** |
+| **Verify** | commands on disk — text-only “done” fails |
+| **Memory graph** | task → phase → evidence → lesson |
+| **Extras** | `gk_code` / `gk_scan` / `gk_browser` |
 
-### `/ultradeep` per-file loop (additive)
+### `/ultradeep` per-file loop
 
-1. Queue files → `ultradeep_queue`  
-2. Deep think (≥3 hypotheses) → `ultradeep_think`  
-3. Per-file plan → `ultradeep_plan`  
-4. `check_edit_safe` with **one path** → edit → verify  
-5. `ultradeep_advance` → next file  
+1. `ultradeep_queue` → 2. `ultradeep_think` (≥3 hypotheses) → 3. `ultradeep_plan`  
+4. `check_edit_safe` **one path** → edit → verify → 5. `ultradeep_advance`  
 
-Opt out: `per_file_gate=false` on activate.
+Opt out: `per_file_gate=false`.
 
 ---
 
-## Install
+## Install & MCP config
 
 ```bash
 pip install godkiller-mcp
-# optional:
-#   pip install 'godkiller-mcp[browser]' && playwright install chromium
-#   pip install 'godkiller-mcp[scrape]'
+# optional: pip install 'godkiller-mcp[browser]' && playwright install chromium
+# optional: pip install 'godkiller-mcp[scrape]'
 ```
-
-```bash
-git clone https://github.com/taurus42119-stack/godkiller-mcp.git
-cd godkiller-mcp
-pip install -e ".[all]"
-pytest -q
-```
-
-### MCP config (Antigravity / Cursor / Claude Desktop)
 
 ```json
 {
   "mcpServers": {
-    "godkiller": {
-      "command": "godkiller-mcp"
-    }
+    "godkiller": { "command": "godkiller-mcp" }
   }
 }
 ```
 
-Or: `"command": "python", "args": ["-m", "godkiller_mcp.server"]`
+Or: `"command": "python", "args": ["-m", "godkiller_mcp.server"]`  
+Optional: `GODKILLER_TOOLS_DIR` for `rg` / `semgrep` / etc.
 
-Optional: `GODKILLER_TOOLS_DIR` for `rg` / `semgrep` / etc. not on `PATH`.
+From source: `git clone` → `pip install -e ".[all]"` → `pytest -q`
 
 ---
 
@@ -153,18 +137,18 @@ Optional: `GODKILLER_TOOLS_DIR` for `rg` / `semgrep` / etc. not on `PATH`.
 
 | Tool | Role |
 | --- | --- |
-| `gk_route` | Classify intent → `/ask` `/plan` `/debug` `/ultradeep` `/verify` |
-| `gk_mode` | Activate protocols, skills catalog, ultradeep file gate |
-| `gk_task` | open, hypothesize, blast_radius, edit_safe, failing_slice |
+| `gk_route` | Intent → `/ask` `/plan` `/debug` `/ultradeep` `/verify` |
+| `gk_mode` | Protocols, skills, ultradeep file gate |
+| `gk_task` | open, hypothesize, blast_radius, edit_safe |
 | `gk_phase` | assert, claim_done, rubric |
 | `gk_evidence` | submit, capture_shot, visual_critic, journeys |
-| `gk_verify` | bundle (pytest), soak, loop_*, competitor, ladder |
+| `gk_verify` | pytest bundle, soak, loop_*, competitor, ladder |
 | `gk_memory` | lessons, marathon, query_graph, what_blocked |
 | `gk_code` | map, search, read_full, ast_grep, council, … |
-| `gk_scan` | AST/CWE heuristics + optional Semgrep |
-| `gk_browser` | Playwright navigate / snapshot / screenshot / click / fill |
-| `gk_handoff` | write_spec / write_feedback gates |
-| `gk_meta` | plan_template / plan_validate (9-step) |
+| `gk_scan` | AST/CWE + optional Semgrep |
+| `gk_browser` | Playwright navigate / snapshot / click / fill |
+| `gk_handoff` | write_spec / write_feedback |
+| `gk_meta` | plan_template / plan_validate |
 
 ---
 
@@ -172,24 +156,23 @@ Optional: `GODKILLER_TOOLS_DIR` for `rg` / `semgrep` / etc. not on `PATH`.
 
 | Mode | Job |
 | --- | --- |
-| `/ask` | Explore — no application code edits |
-| `/plan` | Spec + research — 9-step plan before build |
-| `/debug` | Reproduce + hypothesize before fix |
-| `/ultradeep` | Marathon + max tool swarm + per-file gate |
-| `/verify` | Empirical proof, then claim_done |
-
-Protocols load from `.agents/workflows/` when present; package ships a bundled `/ultradeep` fallback.
+| `/ask` | Explore — no app code edits |
+| `/plan` | 9-step spec before build |
+| `/debug` | Repro + hypothesis before fix |
+| `/ultradeep` | Marathon + max tools + per-file gate |
+| `/verify` | Proof, then claim_done |
 
 ---
 
 ## Security (short)
 
-- Secrets via scope-safe loader — key names only over MCP, values stay local  
-- Verify/soak prefer safer process exec (`shell=False` where possible)  
-- Optional scrape/browser are explicit tools, not silent phone-home  
+- Scope-safe secrets — MCP lists **key names only**, values stay local  
+- Prefer `shell=False` for verify/soak  
+- Scrape/browser are explicit tools, not silent phone-home  
+- No machine-local paths committed to the public repo  
 
 ---
 
 ## License
 
-MIT © 2026 GODKILLER Team — see [LICENSE](LICENSE)
+MIT © 2026 GODKILLER Team — [LICENSE](LICENSE)
