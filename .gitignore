@@ -1,0 +1,14 @@
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local databases & history
+*.db
+lessons.db
+
+# Build artifacts
+build/
+*.egg-info/
