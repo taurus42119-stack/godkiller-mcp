@@ -41,28 +41,31 @@ User goal
 
 ## Lab results (our arena)
 
-Same isolated sandbox: **Bare AI** vs **AI + GODKILLER**, scored on *our* governance rubric (phases / evidence / verify / taste gates) — not “this MCP invents perfect code for every problem on Earth.”
+Head-to-head in the isolated sandbox — **same arms you ran**:
 
-Evidence (2 files only):
+| Arm | Path |
+| --- | --- |
+| **WITH MCP** | `GODKILLER_ISOLATED_ARENA/2_WITH_MCP` |
+| **WITHOUT MCP (Bare)** | `GODKILLER_ISOLATED_ARENA/3_WITHOUT_MCP` |
 
-- [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)
-- [`benchmarks/arena_logs/real_200_benchmark_report.md`](benchmarks/arena_logs/real_200_benchmark_report.md)
+Evidence in-repo (2 files):
 
-### Snapshot — 5 dimensions (arena arms)
+- [`benchmarks/arena_logs/11_dimension_scorecard.md`](benchmarks/arena_logs/11_dimension_scorecard.md) — main scorecard  
+- [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json) — gate snapshot JSON  
 
-| Dimension | Bare AI | + GODKILLER |
-| --- | ---: | ---: |
-| Code correctness (arena pytest) | 0 | **100** |
-| Reconnaissance / full-read gate | 20 | **100** |
-| Security & hardening gate | 100 | **100** |
-| Anti-hallucination / evidence gate | 0 | **100** |
-| UI taste gate | 50 | **100** |
-| **Rubric overall** | **34** | **100** |
-| Pytest on disk | fail | **pass** |
+### 11-dimension scorecard (summary)
 
-`100` here means **the arm cleared that gate in this arena**, not a universal IQ score. Bare AI often fails gates that GODKILLER forces (evidence, verify, claim).
+| Dimension | Bare (`3_WITHOUT_MCP`) | + GODKILLER (`2_WITH_MCP`) | Winner |
+| --- | --- | --- | --- |
+| Pass rate (sealed pytest) | 516 / 516 | 516 / 516 | Tie |
+| Execution speed | ~0.36–0.37s | ~0.31–0.32s | GODKILLER |
+| Token usage | ~35k–46k | ~50k–60k | Bare (cheaper) |
+| Code quality / AST density | thinner patch | denser + defensive | GODKILLER |
+| Anti-hallucination / claim | can fake “done” | pytest + evidence gates | GODKILLER |
+| Exhaustive read / council / rules | weak / none | forced | GODKILLER |
+| Defensive design / durable memory | local patch / `.txt` | guards + marathon graph | GODKILLER |
 
-Broader sealed-task rollup (same thesis, more rows): see the report file linked above — same caveat applies.
+**Honest takeaway:** both arms can pass the sealed suite; GODKILLER wins on **how** the work is done (no fake done, deeper process). Tradeoff = **more tokens**.
 
 ### Package unit tests
 
