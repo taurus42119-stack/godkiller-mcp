@@ -41,17 +41,35 @@ User goal
 
 ## Lab results (our arena)
 
-Head-to-head in the isolated sandbox — **same arms you ran**:
+### Method (keep it simple — this is the whole design)
 
-| Arm | Path |
+| Control | Value |
 | --- | --- |
-| **WITH MCP** | `GODKILLER_ISOLATED_ARENA/2_WITH_MCP` |
-| **WITHOUT MCP (Bare)** | `GODKILLER_ISOLATED_ARENA/3_WITHOUT_MCP` |
+| **Model** | **Gemini 3.6 Flash (HIGH)** only — same model both arms |
+| **Arm A** | Antigravity **without** MCP → `3_WITHOUT_MCP` |
+| **Arm B** | Antigravity **with** GODKILLER MCP → `2_WITH_MCP` |
+| **Oracle** | Sealed pytest under `hidden_oracle/` (agent cannot see tests while coding) |
+
+No model swap between arms. The **only** intentional difference is MCP on vs off.
 
 Evidence in-repo (2 files):
 
-- [`benchmarks/arena_logs/11_dimension_scorecard.md`](benchmarks/arena_logs/11_dimension_scorecard.md) — main scorecard  
-- [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json) — gate snapshot JSON  
+- [`benchmarks/arena_logs/11_dimension_scorecard.md`](benchmarks/arena_logs/11_dimension_scorecard.md)  
+- [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)  
+
+### Hard gates the arena put agents through
+
+| Gate | What it is |
+| --- | --- |
+| Tier 1 Easy (50) | Classic foot-guns: div-by-zero, None, bounds, float edge cases |
+| Tier 2 Medium (150) | State / race / rollback / schema-ish bugs |
+| Tier 3 Hard (300) | Concurrency, graph-ish, cache invalidation, AST-level nasties |
+| Nightmare enterprise | Ledger / inventory deadlock-style stress |
+| Anthropic TAU-style SOTA | State-drift / rate-limit / lock scenarios |
+| Blind oracle pytest | Must pass sealed assertions on disk — text “done” does not count |
+| Process gates (WITH arm) | Evidence, anti-fake-claim, full-read / rules / durable memory |
+
+Sealed suite rollup in the scorecard: **516 / 516** pytest assertions for both arms (pass-rate tie). GODKILLER’s win is process quality; Bare is cheaper on tokens.
 
 ### 11-dimension scorecard (summary)
 
@@ -64,8 +82,6 @@ Evidence in-repo (2 files):
 | Anti-hallucination / claim | can fake “done” | pytest + evidence gates | GODKILLER |
 | Exhaustive read / council / rules | weak / none | forced | GODKILLER |
 | Defensive design / durable memory | local patch / `.txt` | guards + marathon graph | GODKILLER |
-
-**Honest takeaway:** both arms can pass the sealed suite; GODKILLER wins on **how** the work is done (no fake done, deeper process). Tradeoff = **more tokens**.
 
 ### Package unit tests
 
