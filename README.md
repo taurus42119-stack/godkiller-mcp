@@ -39,13 +39,14 @@ User goal
 
 ---
 
-## Lab results (our arena — not a peer roast)
+## Lab results (our arena)
 
-Controlled comparison: **same isolated arena**, arms `WITH_MCP` vs `WITHOUT_MCP` (bare agent). Raw artifacts are in [`benchmarks/arena_logs/`](benchmarks/arena_logs/).
+Same isolated arena: **Bare AI** vs **AI + GODKILLER**. Only two evidence files (no clutter):
 
-### 5-dimension audit (live arena snapshot)
+- [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)
+- [`benchmarks/arena_logs/real_200_benchmark_report.md`](benchmarks/arena_logs/real_200_benchmark_report.md)
 
-Source: [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)
+### 5-dimension audit
 
 | Dimension | Bare AI (no MCP) | AI + GODKILLER MCP |
 | --- | ---: | ---: |
@@ -57,9 +58,7 @@ Source: [`benchmarks/arena_logs/5_dimension_audit_log.json`](benchmarks/arena_lo
 | **Overall** | **34.0** | **100.0** |
 | Pytest on disk | fail | **pass** |
 
-### Broader sealed-task report
-
-Source: [`benchmarks/arena_logs/real_200_benchmark_report.md`](benchmarks/arena_logs/real_200_benchmark_report.md)
+### Sealed-task summary
 
 | Metric | Bare AI | + GODKILLER |
 | --- | ---: | ---: |
@@ -70,17 +69,13 @@ Source: [`benchmarks/arena_logs/real_200_benchmark_report.md`](benchmarks/arena_
 | Visual UI taste | 50.0% | **100.0%** |
 | **Overall score** | **23.4 / 100** | **100.0 / 100** |
 
-Also in-repo: [`attempts_log.json`](benchmarks/arena_logs/attempts_log.json), [`bare_ai_summary.txt`](benchmarks/arena_logs/bare_ai_summary.txt).
-
-These numbers argue for the **governance thesis** (phases + evidence + verify). They are lab evidence from our arena — not a claim that every public repo on Earth is solved, and **not** a head-to-head roast of other MCP brands.
+Lab evidence for the governance thesis — not a claim every public repo is solved.
 
 ### Package unit tests
 
 ```bash
 pytest -q
 ```
-
-Covers facades, 9-step plan OS, ultradeep per-file gate, secrets isolation, path hygiene, vision blank rejection.
 
 ---
 
