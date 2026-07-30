@@ -19,10 +19,57 @@
 
 We've all been there. You ask your AI coding assistant to fix a bug or build a feature, and it does this:
 
-- ❌ **Refuses to Search the Web:** Uses outdated memory and deprecated API methods without checking official docs.
+- ❌ **Refuses to Search the Web:** Uses 2-year-old outdated memory and deprecated API signatures without checking official docs.
 - ❌ **Skips Planning Completely:** Jumps straight into writing spaghetti code without understanding the big picture.
-- ❌ **Skims 10 Lines of Code:** Reads a small snippet, assumes how your entire framework works, and breaks other files.
+- ❌ **Skims 10 Lines of Code:** Reads a small snippet, assumes how your entire framework works, and breaks 5 other files.
 - ❌ **Claims "I Fixed It!" (While Code is Broken):** Confidently prints *"Done! I solved the bug!"* without ever running unit tests.
+- ❌ **Leaves TODO & Placeholder Stubs:** Writes `# TODO: implement logic here` or dummy fallbacks and pretends the task is finished.
+- ❌ **Gets Stuck in Endless Retry Loops:** Repeats the exact same broken shell command 10 times in a row expecting a different result.
+- ❌ **Applies Superficial Symptom Patches:** Swallows exceptions inside silent `try/except: pass` blocks instead of fixing the root cause.
+- ❌ **Sufers Amnesia Across Sessions:** Forgets architectural decisions made 10 minutes ago, forcing you to re-explain everything.
+
+---
+
+## ⚔️ How GODKILLER MCP Governs Agent Behavior
+
+**GODKILLER MCP** acts as a hard engineering kernel that enforces strict quality gates on AI coding agents:
+
+```mermaid
+graph TD
+    A["User Request"] --> B["👑 GODKILLER MCP Hard Policy Gates"]
+    B --> C["1. FORCED Web Search Gate (5-10 Queries Mandatory)"]
+    B --> D["2. FORCED /plan Protocol (9-Step Spec Blueprint Required)"]
+    B --> E["3. FORCED Full-Scope File Read (No Skimming Allowed)"]
+    B --> F["4. FORCED Multi-Persona Adversarial Committee (Coder, Hacker, Optimizer)"]
+    B --> G["5. FORCED Empirical Pytest Execution (No Fake Completion Summaries)"]
+    B --> H["6. FORCED Anti-Placeholder Gate (Zero TODO Stubs Allowed)"]
+    B --> I["7. FORCED Loop Guard Circuit Breaker (Stops Retries)"]
+    G --> J["⚡ Verified Production-Grade Code"]
+```
+
+### 🎯 1. Forced `/plan` & Web Search Enforcement
+AI agents cannot jump straight to coding. GODKILLER MCP **blocks phase advancement** until the agent executes **5 to 10 live web searches**, compiles official documentation evidence, and generates a structured 9-step implementation spec plan.
+
+### 🎯 2. Full-Scope File Read Mandate (`godkiller_read`)
+Skimming code snippets is restricted. The policy kernel requires comprehensive inspection of target files and AST dependency trees before edits are unlocked.
+
+### 🎯 3. Multi-Persona Adversarial Committee Protocol
+Before mutating production code, GODKILLER MCP activates an adversarial review committee:
+- **The Coder Persona:** Drafts modern, clean implementation slices.
+- **The Hacker Persona:** Attacks code for edge cases, null pointers, and vulnerabilities.
+- **The Optimizer Persona:** Refactors logic for execution speed and AST structural elegance.
+
+### 🎯 4. Empirical Pytest Quality Control
+Claiming completion via text summary is disabled. The agent MUST execute dynamic `pytest` suites on disk until green pass status is verified empirically.
+
+### 🎯 5. Anti-Placeholder & Stub Protection Gate
+GODKILLER MCP intercepts file edits and rejects temporary `# TODO` comments, dummy return values, or programmer-art stubs before code can be committed as "done".
+
+### 🎯 6. Loop Guard Circuit Breaker
+Detects when an AI agent gets stuck repeating failed commands or looping edits, forcing an immediate halt, root-cause traceback analysis, and architectural replanning.
+
+### 🎯 7. Durable Crucible Memory Graph (`marathon_state.json`)
+Long-horizon multi-phase tasks preserve context across sessions using structured durable state graphs, ensuring zero context amnesia during complex engineering runs.
 
 ---
 
@@ -69,38 +116,6 @@ graph TD
 | 9. **Engineering Rules** | ❌ Ungoverned Execution | **✅ Strict AGENTS.md Protocol** | 👑 **GODKILLER MCP** |
 | 10. **Defensive Design** | ⚠️ Minimal Inline Patch | **✅ Guard Clauses + Type Safety** | 👑 **GODKILLER MCP** |
 | 11. **Durable Memory** | 📄 Short `.txt` Logs | **🧬 Marathon Graph State** | 👑 **GODKILLER MCP** |
-
----
-
-## ⚔️ How GODKILLER MCP Governs Agent Behavior
-
-**GODKILLER MCP** acts as a hard engineering kernel that enforces strict quality gates on AI coding agents:
-
-```mermaid
-graph TD
-    A["User Request"] --> B["👑 GODKILLER MCP Hard Policy Gates"]
-    B --> C["1. FORCED Web Search Gate (5-10 Queries Mandatory)"]
-    B --> D["2. FORCED /plan Protocol (9-Step Spec Blueprint Required)"]
-    B --> E["3. FORCED Full-Scope File Read (No Skimming Allowed)"]
-    B --> F["4. FORCED Multi-Persona Adversarial Committee (Coder, Hacker, Optimizer)"]
-    B --> G["5. FORCED Empirical Pytest Execution (No Fake Completion Summaries)"]
-    G --> H["⚡ Verified Production-Grade Code"]
-```
-
-### 🎯 1. Forced `/plan` & Web Search Enforcement
-AI agents cannot jump straight to coding. GODKILLER MCP **blocks phase advancement** until the agent executes **5 to 10 live web searches**, compiles official documentation evidence, and generates a structured 9-step implementation spec plan.
-
-### 🎯 2. Full-Scope File Read Mandate (`godkiller_read`)
-Skimming code snippets is restricted. The policy kernel requires comprehensive inspection of target files and AST dependency trees before edits are unlocked.
-
-### 🎯 3. Multi-Persona Adversarial Committee Protocol
-Before mutating production code, GODKILLER MCP activates an adversarial review committee:
-- **The Coder Persona:** Drafts modern, clean implementation slices.
-- **The Hacker Persona:** Attacks code for edge cases, null pointers, and vulnerabilities.
-- **The Optimizer Persona:** Refactors logic for execution speed and AST structural elegance.
-
-### 🎯 4. Empirical Pytest Quality Control
-Claiming completion via text summary is disabled. The agent MUST execute dynamic `pytest` suites on disk until green pass status is verified empirically.
 
 ---
 
