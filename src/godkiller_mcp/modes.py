@@ -95,13 +95,16 @@ class ModeProtocolStore:
 
     def list_modes(self) -> List[Dict[str, str]]:
         out = []
+        bundled_dir = Path(__file__).resolve().parent / "protocols"
         for mode in MODES:
             path = self.workflows_dir / MODE_TO_FILE[mode]
+            bundled = bundled_dir / MODE_TO_FILE[mode]
+            available = path.exists() or bundled.exists()
             out.append(
                 {
                     "mode": mode,
-                    "available": path.exists(),
-                    "path": str(path),
+                    "available": available,
+                    "path": str(path if path.exists() else bundled),
                     "default_kind": MODE_DEFAULT_KIND[mode],
                 }
             )
@@ -112,9 +115,13 @@ class ModeProtocolStore:
         if mode not in MODE_TO_FILE:
             raise ValueError(f"Unknown mode '{mode}'. Use one of: {', '.join(MODES)}")
         path = self.workflows_dir / MODE_TO_FILE[mode]
-        if not path.exists():
-            raise FileNotFoundError(f"Protocol file missing: {path}")
-        return path.read_text(encoding="utf-8")
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+        # Bundled fallback (package ships protocols/ so MCP works without copying .agents)
+        bundled = Path(__file__).resolve().parent / "protocols" / MODE_TO_FILE[mode]
+        if bundled.exists():
+            return bundled.read_text(encoding="utf-8")
+        raise FileNotFoundError(f"Protocol file missing: {path} (and no bundled {bundled.name})")
 
     def get_constitution(self) -> str:
         if not self.agents_md.exists():
@@ -191,6 +198,20 @@ class ModeProtocolStore:
         if mode == "ultradeep":
             mandatory.append("Execute exactly ONE plan Phase this turn, then marathon_save_progress.")
             mandatory.append("Call marathon_search_gate before leaving research / before first code write.")
+            # Additive 200% power — does NOT replace one-phase pacing
+            mandatory.extend(
+                [
+                    "PER-FILE LOOP (HARD): For EVERY file you will change: ultradeep_think_file "
+                    "(≥3 hypotheses + deep notes) → ultradeep_plan_file → check_edit_safe(THAT file only) "
+                    "→ edit → verify → ultradeep_advance_file. FORBIDDEN: batch-edit many files in one rush.",
+                    "MAX THINK: Burn tokens inside <think>. Simulate ≥3 architectures + pre-mortem "
+                    "before writing ANY file. Never skip think because 'obvious'.",
+                    "CURSOR AGENT 200%: Use maximal tool swarm every turn — GODKILLER gk_code/gk_scan/"
+                    "gk_browser/gk_evidence/gk_verify + peer MCP jcodemunch + codebase-memory + "
+                    "chrome-devtools when available. Parallel reconnaissance BEFORE writes.",
+                    "Queue targets first: ultradeep_queue_files(paths=[...]) then process current only.",
+                ]
+            )
         if mode == "ask":
             mandatory.append("No application code edits.")
         if mode == "debug":
@@ -208,10 +229,23 @@ class ModeProtocolStore:
                     "marathon_load_progress or marathon_init",
                     "marathon_search_gate",
                     "marathon_save_progress",
+                    "ultradeep_queue_files",
+                    "ultradeep_think_file",
+                    "ultradeep_plan_file",
+                    "ultradeep_file_status",
+                    "ultradeep_advance_file",
+                    "gk_code.map / search / read_full / council",
+                    "gk_scan.security / semgrep",
+                    "gk_browser.navigate / snapshot / screenshot",
+                    "blast_radius",
+                    "check_edit_safe (ONE file)",
                     "capture_shot",
                     "visual_critic",
                     "soak_run",
                     "set_ambition_ladder",
+                    "competitor_scan",
+                    "compare_delta",
+                    "peer: jcodemunch + codebase-memory + chrome-devtools",
                 ]
             )
         if mode == "verify":

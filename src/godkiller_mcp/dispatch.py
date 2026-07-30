@@ -58,6 +58,7 @@ from godkiller_mcp.plan_os import PlanOS
 from godkiller_mcp.workflow_graph import WorkflowGraph
 from godkiller_mcp.browser_runtime import PlaywrightBrowser
 from godkiller_mcp.scan_runtime import run_semgrep
+from godkiller_mcp import ultradeep_engine as ude
 
 ROOT = Path(__file__).resolve().parents[2]
 STORE_DIR = ROOT / "arena" / "results" / "tasks"
@@ -465,6 +466,24 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         report = check_edit_safe(arguments["paths"], arguments["workspace"])
         out = report.to_evidence_payload()
         out["allowed"] = True
+        # Additive /ultradeep per-file gate (opt-out: require_per_file_gate=false)
+        if task_id and arguments.get("require_per_file_gate", True):
+            state = store.get(task_id)
+            gate = ude.get_gate(state.handle.metadata)
+            if gate.get("enabled"):
+                ok_f, reason_f = ude.check_edit_paths(gate, arguments["paths"])
+                if not ok_f:
+                    loops.record(task_id, "check_edit_safe", signature="edit_blocked_per_file", phase=state.handle.phase)
+                    return _json(
+                        {
+                            "allowed": False,
+                            "safe": False,
+                            "reason": reason_f,
+                            "action": PolicyAction.BLOCK.value,
+                            "file_gate": ude.status_payload(gate),
+                        }
+                    )
+                out["file_gate"] = reason_f
         if arguments.get("attach", True) and task_id:
             ev = store.submit_evidence(
                 task_id=task_id,
@@ -1028,9 +1047,43 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                         plan_path=arguments.get("plan_path"),
                         task_id=opened_state.handle.task_id,
                     )
+                # Enable per-file think→plan→edit gate (additive; opt-out per_file_gate=false)
+                enable_pf = arguments.get("per_file_gate", True)
+                existing = (mstate.metadata or {}).get("ultradeep_file_gate")
+                if isinstance(existing, dict) and existing.get("queue"):
+                    gate = ude.get_gate({"ultradeep_file_gate": existing})
+                    gate["enabled"] = bool(enable_pf)
+                else:
+                    gate = ude.empty_file_gate(enabled=bool(enable_pf))
+                # Persist on task + marathon metadata
+                store.update_metadata(
+                    opened_state.handle.task_id,
+                    {
+                        "ultradeep_file_gate": gate,
+                        "mode": "ultradeep",
+                        "marathon_slug": slug,
+                    },
+                )
+                mstate = marathon.save(
+                    slug,
+                    task_id=opened_state.handle.task_id,
+                    metadata={"ultradeep_file_gate": gate},
+                    last_handoff=(
+                        mstate.last_handoff
+                        or (
+                            "ultradeep armed: ONE phase this turn + per-file think→plan→edit. "
+                            "Next: ultradeep_queue_files then ultradeep_think_file."
+                        )
+                    ),
+                    bump_session=False,
+                )
                 marathon_state = json.loads(mstate.model_dump_json())
                 payload["slug"] = slug
                 payload["next_wake"] = marathon.next_wake_prompt(slug)
+                payload["per_file_gate"] = ude.status_payload(gate)
+                payload["power_mode"] = (
+                    "200% Cursor-agent tool swarm + legacy ultradeep crucible + marathon pacing"
+                )
         return _json(
             {
                 **payload,
@@ -1038,6 +1091,95 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 "marathon": marathon_state,
             }
         )
+
+    if name == "ultradeep_queue_files":
+        task_id = arguments["task_id"]
+        state = store.get(task_id)
+        gate = ude.get_gate(state.handle.metadata)
+        if not gate.get("enabled") and arguments.get("force_enable", True):
+            gate["enabled"] = True
+        gate = ude.queue_files(
+            gate,
+            arguments.get("paths") or [],
+            replace=bool(arguments.get("replace", False)),
+        )
+        store.update_metadata(task_id, {"ultradeep_file_gate": gate})
+        slug = arguments.get("slug") or (state.handle.metadata or {}).get("marathon_slug")
+        if slug:
+            try:
+                marathon.save(
+                    slug,
+                    metadata={"ultradeep_file_gate": gate},
+                    last_handoff=f"Queued {len(gate.get('queue') or [])} files; current={gate.get('current')}",
+                    bump_session=False,
+                )
+            except FileNotFoundError:
+                pass
+        return _json({"ok": True, **ude.status_payload(gate)})
+
+    if name == "ultradeep_think_file":
+        task_id = arguments["task_id"]
+        state = store.get(task_id)
+        gate = ude.get_gate(state.handle.metadata)
+        if not gate.get("enabled"):
+            gate["enabled"] = True
+        result = ude.record_think(
+            gate,
+            arguments["path"],
+            arguments.get("think") or "",
+            hypotheses=arguments.get("hypotheses"),
+            tools_used=arguments.get("tools_used"),
+        )
+        store.update_metadata(task_id, {"ultradeep_file_gate": result["gate"]})
+        if result["ok"]:
+            store.submit_evidence(
+                task_id=task_id,
+                evidence_type=EvidenceType.OTHER,
+                summary=f"ultradeep_think:{arguments['path']}",
+                payload={
+                    "path": arguments["path"],
+                    "hypotheses": arguments.get("hypotheses") or [],
+                    "tools_used": arguments.get("tools_used") or [],
+                    "think_len": len(arguments.get("think") or ""),
+                },
+            )
+        return _json({**result, "status": ude.status_payload(result["gate"])})
+
+    if name == "ultradeep_plan_file":
+        task_id = arguments["task_id"]
+        state = store.get(task_id)
+        gate = ude.get_gate(state.handle.metadata)
+        if not gate.get("enabled"):
+            gate["enabled"] = True
+        result = ude.record_plan(
+            gate,
+            arguments["path"],
+            arguments.get("plan") or "",
+            tools_used=arguments.get("tools_used"),
+        )
+        store.update_metadata(task_id, {"ultradeep_file_gate": result["gate"]})
+        if result["ok"]:
+            store.submit_evidence(
+                task_id=task_id,
+                evidence_type=EvidenceType.OTHER,
+                summary=f"ultradeep_plan:{arguments['path']}",
+                payload={"path": arguments["path"], "plan_len": len(arguments.get("plan") or "")},
+            )
+        return _json({**result, "status": ude.status_payload(result["gate"])})
+
+    if name == "ultradeep_advance_file":
+        task_id = arguments["task_id"]
+        state = store.get(task_id)
+        gate = ude.get_gate(state.handle.metadata)
+        result = ude.advance_file(gate, arguments.get("path"))
+        store.update_metadata(task_id, {"ultradeep_file_gate": result["gate"]})
+        return _json({**result, "status": ude.status_payload(result["gate"])})
+
+    if name == "ultradeep_file_status":
+        task_id = arguments["task_id"]
+        state = store.get(task_id)
+        gate = ude.get_gate(state.handle.metadata)
+        return _json(ude.status_payload(gate))
 
     if name == "gk_memory_query_graph":
         return _json(workflow.query_related(arguments["task_id"]))

@@ -157,6 +157,7 @@ class MarathonRelay:
         return (
             f"/ultradeep Phase {phase} continue task={slug}. "
             f"Load marathon_load_progress. Kernel phase={state.kernel_phase.value}. "
+            f"Per-file: ultradeep_file_status → think→plan→edit ONE file → advance. "
             f"Handoff: {state.last_handoff}"
         )
 

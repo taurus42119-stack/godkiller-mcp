@@ -6,16 +6,18 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
-from mcp.server.mcpserver import MCPServer
+try:
+    from mcp.server.fastmcp import FastMCP as _Server
+except ImportError:  # pragma: no cover
+    from mcp.server.mcpserver import MCPServer as _Server  # type: ignore
 
 from godkiller_mcp.dispatch import handle_tool, router
 
-app = MCPServer(
+app = _Server(
     name="GODKILLER",
-    version="1.3.0",
     instructions=(
         "Antigravity phase/evidence orchestrator. Prefer gk_phase + gk_meta.plan_validate "
-        "before edits; gk_verify.bundle before claim_done."
+        "before edits; ultradeep uses per-file think→plan→edit; gk_verify.bundle before claim_done."
     ),
 )
 
@@ -105,6 +107,11 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "skill_catalog": "skill_catalog",
         "skills_loaded": "record_skills_loaded",
         "route": "godkiller_route_intent",
+        "ultradeep_queue": "ultradeep_queue_files",
+        "ultradeep_think": "ultradeep_think_file",
+        "ultradeep_plan": "ultradeep_plan_file",
+        "ultradeep_advance": "ultradeep_advance_file",
+        "ultradeep_status": "ultradeep_file_status",
     },
     "gk_handoff": {
         "write_spec": "write_spec",
@@ -129,7 +136,7 @@ FACADE_DESC = {
     "gk_code": "Code intel: map, search, find, preview, read_full/read_all, ast_grep, auto_fix, council.",
     "gk_scan": "Security scan (AST/CWE heuristics) and optional semgrep CLI.",
     "gk_browser": "Browser automation (Playwright when installed): navigate, snapshot, screenshot, click, fill.",
-    "gk_mode": "Modes/protocols/skills/constitution for Antigravity.",
+    "gk_mode": "Modes/protocols/skills + ultradeep per-file think→plan→edit gate (200% tool swarm).",
     "gk_handoff": "Spec/feedback handoff gates.",
     "gk_meta": "Secrets key listing + 9-step plan template/validate.",
 }
