@@ -7,7 +7,48 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Verification](https://img.shields.io/badge/pytest-100%25%20passed-success.svg)](https://pytest.org)
 
-**GODKILLER MCP** is the ultimate Model Context Protocol (MCP) server engineered to eliminate AI code hallucinations, enforce 100% unvarnished code execution, and upgrade LLM coding agents into production-grade software engineers.
+⭐ **If this project upgrades your AI agent workflow, please drop a Star on GitHub to support ongoing development!**
+
+💬 **Contact for Custom AI Agent Elevation & Enterprise MCP Integration:**
+- 📘 **Facebook:** [Pronphorm Pakdee](https://www.facebook.com/search/top?q=Pronphorm%20Pakdee)
+- 📸 **Instagram:** [@Kayvin.th](https://www.instagram.com/Kayvin.th)
+
+---
+
+## 😤 Tired of Dumb AI Habits? (Why Standard AI Drives Devs Crazy 55555)
+
+We've all been there. You ask your AI coding assistant to fix a bug or build a feature, and it does this:
+
+- ❌ **Refuses to Search the Web:** Uses 2-year-old outdated memory and deprecated API methods without checking official docs.
+- ❌ **Skips Planning Completely:** Jumps straight into writing spaghetti code without understanding the big picture.
+- ❌ **Skims 10 Lines of Code:** Reads a small snippet, assumes how your entire framework works, and breaks 5 other files.
+- ❌ **Claims "I Fixed It!" (While Code is Broken):** Confidently prints *"Done! I solved the bug!"* without ever running unit tests.
+
+---
+
+## ⚔️ How GODKILLER MCP Forcibly Cures AI Hallucinations
+
+**GODKILLER MCP** acts as a hard engineering kernel that physically blocks AI agents from behaving lazily:
+
+```mermaid
+graph TD
+    A["User Request"] --> B["👑 GODKILLER MCP Hard Policy Gates"]
+    B --> C["1. FORCED Web Search Gate (5-10 Queries Mandatory)"]
+    B --> D["2. FORCED /plan Protocol (9-Step Spec Blueprint Required)"]
+    B --> E["3. FORCED 100% Exhaustive Read (No Skimming Allowed)"]
+    B --> F["4. FORCED Council 3-Party Debate (Coder, Hacker, Optimizer)"]
+    B --> G["5. FORCED Live Pytest Execution (No Fake Completion Summaries)"]
+    G --> H["⚡ 100% Verified Production Code"]
+```
+
+### 🎯 1. Forced `/plan` & Web Search Enforcement
+AI agents cannot jump straight to coding. GODKILLER MCP **blocks phase advancement** until the agent executes **5 to 10 live web searches**, compiles official documentation evidence, and generates a structured 9-step implementation spec plan.
+
+### 🎯 2. 100% Exhaustive Read Mandate (`godkiller_read`)
+Skimming code snippets is banned. The policy kernel requires 100% complete inspection of target files and AST dependency trees before edits are unlocked.
+
+### 🎯 3. Zero-Trust Empirical Pytest Proof
+Claiming completion via text summary is disabled. The agent MUST execute dynamic `pytest` suites on disk until 100% green pass status is verified empirically.
 
 ---
 
@@ -15,7 +56,7 @@
 
 > **Strict Head-to-Head Experimental Control:**
 > All benchmark evaluations were conducted using **a single identical LLM model: `Gemini 3.6 Flash (HIGH)`**.
-> The **ONLY variable** isolated between the two test arms was **`Bare AI (Without MCP)` vs `AI + GODKILLER MCP`** across **516 sealed benchmark test cases** (Tier 1 Easy 50, Tier 2 Medium 150, Tier 3 Hard 300, Nightmare Enterprise 10, Anthropic TAU-bench SOTA 3).
+> The **ONLY variable** isolated between the two test arms was **`Bare AI (Without MCP)` vs `AI + GODKILLER MCP`** across **516 sealed benchmark test cases**.
 
 ---
 
@@ -34,38 +75,6 @@
 | 9. **ระเบียบวิศวกรรม (.agents Rules)** | ❌ ไม่มีกฎควบคุม | **✅ ควบคุมด้วยกฎเหล็ก AGENTS.md** | 👑 **GODKILLER MCP** |
 | 10. **สถาปัตยกรรมป้องกันภัย (Defensive Design)**| ⚠️ โป๊ะเฉพาะจุด *(เสี่ยง Regression Bug)* | **✅ เติม Guard Clauses + Type Boundary** | 👑 **GODKILLER MCP** |
 | 11. **ระบบสืบทอดความจำ (Crucible DNA Log)** | 📄 บันทึกข้อความสั้นลง `.txt` | **🧬 บันทึก Marathon State + Memory Graph** | 👑 **GODKILLER MCP** |
-
----
-
-## 🔍 Deep-Dive Technical Analysis & Core Capabilities
-
-```mermaid
-graph TD
-    A["LLM Agent Request"] --> B["👑 GODKILLER MCP Core Engine"]
-    B --> C["1. Exhaustive 100% Code Read (godkiller_read)"]
-    B --> D["2. Council 3-Party Debate (Coder, Hacker, Optimizer)"]
-    B --> E["3. Dynamic Pytest Execution (Zero-Trust Gate)"]
-    B --> F["4. Defensive Guard Architecture (+Type Boundaries)"]
-    E --> G["⚡ 100% Verified Production Code"]
-```
-
-### 1. 🛡️ Anti-Hallucination Gate & Live Pytest Execution
-Without MCP, standard LLM agents generate code and claim completion in natural language summaries even when subtle runtime bugs remain. **GODKILLER MCP** intercepts the completion signal, forcing the agent to execute real `pytest` suites on disk until 100% pass status is verified empirically.
-
-### 2. 👁️ 100% Exhaustive Read Protocol (`godkiller_read`)
-Skimming code snippets leads to broken contracts and unexpected side effects. GODKILLER MCP forces 100% complete inspection of target files and context graphs before any architectural edit is permitted.
-
-### 3. 🏛️ The 3-Party Council Debate Protocol
-Before mutating production code, GODKILLER MCP activates a 3-agent adversarial review:
-- **The Coder:** Drafts modern, clean implementation slices.
-- **The Hacker:** Attacks code for edge cases, null pointers, and vulnerabilities.
-- **The Optimizer:** Refactors logic for execution speed and AST structural elegance.
-
-### 4. ⚡ Defensive Architecture & 16.2% Execution Speedup
-By enforcing strict Guard Clauses, Type Boundaries, and AST node optimization, code written under GODKILLER MCP governance executes **16.2% faster (0.31s vs 0.37s)** with **+9.8% richer AST structural density**.
-
-### 5. 🧬 Durable Crucible DNA Memory & Marathon State
-Long-horizon development tasks preserve context across sessions using structured durable state graphs (`marathon_state.json`), ensuring zero context degradation during multi-phase engineering tasks.
 
 ---
 
@@ -88,11 +97,11 @@ Add this block to your `mcp_config.json` in Antigravity IDE or Claude Desktop:
 
 ## 🎮 Supported Slash Commands
 
-- `/ask` — Product Manager & Interview protocol (Exploration & intent extraction mode)
-- `/plan` — Blueprint & Spec planning protocol (9-Step research and spec plan)
-- `/debug` — Systematic root-cause debugging protocol (Traceback & empirical proof)
-- `/ultradeep` — Supreme Orchestrator marathon relay protocol (Multi-phase executor)
-- `/verify` — Empirical proof quality gate protocol (Rubric & claim verification)
+- `/ask` — Product Manager & Interview protocol (Exploration mode)
+- `/plan` — Blueprint & Spec planning protocol (9-Step Research Plan)
+- `/debug` — Systematic root-cause debugging protocol
+- `/ultradeep` — Supreme Orchestrator marathon relay protocol
+- `/verify` — Empirical proof quality gate protocol
 
 ---
 
