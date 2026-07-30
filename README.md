@@ -15,18 +15,46 @@
 
 ---
 
-## 😤 Tired of Unreliable AI Habits? (Why Standard AI Drives Devs Crazy 55555)
+## ⚠️ Standard AI Agent Failure Modes & Solution Mechanics
 
-We've all been there. You ask your AI coding assistant to fix a bug or build a feature, and it does this:
+Standard LLM coding assistants frequently encounter critical failure modes during complex software engineering tasks:
 
-- ❌ **Refuses to Search the Web:** Uses outdated memory and deprecated API signatures without checking official docs.
-- ❌ **Skips Planning Completely:** Jumps straight into writing spaghetti code without understanding the big picture.
-- ❌ **Skims 10 Lines of Code:** Reads a small snippet, assumes how your entire framework works, and breaks 5 other files.
-- ❌ **Claims "I Fixed It!" (While Code is Broken):** Confidently prints *"Done! I solved the bug!"* without ever running unit tests.
-- ❌ **Leaves TODO & Placeholder Stubs:** Writes `# TODO: implement logic here` or dummy fallbacks and pretends the task is finished.
-- ❌ **Gets Stuck in Endless Retry Loops:** Repeats the exact same broken shell command 10 times in a row expecting a different result.
-- ❌ **Applies Superficial Symptom Patches:** Swallows exceptions inside silent `try/except: pass` blocks instead of fixing the root cause.
-- ❌ **Suffers Amnesia Across Sessions:** Forgets architectural decisions made 10 minutes ago, forcing you to re-explain everything.
+- ❌ **Deprecated API & Memory Drift:** Relies on outdated pre-trained memory and deprecated API signatures without live documentation lookup.
+- ❌ **Premature Execution Without Specs:** Mutates codebase without architectural spec planning or boundary impact analysis.
+- ❌ **Partial Snippet Context:** Skims isolated code blocks, causing contract breakage across dependent modules.
+- ❌ **Unverified Completion Claims:** Emits textual completion statements without executing empirical test suites.
+- ❌ **Placeholder & Stub Artifacts:** Emits incomplete `# TODO` stubs or silent `try/except: pass` fallbacks.
+- ❌ **Repetitive Retry Loops:** Executes repetitive failing shell operations without root-cause failure analysis.
+- ❌ **Context Amnesia Across Sessions:** Loses architectural intent across multi-step development sessions.
+
+---
+
+## ⚔️ How GODKILLER MCP Governs Agent Behavior
+
+**GODKILLER MCP** acts as a hard engineering kernel that enforces strict quality gates on AI coding agents:
+
+```mermaid
+graph TD
+    A["User Request"] --> B["👑 GODKILLER MCP Hard Policy Gates"]
+    B --> C["1. FORCED Web Search Gate (5-10 Queries Mandatory)"]
+    B --> D["2. FORCED /plan Protocol (9-Step Spec Blueprint Required)"]
+    B --> E["3. FORCED Full-Scope File Read (No Skimming Allowed)"]
+    B --> F["4. FORCED Multi-Persona Adversarial Committee (Coder, Hacker, Optimizer)"]
+    B --> G["5. FORCED Empirical Pytest Execution (No Fake Completion Summaries)"]
+    B --> H["6. FORCED Anti-Placeholder Gate (Zero TODO Stubs Allowed)"]
+    B --> I["7. FORCED Loop Guard Circuit Breaker (Stops Retries)"]
+    G --> J["⚡ Verified Production-Grade Code"]
+```
+
+### 🎯 Key Governance Mechanisms:
+
+1. 🎯 **Forced `/plan` & Web Search Enforcement:** Blocks code writes until 5–10 `search_web` queries and a 9-step implementation spec plan are recorded.
+2. 🎯 **Full-Scope File Read Mandate (`godkiller_read`):** Restricts code skimming; AST policies require complete target file inspection before mutation.
+3. 🎯 **Multi-Persona Adversarial Committee Protocol:** Coordinates Coder, Hacker, and Optimizer personas to critique changes before editing.
+4. 🎯 **Empirical Pytest Quality Control:** Disables text-only completion statements; requires dynamic green `pytest` execution on disk.
+5. 🎯 **Anti-Placeholder & Stub Protection Gate:** Rejects temporary `# TODO` comments, dummy return values, or programmer-art stubs.
+6. 🎯 **Loop Guard Circuit Breaker:** Detects repeated command failure loops and forces an immediate halt and root-cause replan.
+7. 🎯 **Durable Crucible Memory Graph (`marathon_state.json`):** Preserves task context across long-horizon sessions.
 
 ---
 
@@ -42,7 +70,7 @@ graph TD
     B --> G["🏛️ Tri-Persona Committee Protocol (skill_catalog, skill_gates)"]
     B --> H["🧬 Durable Marathon Memory Graph (marathon_durable, memory_lessons)"]
     B --> I["👁️‍🗨️ Visual Critic & DevTools QA Bridges (vision_bridge, browser_bridge)"]
-    D --> J["⚡ 100% Verified Production-Grade Code"]
+    D --> J["⚡ Verified Production-Grade Code"]
 ```
 
 ### 🛠️ Detailed Breakdown of the 23 Engine Modules:
