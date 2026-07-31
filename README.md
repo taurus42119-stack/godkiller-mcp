@@ -107,9 +107,11 @@ pytest -q
 | Plan OS | 9-step validate before fix edits |
 | Edit safety | blast radius + path-safe `check_edit_safe` |
 | `/ultradeep` | one phase/turn · one file/edit cycle |
-| Verify | disk commands · server-authored · `result_digest` |
+| Verify | disk commands · `result_digest` · **fault_probe** kills weak suites |
 | Hollow surface | unfinished bodies blocked before `claim_done` |
+| Plan lock | write-through-plan — 9-step validate before edit/claim |
 | Session ledger | hash chain under `.godkiller/session_ledger.jsonl` |
+| Strict mode | `GODKILLER_STRICT=1` — privileged tools need `task_id` |
 | Council | host debate (default) · optional API |
 | Visual critic | **pixels required** — regex alone cannot GREEN |
 | Recovery | self_heal = traceback parse → one fallback tool run |
@@ -154,13 +156,13 @@ Optional: `GODKILLER_HOME` · `GODKILLER_TOOLS_DIR` · `GODKILLER_LLM_API_KEY`
 
 ## Tools — Kernel vs recovery vs experimental
 
-**Kernel (the product):** `gk_route` · `gk_mode` · `gk_task` · `gk_phase` · `gk_evidence` · `gk_verify` (bundle / hollow / ledger) · `gk_memory` (marathon) · `gk_code` (map / search / read_full / council*) · `gk_meta` (plan)
+**Kernel (the product):** `gk_route` · `gk_mode` · `gk_task` · `gk_phase` · `gk_evidence` · `gk_verify` (bundle / hollow / **probe** / ledger) · `gk_memory` · `gk_code` (map / search / read_full / council*) · `gk_meta` (plan)
 
-**Recovery:** `gk_code.self_heal` (structured diagnose + one fallback exec) · `gk_code.pipeline` (runs tools or dry-run)
+**Recovery:** `gk_code.self_heal` · `gk_code.pipeline`
 
-**Optional / experimental:** `gk_browser` · `gk_scan` · `gk_handoff` · scrape · skillify · confidence · auto_fix (regex) · soak / competitor ladders
+**Optional / experimental:** `gk_browser` · `gk_scan` · `gk_handoff` · scrape · skillify · confidence · auto_fix · soak / competitor
 
-Facades still exist for Antigravity routing — weight is on the kernel path above, not on equal “12 products.”
+Env: `GODKILLER_PLAN_LOCK=1` (default) · `GODKILLER_FAULT_PROBE=1` (default) · `GODKILLER_STRICT=1` (opt-in) · `GODKILLER_DEV_RELAX=1` (local soft bypass only)
 
 ---
 

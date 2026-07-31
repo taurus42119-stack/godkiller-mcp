@@ -263,6 +263,20 @@ class PolicyEngine:
         if not ok_h:
             return False, results, reason_h
 
+        # Write-through-plan lock
+        from godkiller_mcp.governance import require_valid_plan
+
+        ok_p, reason_p = require_valid_plan(state)
+        if not ok_p:
+            return False, results, reason_p
+
+        # Fault probe — weak suites that miss mutants cannot claim
+        from godkiller_mcp.fault_probe import claim_fault_probe_gate
+
+        ok_f, reason_f = claim_fault_probe_gate(state)
+        if not ok_f:
+            return False, results, reason_f
+
         # Optional Planner/Builder/Eval soft gate (feedback.md)
         if handoff_feedback_ok is False:
             return (

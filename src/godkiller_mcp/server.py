@@ -49,6 +49,7 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
     "gk_verify": {
         "bundle": "verify_bundle",
         "hollow": "hollow_surface",
+        "probe": "fault_probe",
         "ledger": "ledger_tail",
         "soak": "soak_run",
         "loop_record": "record_tool_event",

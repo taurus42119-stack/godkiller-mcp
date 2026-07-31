@@ -102,6 +102,12 @@ def _json(data: Any) -> List[TextContent]:
 
 
 async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    from godkiller_mcp.governance import require_task_for_privileged
+
+    blocked = require_task_for_privileged(name, arguments or {})
+    if blocked:
+        return _json({"ok": False, "allowed": False, "reason": blocked, "action": "block"})
+
     if name == "godkiller_route_intent":
         decision = router.route_intent(arguments["prompt"])
         return _json(decision.__dict__)
@@ -571,10 +577,16 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
     if name == "check_edit_safe":
         task_id = arguments.get("task_id")
         if task_id:
+            from godkiller_mcp.governance import plan_always_required
+
             state = store.get(task_id)
             require_plan = arguments.get("require_plan")
             if require_plan is None:
-                require_plan = state.handle.phase.value in ("fix", "verify", "claim_done")
+                require_plan = plan_always_required() or state.handle.phase.value in (
+                    "fix",
+                    "verify",
+                    "claim_done",
+                )
             if require_plan:
                 plan_meta = (state.handle.metadata or {}).get("plan_validation")
                 if not plan_meta or not plan_meta.get("valid"):
@@ -587,7 +599,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                             {
                                 "allowed": False,
                                 "safe": False,
-                                "reason": "9-step plan missing/incomplete — call gk_meta action=plan_validate first",
+                                "reason": "write-through-plan: 9-step plan missing/incomplete — gk_meta.plan_validate first",
                                 "action": PolicyAction.BLOCK.value,
                             }
                         )
@@ -1408,16 +1420,58 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         return _json(plan_os.template(arguments.get("goal") or ""))
 
     if name == "gk_plan_validate":
+        from godkiller_mcp.governance import plan_digest
+        from godkiller_mcp.session_ledger import append_ledger
+
         plan = arguments.get("plan") or arguments.get("content") or arguments.get("plan_dict")
         result = plan_os.validate(plan)
+        if result.get("valid"):
+            result["digest"] = plan_digest(plan)
         task_id = arguments.get("task_id")
         if task_id:
             patch = {"plan_validation": result}
             if isinstance(plan, dict):
                 patch["plan_dict"] = plan
+            if result.get("digest"):
+                patch["plan_digest"] = result["digest"]
             store.update_metadata(task_id, patch)
             result["task_id"] = task_id
+            try:
+                append_ledger(
+                    "plan_validate",
+                    {"valid": result.get("valid"), "digest": result.get("digest")},
+                    task_id=task_id,
+                )
+            except Exception:
+                pass
         return _json(result)
+
+    if name == "fault_probe":
+        from godkiller_mcp.fault_probe import run_fault_probe
+        from godkiller_mcp.session_ledger import append_ledger
+
+        report = run_fault_probe(
+            workspace=arguments["workspace"],
+            target_file=arguments["target"],
+            test_command=arguments.get("test_command") or "python -m pytest -q --tb=no",
+            timeout_sec=int(arguments.get("timeout_sec") or 45),
+            max_mutants=int(arguments.get("max_mutants") or 3),
+        )
+        out = report.to_payload()
+        task_id = arguments.get("task_id")
+        if task_id and arguments.get("attach", True):
+            store.submit_evidence(
+                task_id=task_id,
+                evidence_type=EvidenceType.LOG,
+                summary=out["summary"],
+                payload=out,
+                server_authored=True,
+            )
+        try:
+            append_ledger("fault_probe", out, task_id=task_id)
+        except Exception:
+            pass
+        return _json(out)
 
     if name == "gk_code_read_full":
         path = Path(arguments["path"])
