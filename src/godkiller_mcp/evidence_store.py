@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from godkiller_mcp.schema import (
     Evidence,
@@ -16,6 +16,13 @@ from godkiller_mcp.schema import (
     TaskState,
     new_id,
 )
+
+# Client tools may not forge these; only server handlers with server_authored=True.
+SERVER_ONLY_EVIDENCE: Set[EvidenceType] = {
+    EvidenceType.PASSING_TEST,
+    EvidenceType.BLAST_RADIUS,
+    EvidenceType.EDIT_SAFE,
+}
 
 
 class EvidenceStore:
@@ -71,15 +78,44 @@ class EvidenceStore:
         payload: Optional[dict] = None,
         uri: Optional[str] = None,
         contradicts: Optional[List[str]] = None,
+        *,
+        server_authored: bool = False,
     ) -> Evidence:
         state = self.get(task_id)
         if state.closed:
             raise RuntimeError("Task is closed; cannot submit evidence.")
+
+        et = EvidenceType(evidence_type) if isinstance(evidence_type, str) else evidence_type
+        payload = dict(payload or {})
+
+        if et in SERVER_ONLY_EVIDENCE and not server_authored:
+            raise PermissionError(
+                f"Evidence type '{et.value}' is server-authored only "
+                "(use verify_bundle / blast_radius / check_edit_safe tools)."
+            )
+
+        # Block forged verify_bundle success via EXIT_CODE submit
+        if (
+            not server_authored
+            and et == EvidenceType.EXIT_CODE
+            and (
+                payload.get("source") == "verify_bundle"
+                or payload.get("passed") is True
+                or payload.get("server_authored") is True
+            )
+        ):
+            raise PermissionError(
+                "Forged verify_bundle / passing EXIT_CODE evidence is not allowed via submit_evidence."
+            )
+
+        if server_authored:
+            payload["server_authored"] = True
+
         ev = Evidence(
             task_id=task_id,
-            type=EvidenceType(evidence_type) if isinstance(evidence_type, str) else evidence_type,
+            type=et,
             summary=summary,
-            payload=payload or {},
+            payload=payload,
             uri=uri,
             contradicts=contradicts or [],
         )
@@ -98,8 +134,7 @@ class EvidenceStore:
         if state.closed:
             raise RuntimeError("Task is closed; cannot propose hypothesis.")
         hyp = Hypothesis(
-            task_id=task_id,
-            claim=claim,
+            statement=claim,
             support_refs=support_refs or [],
             refute_refs=refute_refs or [],
         )
@@ -142,6 +177,8 @@ class EvidenceStore:
 
     def update_metadata(self, task_id: str, patch: dict) -> TaskState:
         state = self.get(task_id)
+        if state.closed:
+            raise RuntimeError("Task is closed; cannot update metadata.")
         state.handle.metadata.update(patch or {})
         self._persist(state)
         return state

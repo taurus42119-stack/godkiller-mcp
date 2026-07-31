@@ -116,13 +116,42 @@ def blast_radius(symbol: str, workspace_root: str | Path) -> BlastRadiusReport:
 def check_edit_safe(
     target_files: List[str], workspace_root: str | Path
 ) -> EditSafeResult:
+    """Reject paths outside workspace (including escape via .. / absolute)."""
+    root = Path(workspace_root).resolve()
+    reasons: List[str] = []
+    resolved: List[str] = []
+
+    if not target_files:
+        return EditSafeResult(
+            target_files=[],
+            payload={"safe": False, "files_checked": 0, "reasons": ["no target files"]},
+        )
+
+    for raw in target_files:
+        p = Path(raw)
+        candidate = p if p.is_absolute() else (root / p)
+        try:
+            resolved_path = candidate.resolve()
+            resolved_path.relative_to(root)
+        except (OSError, ValueError):
+            reasons.append(f"outside_workspace:{raw}")
+            continue
+        resolved.append(str(resolved_path))
+
+    safe = len(reasons) == 0 and len(resolved) == len(target_files)
     return EditSafeResult(
         target_files=target_files,
-        payload={"safe": True, "files_checked": len(target_files)},
+        payload={
+            "safe": safe,
+            "files_checked": len(target_files),
+            "resolved": resolved,
+            "reasons": reasons,
+            "workspace": str(root),
+        },
     )
 
 
-# --- Alien Assimilation MCP Engines ---
+# --- Code helpers (search / map / heuristics) ---
 import ast
 import json
 import os
@@ -413,7 +442,7 @@ class AstGrepEngine:
 
 
 class SecurityScanEngine:
-    """Snyk/SonarQube inspired static vulnerability & code smell scanner."""
+    """Best-effort regex CWE heuristics; optional snyk CLI if installed."""
 
     def __init__(self, default_tools_dir: Optional[str | Path] = None):
         self.snyk_path = _find_dev_binary("snyk", default_tools_dir)
@@ -544,7 +573,7 @@ class LogTraceEngine:
 
 
 class AutoFixEngine:
-    """ast-grep-inspired AST pattern search & replacement engine."""
+    """Experimental regex find/replace (not a real AST rewriter)."""
 
     def fix(
         self,
@@ -577,7 +606,8 @@ class AutoFixEngine:
                 pfile.write_text(new_content, encoding="utf-8")
 
             return {
-                "engine": "ast_autofix_engine",
+                "engine": "regex_autofix",
+                "tier": "experimental",
                 "file": str(pfile),
                 "pattern": pattern,
                 "replacement": replacement,
@@ -593,7 +623,7 @@ import graphlib
 
 
 class PipelineRunner:
-    """Autonomous DAG Tool Execution Chain Engine."""
+    """Experimental DAG planner — dry-run only (does not execute tools)."""
 
     def run_pipeline(self, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
         results = []
@@ -621,12 +651,19 @@ class PipelineRunner:
                     if ctx_key in pipeline_context:
                         args[k] = pipeline_context[ctx_key]
 
-            step_result = {"step": step_idx, "name": name, "status": "success", "args": args}
+            step_result = {
+                "step": step_idx,
+                "name": name,
+                "status": "planned_not_executed",
+                "args": args,
+            }
             pipeline_context[f"step_{step_idx}_output"] = step_result
             results.append(step_result)
 
         return {
-            "engine": "godtier_dag_pipeline",
+            "engine": "pipeline_dry_run",
+            "tier": "experimental",
+            "note": "Steps are ordered only; no tools were invoked.",
             "total_steps": len(steps),
             "execution_order": order,
             "results": results,
@@ -634,7 +671,7 @@ class PipelineRunner:
 
 
 class SelfHealingEngine:
-    """Remediation Matrix: Observe -> Analyze -> Auto Switch Tool & Query Fix."""
+    """Experimental heuristic: suggest a fallback tool name (does not heal)."""
 
     def heal(
         self,
@@ -646,60 +683,51 @@ class SelfHealingEngine:
 
         if failed_tool in ("godkiller_hyper_search", "ripgrep") or "no matches" in error_or_output.lower():
             return {
-                "engine": "self_healing_matrix",
-                "diagnosis": "HyperSearch missed pattern. Fallback to Structural AST Search.",
-                "action": "AUTO_SWITCH_TOOL",
+                "engine": "tool_fallback_hint",
+                "tier": "experimental",
+                "diagnosis": "Search returned no matches; try structural search.",
+                "action": "SUGGEST_TOOL",
                 "recommended_tool": "godkiller_ast_grep",
                 "remediated_args": {"pattern": task_context.get("pattern", "$A"), "search_path": task_context.get("search_path", ".")},
             }
         elif "syntaxerror" in error_or_output.lower() or "exception" in error_or_output.lower():
             return {
-                "engine": "self_healing_matrix",
-                "diagnosis": "Syntax or Runtime Exception detected.",
-                "action": "AUTO_PARSE_TRACEBACK",
+                "engine": "tool_fallback_hint",
+                "tier": "experimental",
+                "diagnosis": "Exception-like text detected; parse traceback next.",
+                "action": "SUGGEST_TOOL",
                 "recommended_tool": "godkiller_log_trace",
                 "remediated_args": {"log_output": error_or_output},
             }
         else:
             return {
-                "engine": "self_healing_matrix",
-                "diagnosis": "Unspecified failure.",
-                "action": "REPLAN_FALLBACK",
+                "engine": "tool_fallback_hint",
+                "tier": "experimental",
+                "diagnosis": "Unspecified failure; remap repo before retrying.",
+                "action": "SUGGEST_TOOL",
                 "recommended_tool": "godkiller_repo_map",
                 "remediated_args": {"root_dir": "."},
             }
 
 
 class EpistemicConfidenceGate:
-    """Calculates confidence score (0-100%) and blocks edits if < 85%."""
+    """Checklist gate (not a calibrated confidence %)."""
 
     def evaluate(self, file_path: str, known_symbols: List[str], has_searched: bool) -> Dict[str, Any]:
-        score = 50.0
-        reasons = []
-
-        pfile = Path(file_path)
-        if pfile.exists():
-            score += 20.0
-            reasons.append("File exists (+20%)")
-        else:
-            reasons.append("File does not exist (-50%)")
-
-        if known_symbols:
-            score += 15.0
-            reasons.append(f"Symbols verified: {len(known_symbols)} (+15%)")
-
-        if has_searched:
-            score += 15.0
-            reasons.append("Search gate completed (+15%)")
-
-        allowed = score >= 85.0
+        checklist = {
+            "file_exists": Path(file_path).exists(),
+            "symbols_provided": bool(known_symbols),
+            "search_done": bool(has_searched),
+        }
+        missing = [k for k, ok in checklist.items() if not ok]
+        allowed = len(missing) == 0
         return {
-            "engine": "epistemic_confidence_gate",
+            "engine": "edit_readiness_checklist",
+            "tier": "experimental",
             "file": file_path,
-            "confidence_score": score,
-            "threshold": 85.0,
+            "checklist": checklist,
+            "missing": missing,
             "allowed_to_edit": allowed,
-            "reasons": reasons,
             "recommendation": "PROCEED" if allowed else "BLOCK_EDIT_FORCE_RECON",
         }
 
@@ -786,7 +814,7 @@ description: {description}
 
 
 class CouncilDebateEngine:
-    """Adversarial Multi-Agent Debate: Coder vs Hacker vs Optimizer."""
+    """Experimental static checklist — not a multi-agent debate."""
 
     def debate(
         self,
@@ -794,23 +822,24 @@ class CouncilDebateEngine:
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         context = context or {}
-        coder_view = f"Proposed plan: {proposed_code_or_plan[:200]}"
+        coder_view = f"Proposal preview: {proposed_code_or_plan[:200]}"
 
-        hacker_critique = "Security check: Verify input boundaries and prevent injection."
+        hacker_critique = "Heuristic: check input boundaries and injection sinks."
         if "eval(" in proposed_code_or_plan or "exec(" in proposed_code_or_plan:
-            hacker_critique = "CRITICAL: Security vulnerability detected in proposal (eval/exec)."
+            hacker_critique = "CRITICAL: eval/exec present in proposal text."
 
-        optimizer_critique = "Performance check: Structure operations as zero-copy or batch processing."
+        optimizer_critique = "Heuristic: prefer batching / avoid obvious N+1 patterns."
 
         consensus = "eval(" not in proposed_code_or_plan and "exec(" not in proposed_code_or_plan
 
         return {
-            "engine": "council_debate_engine",
+            "engine": "static_review_checklist",
+            "tier": "experimental",
             "coder": coder_view,
             "hacker": hacker_critique,
             "optimizer": optimizer_critique,
             "consensus_reached": consensus,
-            "verdict": "APPROVED_BY_COUNCIL" if consensus else "REJECTED_BY_COUNCIL_SECURITY_FLAW",
+            "verdict": "CHECKLIST_OK" if consensus else "CHECKLIST_FLAGGED_SECURITY",
         }
 
 

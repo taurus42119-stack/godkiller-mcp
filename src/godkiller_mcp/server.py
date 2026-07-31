@@ -133,10 +133,10 @@ FACADE_DESC = {
     "gk_evidence": "Evidence: submit, capture_shot, visual_critic, screenshot, journey, inspect_image.",
     "gk_verify": "Verification: bundle (pytest/cmds), soak, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
-    "gk_code": "Code intel: map, search, find, preview, read_full/read_all, ast_grep, auto_fix, council.",
-    "gk_scan": "Security scan (AST/CWE heuristics) and optional semgrep CLI.",
+    "gk_code": "Code intel: map, search, find, preview, read_full/read_all; experimental: autofix/checklist/pipeline dry-run.",
+    "gk_scan": "Best-effort regex CWE heuristics; optional semgrep CLI.",
     "gk_browser": "Browser automation (Playwright when installed): navigate, snapshot, screenshot, click, fill.",
-    "gk_mode": "Modes/protocols/skills + ultradeep per-file think→plan→edit gate (200% tool swarm).",
+    "gk_mode": "Modes/protocols/skills + ultradeep per-file think→plan→edit gate.",
     "gk_handoff": "Spec/feedback handoff gates.",
     "gk_meta": "Secrets key listing + 9-step plan template/validate.",
 }

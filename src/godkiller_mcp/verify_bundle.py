@@ -1,7 +1,10 @@
-"""Verify bundle runner and command safety detection."""
+"""Verify bundle runner and command allowlist."""
 
 from __future__ import annotations
 
+import hashlib
+import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
@@ -9,27 +12,61 @@ from typing import List, Tuple
 from godkiller_mcp.safe_exec import run_command_safely
 from godkiller_mcp.schema import TaskState
 
+# Kernel verify: only these command shapes are accepted.
+_ALLOWED_PREFIXES = (
+    ("python", "-m", "pytest"),
+    ("python3", "-m", "pytest"),
+    ("py", "-m", "pytest"),
+    ("pytest",),
+    ("python", "-m", "unittest"),
+    ("python3", "-m", "unittest"),
+    ("ruff",),
+    ("mypy",),
+)
+
+_FORBIDDEN_META = re.compile(r"[;&|`$]|&&|\|\|")
+
+
+def _split(command: str) -> List[str]:
+    try:
+        import os
+
+        return shlex.split(command, posix=(os.name != "nt"))
+    except ValueError:
+        return command.strip().split()
+
 
 def detect_hacking(command: str) -> Tuple[bool, str]:
-    forbidden_patterns = [
-        "echo ok",
-        "rm -rf /",
-        "format c:",
-        "> /dev/null",
-        "TODO",
-    ]
-    for pattern in forbidden_patterns:
-        if pattern in command:
-            return True, f"Blocked forbidden pattern: '{pattern}' in command"
-    return False, ""
+    """Return (blocked, reason). Prefer allowlist over silly substring bans."""
+    if not command or not command.strip():
+        return True, "Empty verify command"
+    if _FORBIDDEN_META.search(command):
+        return True, "Shell metacharacters are not allowed in verify commands"
+    argv = _split(command)
+    if not argv:
+        return True, "Empty verify command"
+    lower = [a.lower() for a in argv]
+    for prefix in _ALLOWED_PREFIXES:
+        plen = len(prefix)
+        if lower[:plen] == list(prefix):
+            return False, ""
+    return (
+        True,
+        "Command not on verify allowlist "
+        "(allowed: pytest / python -m pytest|unittest / ruff / mypy)",
+    )
 
 
 def task_has_passing_verify_bundle(state: TaskState) -> Tuple[bool, str]:
     for ev in state.evidences:
         payload = ev.payload or {}
-        if payload.get("source") == "verify_bundle" and payload.get("passed"):
+        if (
+            payload.get("source") == "verify_bundle"
+            and payload.get("passed")
+            and payload.get("server_authored") is True
+        ):
             return True, "verify_bundle passed"
-    return False, "verify_bundle evidence missing or failed"
+    return False, "verify_bundle evidence missing, failed, or not server-authored"
 
 
 @dataclass
@@ -40,6 +77,8 @@ class VerifyResult:
     stdout: str = ""
     stderr: str = ""
     reason: str = ""
+    command_fingerprint: str = ""
+    cwd: str = ""
 
     @property
     def summary(self) -> str:
@@ -52,6 +91,7 @@ class VerifyResult:
     def to_payload(self) -> dict:
         return {
             "source": "verify_bundle",
+            "server_authored": True,
             "passed": self.passed,
             "hack_blocked": self.hack_blocked,
             "exit_code": self.exit_code,
@@ -59,6 +99,8 @@ class VerifyResult:
             "stderr": self.stderr[-4000:],
             "reason": self.reason,
             "summary": self.summary,
+            "command_fingerprint": self.command_fingerprint,
+            "cwd": self.cwd,
         }
 
 
@@ -67,18 +109,26 @@ class VerifyBundleRunner:
         self.timeout_sec = timeout_sec
 
     def run(self, cwd: str | Path, commands: List[str] | None = None) -> VerifyResult:
-        work_dir = Path(cwd)
+        work_dir = Path(cwd).resolve()
         if not commands:
             commands = ["python -m pytest -q"]
 
+        fingerprints = []
+        last_stdout = ""
+        last_stderr = ""
+
         for cmd in commands:
             is_hack, reason = detect_hacking(cmd)
+            fp = hashlib.sha256(cmd.encode("utf-8")).hexdigest()[:16]
+            fingerprints.append(fp)
             if is_hack:
                 return VerifyResult(
                     passed=False,
                     hack_blocked=True,
                     exit_code=1,
                     reason=reason,
+                    command_fingerprint=",".join(fingerprints),
+                    cwd=str(work_dir),
                 )
 
             try:
@@ -87,14 +137,18 @@ class VerifyBundleRunner:
                     cwd=work_dir,
                     timeout_sec=self.timeout_sec,
                 )
+                last_stdout = proc.stdout or ""
+                last_stderr = proc.stderr or ""
                 if proc.returncode != 0:
                     return VerifyResult(
                         passed=False,
                         hack_blocked=False,
                         exit_code=proc.returncode,
-                        stdout=proc.stdout,
-                        stderr=proc.stderr,
+                        stdout=last_stdout,
+                        stderr=last_stderr,
                         reason=f"Command '{cmd}' failed with exit code {proc.returncode}",
+                        command_fingerprint=",".join(fingerprints),
+                        cwd=str(work_dir),
                     )
             except Exception as e:
                 return VerifyResult(
@@ -102,11 +156,16 @@ class VerifyBundleRunner:
                     hack_blocked=False,
                     exit_code=1,
                     reason=str(e),
+                    command_fingerprint=",".join(fingerprints),
+                    cwd=str(work_dir),
                 )
 
         return VerifyResult(
             passed=True,
             hack_blocked=False,
             exit_code=0,
-            stdout="All verification commands passed cleanly",
+            stdout=last_stdout or "All verification commands passed cleanly",
+            stderr=last_stderr,
+            command_fingerprint=",".join(fingerprints),
+            cwd=str(work_dir),
         )

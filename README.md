@@ -18,18 +18,28 @@ pip install godkiller-mcp
 
 ## Mission
 
-Antigravity skips phases. GODKILLER does not allow that.
+Antigravity skips phases. GODKILLER blocks that when the kernel path is used.
 
 | Failure mode | Kernel response |
 | --- | --- |
 | No `/plan` | plan / phase gates |
 | Multi-file rush | `/ultradeep` one-file think → plan → edit |
-| Fake “done” | `verify_bundle` + `claim_done` block |
+| Fake “done” | server-authored `verify_bundle` + `claim_done` block |
 | Session amnesia | marathon + memory graph |
 
 ```text
 goal → mode → evidence/plan → gated edit → disk verify → claim_done
 ```
+
+### What is guaranteed vs experimental
+
+| Tier | Meaning | Examples |
+| --- | --- | --- |
+| **Kernel** | Enforced in-process; adversarial tests cover forge/skip | phase machine, `verify_bundle` allowlist, server-only evidence, `claim_done` |
+| **Supported** | Useful helpers; not proof of done | repo map, search, browser (optional extra) |
+| **Experimental** | Heuristics / dry-run — do not treat as multi-agent or Snyk-class | static review checklist, regex autofix, pipeline dry-run |
+
+State is stored under `GODKILLER_HOME` or `<cwd>/.godkiller/` — never under the installed package tree.
 
 ---
 
@@ -46,34 +56,16 @@ Single variable: MCP off / on.
 
 Artifacts: [`11_dimension_scorecard.md`](benchmarks/arena_logs/11_dimension_scorecard.md) · [`5_dimension_audit_log.json`](benchmarks/arena_logs/5_dimension_audit_log.json)
 
-### Gauntlet
+### Scorecard (honest)
 
-| Gate | Load |
-| --- | --- |
-| Tier 1 | ×50 |
-| Tier 2 | ×150 |
-| Tier 3 | ×300 |
-| Nightmare | enterprise deadlock / ledger stress |
-| TAU-style SOTA | state-drift / rate-limit / locks |
-| Blind oracle | disk green required |
-
-### Scorecard (11)
-
-| # | Dimension | Bare | GODKILLER | Winner |
+| # | Dimension | Bare | GODKILLER | Note |
 | ---: | --- | --- | --- | --- |
-| 1 | Pass rate | 516 / 516 | 516 / 516 | Tie |
-| 2 | Speed | 0.36–0.37s | **0.31–0.32s** (−16.2%) | GODKILLER |
-| 3 | Tokens | **~35k–46k** | ~50k–60k | Bare |
-| 4 | Diff mass | +59 −52 | **+73 −54** | GODKILLER |
-| 5 | AST nodes | 2,840 | **3,120** (+9.8%) | GODKILLER |
-| 6 | Anti-fake-claim | summary without green | **live pytest gate** | GODKILLER |
-| 7 | Read scope | partial skim | **full-scope gate** | GODKILLER |
-| 8 | Council | none | **Coder / Hacker / Optimizer** | GODKILLER |
-| 9 | Rules | none | **AGENTS.md + phases** | GODKILLER |
-| 10 | Defense | local patch | **guards + type bounds** | GODKILLER |
-| 11 | Memory | `.txt` | **marathon + graph** | GODKILLER |
+| 1 | Pass rate | 516 / 516 | 516 / 516 | Tie on oracle correctness |
+| 2 | Speed | 0.36–0.37s | 0.31–0.32s | Process overhead varies |
+| 3 | Tokens | ~35k–46k | ~50k–60k | Kernel costs tokens |
+| 4 | Anti-fake-claim | summary without green | live pytest via `verify_bundle` | Kernel claim |
 
-Pass-rate tie. Process dominance: GODKILLER. Token premium: accepted.
+Older tables that ranked “Council / diff mass / AST nodes” as wins are retired — those are not enterprise proof.
 
 ---
 
@@ -81,13 +73,12 @@ Pass-rate tie. Process dominance: GODKILLER. Token premium: accepted.
 
 | Layer | Enforcement |
 | --- | --- |
-| Phase machine | `assert_phase` / `claim_done` |
+| Phase machine | `assert_phase` / `claim_done` (illegal jumps error) |
 | Plan OS | 9-step validate before fix edits |
-| Edit safety | blast radius + `check_edit_safe` |
+| Edit safety | workspace path check + blast radius |
 | `/ultradeep` | one phase/turn · one file/edit cycle |
-| Verify | disk commands only |
+| Verify | allowlisted disk commands only; server-authored evidence |
 | Memory | task → phase → evidence → lesson |
-| Surface | `gk_code` / `gk_scan` / `gk_browser` |
 
 ### `/ultradeep`
 
@@ -112,26 +103,27 @@ pip install godkiller-mcp
 ```
 
 Alternate: `python -m godkiller_mcp.server`  
-Optional: `GODKILLER_TOOLS_DIR`
+Optional: `GODKILLER_HOME`, `GODKILLER_TOOLS_DIR`  
+Dev-only soft gates: `GODKILLER_DEV_RELAX=1`
 
 ---
 
 ## Facades (12)
 
-| Tool | Domain |
-| --- | --- |
-| `gk_route` | `/ask` `/plan` `/debug` `/ultradeep` `/verify` |
-| `gk_mode` | protocol · skills · file gate |
-| `gk_task` | open · blast · edit_safe |
-| `gk_phase` | assert · claim_done · rubric |
-| `gk_evidence` | submit · shot · critic · journey |
-| `gk_verify` | bundle · soak · loop · competitor |
-| `gk_memory` | lessons · marathon · graph |
-| `gk_code` | map · search · read_full · council |
-| `gk_scan` | AST/CWE · Semgrep |
-| `gk_browser` | navigate · snapshot · click · fill |
-| `gk_handoff` | spec · feedback |
-| `gk_meta` | plan_template · plan_validate |
+| Tool | Domain | Tier |
+| --- | --- | --- |
+| `gk_route` | `/ask` `/plan` `/debug` `/ultradeep` `/verify` | Supported |
+| `gk_mode` | protocol · skills · file gate | Kernel / Supported |
+| `gk_task` | open · blast · edit_safe | Kernel |
+| `gk_phase` | assert · claim_done · rubric | Kernel |
+| `gk_evidence` | submit · shot · critic · journey | Kernel (typed) |
+| `gk_verify` | bundle · soak · loop · competitor | Kernel / Supported |
+| `gk_memory` | lessons · marathon · graph | Supported |
+| `gk_code` | map · search · read_full · checklist | Supported / Experimental |
+| `gk_scan` | regex CWE heuristics · Semgrep optional | Experimental / Supported |
+| `gk_browser` | navigate · snapshot · click · fill | Supported |
+| `gk_handoff` | spec · feedback | Supported |
+| `gk_meta` | plan_template · plan_validate | Kernel |
 
 ---
 
@@ -142,7 +134,7 @@ Optional: `GODKILLER_TOOLS_DIR`
 | `/ask` | no application edits |
 | `/plan` | 9-step before build |
 | `/debug` | repro + hypothesis before fix |
-| `/ultradeep` | marathon · max tools · per-file gate |
+| `/ultradeep` | marathon · per-file gate |
 | `/verify` | proof → claim_done |
 
 ---
@@ -151,7 +143,9 @@ Optional: `GODKILLER_TOOLS_DIR`
 
 - Secret values never returned over MCP (names only)  
 - Prefer `shell=False` verify/soak  
+- Verify commands are allowlisted (pytest / unittest / ruff / mypy)  
 - Network scrape/browser are explicit invocations  
+- `PASSING_TEST` / `BLAST_RADIUS` / `EDIT_SAFE` cannot be forged via `submit_evidence`
 
 ---
 

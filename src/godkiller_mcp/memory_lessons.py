@@ -32,7 +32,7 @@ class Lesson:
 class LessonMemory:
     def __init__(self, db_path: str | Path):
         self.db_path = str(db_path)
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._init_db()
 
     def _init_db(self) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import List, Optional, Sequence
 
 from godkiller_mcp.schema import (
@@ -222,6 +223,10 @@ class PolicyEngine:
         min_ambition_ladder: str = "L1_presence",
     ) -> tuple[bool, List[RubricResult], str]:
         from godkiller_mcp.verify_bundle import task_has_passing_verify_bundle
+
+        # Soft-bypass only when explicitly relaxing for local experiments.
+        if os.environ.get("GODKILLER_DEV_RELAX", "").strip() != "1":
+            require_verify_bundle = True
 
         results = self.evaluate_rubric(state)
         if not self.all_passed(results):

@@ -59,30 +59,42 @@ from godkiller_mcp.workflow_graph import WorkflowGraph
 from godkiller_mcp.browser_runtime import PlaywrightBrowser
 from godkiller_mcp.scan_runtime import run_semgrep
 from godkiller_mcp import ultradeep_engine as ude
+from godkiller_mcp.runtime_paths import (
+    package_root,
+    resolve_state_root,
+    tasks_dir,
+    marathon_dir,
+    handoff_dir,
+    ui_artifacts_dir,
+    lessons_db_path,
+)
 
-ROOT = Path(__file__).resolve().parents[2]
-STORE_DIR = ROOT / "arena" / "results" / "tasks"
-STORE_DIR.mkdir(parents=True, exist_ok=True)
-MARATHON_DIR = ROOT / "arena" / "results" / "marathon"
-MARATHON_DIR.mkdir(parents=True, exist_ok=True)
-HANDOFF_DIR = ROOT / "arena" / "results" / "handoff"
-HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
+# Mutable state lives under GODKILLER_HOME or cwd/.godkiller — never under site-packages.
+STATE_ROOT = resolve_state_root()
+STORE_DIR = tasks_dir(STATE_ROOT)
+MARATHON_DIR = marathon_dir(STATE_ROOT)
+HANDOFF_DIR = handoff_dir(STATE_ROOT)
+# Protocols / AGENTS.md still read from package or cwd .agents
+ROOT = package_root()
+AGENTS_ROOT = Path.cwd() / ".agents"
+if not AGENTS_ROOT.exists():
+    AGENTS_ROOT = ROOT / ".agents"
 
 store = EvidenceStore(persist_dir=STORE_DIR)
 policy = PolicyEngine()
-browser = BrowserEvidenceBridge(store, artifact_dir=ROOT / "arena" / "results" / "ui_artifacts")
-lessons = LessonMemory(str(ROOT / "lessons.db"))
+browser = BrowserEvidenceBridge(store, artifact_dir=ui_artifacts_dir(STATE_ROOT))
+lessons = LessonMemory(str(lessons_db_path(STATE_ROOT)))
 marathon = MarathonRelay(MARATHON_DIR)
-modes = ModeProtocolStore(ROOT / ".agents")
+modes = ModeProtocolStore(AGENTS_ROOT)
 verify_runner = VerifyBundleRunner()
 loops = LoopDetector()
 handoff = SpecFeedbackStore(HANDOFF_DIR)
-secrets = ScopeSafeSecretsLoader(ROOT / ".env")
+secrets = ScopeSafeSecretsLoader(Path.cwd() / ".env")
 router = EpistemicRouter()
 vision = VisionBridge()
 plan_os = PlanOS()
 workflow = WorkflowGraph(store)
-pw_browser = PlaywrightBrowser(artifact_dir=ROOT / "arena" / "results" / "ui_artifacts")
+pw_browser = PlaywrightBrowser(artifact_dir=ui_artifacts_dir(STATE_ROOT))
 
 
 def _json(data: Any) -> List[TextContent]:
@@ -251,16 +263,28 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             support_refs=arguments.get("support_refs"),
             refute_refs=arguments.get("refute_refs"),
         )
-        try:
-            cur = store.get(arguments["task_id"])
-            ok_s, reason_s = assert_phase_search_gate(cur, Phase.HYPOTHESIZE)
-            if ok_s:
+        cur = store.get(arguments["task_id"])
+        ok_s, reason_s = assert_phase_search_gate(cur, Phase.HYPOTHESIZE)
+        if ok_s:
+            try:
                 store.assert_phase(arguments["task_id"], Phase.HYPOTHESIZE)
-            # If search missing, still keep hypothesis but do not advance phase via MCP shortcut
-            _ = reason_s
-        except ValueError:
-            pass
-        return _json(hyp.model_dump())
+            except ValueError as exc:
+                return _json(
+                    {
+                        **hyp.model_dump(),
+                        "phase_advanced": False,
+                        "phase_error": str(exc),
+                    }
+                )
+        else:
+            return _json(
+                {
+                    **hyp.model_dump(),
+                    "phase_advanced": False,
+                    "phase_blocked": reason_s,
+                }
+            )
+        return _json({**hyp.model_dump(), "phase_advanced": True})
 
     if name == "assert_phase":
         from godkiller_mcp.search_gates import assert_phase_search_gate
@@ -287,7 +311,17 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                     "phase": cur.handle.phase.value,
                 }
             )
-        state = store.assert_phase(arguments["task_id"], arguments["phase"])
+        try:
+            state = store.assert_phase(arguments["task_id"], arguments["phase"])
+        except ValueError as exc:
+            return _json(
+                {
+                    "allowed": False,
+                    "reason": str(exc),
+                    "action": PolicyAction.BLOCK.value,
+                    "phase": cur.handle.phase.value,
+                }
+            )
         loops.note_phase_advance(arguments["task_id"], arguments["phase"])
         loops.record(
             arguments["task_id"],
@@ -309,14 +343,24 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         payload = arguments.get("payload") or {}
         if isinstance(payload, dict):
             payload = normalize_web_search_payload(payload)
-        ev = store.submit_evidence(
-            task_id=arguments["task_id"],
-            evidence_type=arguments["type"],
-            summary=arguments["summary"],
-            payload=payload,
-            uri=arguments.get("uri"),
-            contradicts=arguments.get("contradicts"),
-        )
+        try:
+            ev = store.submit_evidence(
+                task_id=arguments["task_id"],
+                evidence_type=arguments["type"],
+                summary=arguments["summary"],
+                payload=payload,
+                uri=arguments.get("uri"),
+                contradicts=arguments.get("contradicts"),
+                server_authored=False,
+            )
+        except PermissionError as exc:
+            return _json(
+                {
+                    "allowed": False,
+                    "error": str(exc),
+                    "action": PolicyAction.BLOCK.value,
+                }
+            )
         # Mirror queries into task metadata for durable gate checks
         queries = (payload or {}).get("queries") if isinstance(payload, dict) else None
         if queries:
@@ -337,7 +381,17 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         )
 
     if name == "request_claim_done":
+        import os
+
         state = store.get(arguments["task_id"])
+        if state.closed:
+            return _json(
+                {
+                    "allowed": False,
+                    "reason": "Task is already closed.",
+                    "action": PolicyAction.BLOCK.value,
+                }
+            )
         loops.record(
             arguments["task_id"],
             "request_claim_done",
@@ -354,9 +408,11 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         handoff_reason = ""
         if arguments.get("handoff_slug"):
             handoff_ok, handoff_reason = handoff.require_passing_feedback(arguments["handoff_slug"])
+        relax = os.environ.get("GODKILLER_DEV_RELAX", "").strip() == "1"
+        require_vb = True if not relax else bool(arguments.get("require_verify_bundle", True))
         allowed, results, reason = policy.request_claim_done(
             state,
-            require_verify_bundle=arguments.get("require_verify_bundle", True),
+            require_verify_bundle=require_vb,
             handoff_feedback_ok=handoff_ok,
             handoff_reason=handoff_reason,
             require_quality_loop=arguments.get("require_quality_loop", True),
@@ -365,10 +421,18 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         )
         if allowed:
             try:
-                store.assert_phase(state.handle.task_id, Phase.CLAIM_DONE)
-                loops.note_phase_advance(state.handle.task_id, Phase.CLAIM_DONE)
-            except ValueError:
-                state.handle.phase = Phase.CLAIM_DONE
+                if state.handle.phase != Phase.CLAIM_DONE:
+                    store.assert_phase(state.handle.task_id, Phase.CLAIM_DONE)
+                    loops.note_phase_advance(state.handle.task_id, Phase.CLAIM_DONE)
+            except ValueError as exc:
+                return _json(
+                    {
+                        "allowed": False,
+                        "reason": f"Cannot close: {exc}",
+                        "action": PolicyAction.BLOCK.value,
+                        "results": [r.model_dump() for r in results],
+                    }
+                )
             store.mark_closed(state.handle.task_id)
             state.last_policy_action = PolicyAction.ALLOW_CLAIM_DONE
         else:
@@ -402,11 +466,12 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 evidence_type=EvidenceType.FAILING_SLICE,
                 summary=report.summary,
                 payload=report.to_evidence_payload(),
+                server_authored=True,
             )
             try:
                 store.assert_phase(arguments["task_id"], Phase.LOCALIZE)
-            except ValueError:
-                pass
+            except ValueError as exc:
+                out["phase_error"] = str(exc)
             out["evidence_id"] = ev.id
         return _json(out)
 
@@ -418,12 +483,13 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 task_id=arguments["task_id"],
                 evidence_type=EvidenceType.BLAST_RADIUS,
                 summary=report.summary,
-                payload=report.to_evidence_payload(),
+                payload={**report.to_evidence_payload(), "server_authored": True},
+                server_authored=True,
             )
             try:
                 store.assert_phase(arguments["task_id"], Phase.LOCALIZE)
-            except ValueError:
-                pass
+            except ValueError as exc:
+                out["phase_error"] = str(exc)
             out["evidence_id"] = ev.id
         return _json(out)
 
@@ -465,6 +531,16 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 )
         report = check_edit_safe(arguments["paths"], arguments["workspace"])
         out = report.to_evidence_payload()
+        if not out.get("safe", False):
+            return _json(
+                {
+                    "allowed": False,
+                    "safe": False,
+                    "reason": "; ".join(out.get("reasons") or ["unsafe paths"]),
+                    "action": PolicyAction.BLOCK.value,
+                    **out,
+                }
+            )
         out["allowed"] = True
         # Additive /ultradeep per-file gate (opt-out: require_per_file_gate=false)
         if task_id and arguments.get("require_per_file_gate", True):
@@ -489,7 +565,8 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 task_id=task_id,
                 evidence_type=EvidenceType.EDIT_SAFE,
                 summary=report.summary,
-                payload=report.to_evidence_payload(),
+                payload={**report.to_evidence_payload(), "server_authored": True},
+                server_authored=True,
             )
             out["evidence_id"] = ev.id
             loops.record(task_id, "check_edit_safe", signature="check_edit_safe:" + ",".join(arguments["paths"][:3]))
@@ -511,6 +588,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 evidence_type=ev_type,
                 summary=result.summary,
                 payload=result.to_payload(),
+                server_authored=True,
             )
             # Always also record exit_code evidence for rubric EXIT_CODE checks
             if result.passed:
@@ -519,12 +597,13 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                     evidence_type=EvidenceType.EXIT_CODE,
                     summary="verify_bundle exit 0",
                     payload=result.to_payload(),
+                    server_authored=True,
                 )
                 try:
                     store.assert_phase(task_id, Phase.VERIFY)
                     loops.note_phase_advance(task_id, Phase.VERIFY)
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    out["phase_error"] = str(exc)
             out["evidence_id"] = ev.id
             loops.record(
                 task_id,
