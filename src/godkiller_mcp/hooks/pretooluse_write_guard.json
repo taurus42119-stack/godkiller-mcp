@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "command": "godkiller-write-guard --stdin"
+      }
+    ]
+  },
+  "note": "Point host PreToolUse at godkiller-write-guard. Without this hook, native Write bypasses MCP."
+}

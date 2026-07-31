@@ -1,0 +1,8 @@
+# Default owners for release package reviews
+*       @taurus42119-stack
+
+/src/godkiller_mcp/safe_exec.py    @taurus42119-stack
+/src/godkiller_mcp/ssrf.py         @taurus42119-stack
+/src/godkiller_mcp/verify_bundle.py @taurus42119-stack
+/src/godkiller_mcp/evidence_integrity.py @taurus42119-stack
+/.github/                          @taurus42119-stack

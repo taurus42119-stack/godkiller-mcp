@@ -8,10 +8,12 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,7 +22,59 @@ jobs:
       - name: Install
         run: |
           python -m pip install -U pip
-          pip install -e ".[scrape]"
-          pip install pytest
+          pip install -e ".[dev,scrape]"
+          pip install ruff mypy
+      - name: Ruff (package)
+        run: ruff check src/godkiller_mcp
+      - name: Mypy (critical modules)
+        run: >
+          mypy --ignore-missing-imports --no-error-summary
+          src/godkiller_mcp/ssrf.py
+          src/godkiller_mcp/safe_exec.py
+          src/godkiller_mcp/ship_mode.py
+          src/godkiller_mcp/verify_bundle.py
       - name: Test
+        env:
+          GODKILLER_DOI_RESOLVE: "0"
+          GODKILLER_SEAL_QUIET: "1"
+          GODKILLER_QUOTE_BIND: "0"
+          GODKILLER_SWARM_AUTO: "0"
         run: pytest -q
+      - name: Ship seal must fail without env
+        env:
+          GODKILLER_PROFILE: ship
+          GODKILLER_SEAL_REQUIRE_ENV: "1"
+        run: |
+          python -c "from pathlib import Path; from godkiller_mcp.evidence_integrity import load_or_create_seal_key
+          import tempfile, os
+          os.environ.pop('GODKILLER_SEAL_KEY', None)
+          d=tempfile.mkdtemp()
+          try:
+            load_or_create_seal_key(Path(d))
+            raise SystemExit('expected RuntimeError')
+          except RuntimeError as e:
+            assert 'SEAL' in str(e).upper() or 'unset' in str(e).lower()
+            print('ship_seal_ok')"
+      - name: Default seal must not mint workspace key
+        env:
+          GODKILLER_SEAL_QUIET: "1"
+        run: |
+          python -c "from pathlib import Path; from godkiller_mcp.evidence_integrity import load_or_create_seal_key
+          import tempfile, os
+          os.environ.pop('GODKILLER_SEAL_KEY', None)
+          os.environ.pop('GODKILLER_SEAL_REQUIRE_ENV', None)
+          os.environ.pop('GODKILLER_ALLOW_LEGACY_SEAL', None)
+          os.environ.pop('GODKILLER_PROFILE', None)
+          d=tempfile.mkdtemp()
+          try:
+            load_or_create_seal_key(Path(d))
+            raise SystemExit('expected RuntimeError')
+          except RuntimeError as e:
+            assert 'auto-created' in str(e).lower() or 'SEAL_KEY' in str(e)
+            assert not (Path(d) / '.seal_key').exists()
+            print('no_mint_ok')"
+      - name: Prove CLI smoke
+        env:
+          GODKILLER_DOI_RESOLVE: "0"
+          GODKILLER_SEAL_QUIET: "1"
+        run: python -c "from godkiller_mcp import prove; print('prove_ok')"

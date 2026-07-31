@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from typing import List, Optional, Sequence
 
 from godkiller_mcp.schema import (
@@ -221,21 +220,33 @@ class PolicyEngine:
         require_quality_loop: bool = True,
         require_competitor_loop: bool = True,
         min_ambition_ladder: str = "L1_presence",
-    ) -> tuple[bool, List[RubricResult], str]:
+    ) -> tuple[bool, List[RubricResult], str, str]:
+        """Return (allowed, rubric_results, reason, gate_id).
+
+        gate_id is the machine layer that blocked (or \"ok\"). Chat text is not status.
+        """
         from godkiller_mcp.verify_bundle import task_has_passing_verify_bundle
 
-        # Soft-bypass only when explicitly relaxing for local experiments.
-        if os.environ.get("GODKILLER_DEV_RELAX", "").strip() != "1":
+        # Ship mode: client/args cannot disable armor. Only DEV_RELAX softens.
+        from godkiller_mcp.ship_mode import ship_mode
+
+        if ship_mode():
             require_verify_bundle = True
+            require_blast_radius = True
+            require_quality_loop = True
+            require_competitor_loop = True
 
         results = self.evaluate_rubric(state)
         if not self.all_passed(results):
             failed = [r for r in results if not r.passed]
-            return False, results, "Rubric incomplete: " + "; ".join(
-                f"{r.item_id}: {r.reason}" for r in failed
+            return (
+                False,
+                results,
+                "Rubric incomplete: " + "; ".join(f"{r.item_id}: {r.reason}" for r in failed),
+                "rubric",
             )
         if Phase.VERIFY not in state.phase_history and state.handle.phase != Phase.VERIFY:
-            return False, results, "Must reach VERIFY phase before claim_done."
+            return False, results, "Must reach VERIFY phase before claim_done.", "phase"
 
         # Forced protocol: blast_radius before claiming edits landed safely
         if require_blast_radius and state.handle.kind in (
@@ -248,34 +259,59 @@ class PolicyEngine:
                     results,
                     "Forced gate: blast_radius evidence required before claim_done "
                     "(call blast_radius before editing).",
+                    "blast_radius",
                 )
 
-        # Ralph / 知乎: exit-code verify_bundle must pass
+        # Ralph / 知乎: exit-code verify_bundle must pass (+ freshness bind)
         if require_verify_bundle:
             ok_vb, reason_vb = task_has_passing_verify_bundle(state)
             if not ok_vb:
-                return False, results, reason_vb
+                rl = reason_vb.lower()
+                gate = (
+                    "freshness"
+                    if ("stale" in rl or "material_hash" in rl)
+                    else "verify"
+                )
+                return False, results, reason_vb, gate
 
         # Hollow surface — unfinished / placeholder bodies cannot claim done
         from godkiller_mcp.hollow_surface import claim_hollow_gate
 
         ok_h, reason_h, _hollow = claim_hollow_gate(state)
         if not ok_h:
-            return False, results, reason_h
+            return False, results, reason_h, "hollow"
 
         # Write-through-plan lock
         from godkiller_mcp.governance import require_valid_plan
 
         ok_p, reason_p = require_valid_plan(state)
         if not ok_p:
-            return False, results, reason_p
+            return False, results, reason_p, "plan"
 
         # Fault probe — weak suites that miss mutants cannot claim
         from godkiller_mcp.fault_probe import claim_fault_probe_gate
 
         ok_f, reason_f = claim_fault_probe_gate(state)
         if not ok_f:
-            return False, results, reason_f
+            return False, results, reason_f, "fault_probe"
+
+        # Exit preflight — cannot claim from chat without exit_checklist pass
+        from godkiller_mcp.claim_armor import claim_council_gate, claim_exit_preflight_gate
+
+        ok_e, reason_e = claim_exit_preflight_gate(state)
+        if not ok_e:
+            return False, results, reason_e, "exit"
+
+        # Council refute-first — Hacker must attack before rubber-stamp PASS
+        ok_c, reason_c = claim_council_gate(state)
+        if not ok_c:
+            return False, results, reason_c, "council"
+
+        from godkiller_mcp.swarm import claim_swarm_gate
+
+        ok_sw, reason_sw = claim_swarm_gate(state)
+        if not ok_sw:
+            return False, results, reason_sw, "swarm"
 
         # Optional Planner/Builder/Eval soft gate (feedback.md)
         if handoff_feedback_ok is False:
@@ -284,6 +320,7 @@ class PolicyEngine:
                 results,
                 handoff_reason
                 or "Forced handoff gate: write_feedback(passed=true) after eval.",
+                "handoff",
             )
 
         # Forced epistemics — all domains (game, SaaS, accounting, API)
@@ -292,11 +329,17 @@ class PolicyEngine:
 
         ok_s, reason_s = claim_search_gate(state)
         if not ok_s:
-            return False, results, reason_s
+            return False, results, reason_s, "search"
 
         ok_sk, reason_sk = claim_skill_gate(state)
         if not ok_sk:
-            return False, results, reason_sk
+            return False, results, reason_sk, "skill"
+
+        from godkiller_mcp.tool_propose import claim_tool_propose_gate
+
+        ok_tp, reason_tp = claim_tool_propose_gate(state)
+        if not ok_tp:
+            return False, results, reason_tp, "tool_propose"
 
         # Feature dissatisfaction loop (competitors + ladder; visual when UI)
         from godkiller_mcp.quality_gates import quality_claim_gates
@@ -308,9 +351,14 @@ class PolicyEngine:
             min_ladder=min_ambition_ladder,
         )
         if not ok_q:
-            return False, results, reason_q
+            return False, results, reason_q, "quality"
 
-        return True, results, "All rubric items + verify_bundle + search + quality gates satisfied."
+        return (
+            True,
+            results,
+            "All rubric items + verify_bundle + search + quality gates satisfied.",
+            "ok",
+        )
 
     def decide(self, state: TaskState) -> PolicyAction:
         results = self.evaluate_rubric(state)

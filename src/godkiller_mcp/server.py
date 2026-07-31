@@ -16,8 +16,8 @@ from godkiller_mcp.dispatch import handle_tool, router
 app = _Server(
     name="GODKILLER",
     instructions=(
-        "Antigravity phase/evidence orchestrator. Prefer gk_phase + gk_meta.plan_validate "
-        "before edits; ultradeep uses per-file think→plan→edit; gk_verify.bundle before claim_done."
+        "Antigravity phase/evidence orchestrator (MCP kernel). Prefer gk_phase + gk_meta.plan_validate "
+        "before edits; gk_verify.bundle + probe + exit before claim_done. Ship mode: armor on by default."
     ),
 )
 
@@ -50,6 +50,7 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "bundle": "verify_bundle",
         "hollow": "hollow_surface",
         "probe": "fault_probe",
+        "exit": "exit_checklist",
         "ledger": "ledger_tail",
         "soak": "soak_run",
         "loop_record": "record_tool_event",
@@ -90,6 +91,13 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "council_finalize": "godkiller_council_finalize",
         "skillify": "godkiller_auto_skillify",
         "read_full": "gk_code_read_full",
+        "swarm_spawn": "swarm_spawn",
+        "swarm_submit": "swarm_submit",
+        "swarm_collect": "swarm_collect",
+    },
+    "gk_guard": {
+        "write": "write_guard",
+        "set_paths": "write_guard_set_paths",
     },
     "gk_scan": {
         "security": "godkiller_security_scan",
@@ -117,6 +125,22 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "ultradeep_plan": "ultradeep_plan_file",
         "ultradeep_advance": "ultradeep_advance_file",
         "ultradeep_status": "ultradeep_file_status",
+        "ultradeep_refute": "ultradeep_plan_refute",
+        "repair_wake": "ultradeep_repair_wake",
+        "view_start": "view_start",
+        "view_search": "view_record_search",
+        "view_attack": "view_record_attack",
+        "view_draft": "view_draft_plan",
+        "view_refute": "view_refute_plan",
+        "view_finalize": "view_finalize",
+        "debug_ctf_start": "debug_self_ctf_start",
+        "debug_ctf_tick": "debug_self_ctf_tick",
+        "debug_ctf_run_until": "debug_self_ctf_run_until",
+        "tool_propose": "tool_propose",
+        "tool_approve": "tool_approve",
+        "tool_reject": "tool_reject_all",
+        "tool_used": "tool_used",
+        "tool_status": "tool_propose_status",
     },
     "gk_handoff": {
         "write_spec": "write_spec",
@@ -132,16 +156,17 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
 }
 
 FACADE_DESC = {
-    "gk_route": "Classify intent into /ask|/plan|/debug|/ultradeep|/verify.",
+    "gk_route": "Classify intent into /ask|/plan|/debug|/ultradeep|/view|/verify.",
     "gk_task": "Task lifecycle: open, hypothesize, graph, policy, blast_radius, edit_safe, failing_slice.",
     "gk_phase": "Phase machine: assert, claim_done, rubric. Blocks illegal Antigravity phase skips.",
     "gk_evidence": "Evidence: submit, capture_shot, visual_critic, screenshot, journey, inspect_image.",
     "gk_verify": "Verification: bundle (pytest/cmds), soak, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
-    "gk_code": "Code intel: map/search/read; council=host debate (default) or API multi-agent; pipeline/self_heal execute.",
-    "gk_scan": "Best-effort regex CWE heuristics; optional semgrep CLI.",
+    "gk_code": "Code intel: map/search/read; council + swarm (scout/attacker/planner/verifier); pipeline/self_heal.",
+    "gk_guard": "Write allowlist brain for host PreToolUse — native Write/Edit cannot bypass when hooked.",
+    "gk_scan": "Best-effort regex CWE heuristics (signal, not a pro audit); optional semgrep CLI.",
     "gk_browser": "Browser automation (Playwright when installed): navigate, snapshot, screenshot, click, fill.",
-    "gk_mode": "Modes/protocols/skills + ultradeep per-file think→plan→edit gate.",
+    "gk_mode": "Modes/protocols/skills + ultradeep/view/debug + tool_propose (search≠install) + plan_refute wake.",
     "gk_handoff": "Spec/feedback handoff gates.",
     "gk_meta": "Secrets key listing + 9-step plan template/validate.",
 }
@@ -208,7 +233,29 @@ _register_facades()
 
 
 def main() -> None:
+    import os
+
+    from godkiller_mcp.ship_mode import profile, relax_enabled
+
     print("Starting GODKILLER MCP Server (facade surface)...", file=sys.stderr, flush=True)
+    if relax_enabled():
+        print(
+            "WARNING: GODKILLER_DEV_RELAX active — armor gates soft/disarmed "
+            "(local experiments only; not ship posture).",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif profile() == "ship" and os.environ.get("GODKILLER_DEV_RELAX", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    ):
+        print(
+            "NOTE: GODKILLER_DEV_RELAX ignored under PROFILE=ship — armor stays armed.",
+            file=sys.stderr,
+            flush=True,
+        )
     app.run_stdio_async()
 
 

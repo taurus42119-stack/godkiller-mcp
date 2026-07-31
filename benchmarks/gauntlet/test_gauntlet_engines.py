@@ -194,8 +194,9 @@ def test_vision_uses_expected_elements_fail_closed(tmp_path: Path):
     sidecar = path.with_suffix(".txt")
     sidecar.write_text("Welcome Login Submit button", encoding="utf-8")
     r2 = VisionBridge().analyze_screenshot(path, expected_elements=["Login", "Submit"])
-    assert r2.passed is True, r2.description
-    assert set(r2.elements_found) == {"Login", "Submit"}
+    # Sidecar alone is not claim-grade without OCR
+    assert r2.passed is False, r2.description
+    assert "sidecar_without_ocr" in (r2.description or "")
 
 
 def test_visual_critic_uses_screenshot(tmp_path: Path):

@@ -1,18 +1,24 @@
+# Secrets / local runtime (never commit)
+.env
+.env.*
+.godkiller/
+**/.seal_key
+**/.seal_key_SOURCE
+*.seal_key
+
 # Python Cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Local databases & history
 *.db
 lessons.db
 arena/
-
-# Secrets
-.env
-.env.*
 
 # Build artifacts (do not commit wheels/sdists)
 build/
@@ -25,3 +31,10 @@ uv.lock
 # Third-party study clones (patterns only — never ship)
 _vendor_study/
 _study_refs/
+
+# Local scorecards / stale arena artifacts (never commit theatre)
+logs/
+benchmarks/arena_logs/*.json
+benchmarks/arena_logs/*scorecard*
+benchmarks/arena_logs/*audit*
+!benchmarks/arena_logs/README.md

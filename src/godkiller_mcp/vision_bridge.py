@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 
 try:
@@ -27,6 +27,21 @@ def _ocr_text(path: Path) -> tuple[str, str]:
         return text, "pytesseract"
     except Exception:
         return "", "pytesseract_failed"
+
+
+def _element_in_hay(el: str, hay: str) -> bool:
+    """Substring for long labels; word-boundary / exact token for short labels."""
+    import re
+
+    needle = (el or "").strip().lower()
+    if not needle:
+        return False
+    hay_l = (hay or "").lower()
+    if len(needle) < 4:
+        return bool(re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", hay_l))
+    if re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", hay_l):
+        return True
+    return needle in hay_l
 
 
 @dataclass
@@ -85,7 +100,11 @@ class VisionBridge:
                     format=path.suffix.lstrip(".").upper() or "UNKNOWN",
                     color_mode="UNKNOWN",
                     is_blank_placeholder=not is_valid,
-                    description="expected_elements require Pillow+OCR; cannot verify",
+                    description=(
+                        "expected_elements require Pillow+OCR; cannot verify — "
+                        "pip install pillow pytesseract + install Tesseract binary "
+                        "(e.g. apt install tesseract-ocr / brew install tesseract)"
+                    ),
                     expected_elements=expected,
                     elements_missing=expected,
                     ocr_engine="unavailable",
@@ -100,7 +119,8 @@ class VisionBridge:
                 color_mode="UNKNOWN",
                 is_blank_placeholder=not is_valid,
                 description=(
-                    f"Pillow not installed; size-only check ({file_size} bytes)"
+                    f"Pillow not installed; size-only check ({file_size} bytes). "
+                    "pip install pillow for real image QA"
                     if is_valid
                     else "Tiny image placeholder detected (Pillow unavailable)"
                 ),
@@ -127,20 +147,37 @@ class VisionBridge:
             if expected:
                 ocr_text, ocr_engine = _ocr_text(path)
                 ocr_len = len(ocr_text)
-                # Also accept a sidecar .txt next to the image (agent-exported a11y dump)
+                # Sidecar may enrich OCR text but cannot alone be claim-grade
                 sidecar = path.with_suffix(path.suffix + ".txt")
                 if not sidecar.exists():
                     sidecar = path.with_suffix(".txt")
+                sidecar_text = ""
                 if sidecar.exists():
                     try:
-                        ocr_text = (ocr_text + "\n" + sidecar.read_text(encoding="utf-8", errors="ignore")).strip()
-                        ocr_engine = f"{ocr_engine}+sidecar" if ocr_engine != "none" else "sidecar_txt"
-                        ocr_len = len(ocr_text)
+                        sidecar_text = sidecar.read_text(encoding="utf-8", errors="ignore").strip()
                     except Exception:
-                        pass
-
-                hay = ocr_text.lower()
-                if ocr_engine in ("none", "pytesseract_failed") and not hay:
+                        sidecar_text = ""
+                if ocr_engine in ("none", "pytesseract_failed") and not ocr_text:
+                    if sidecar_text:
+                        return VisionAnalysisResult(
+                            image_uri=str(image_uri),
+                            passed=False,
+                            score=0.2 if base_pass else 0.1,
+                            width=width,
+                            height=height,
+                            format=img_format,
+                            color_mode=color_mode,
+                            is_blank_placeholder=is_blank,
+                            description=(
+                                "sidecar_without_ocr_not_claim_grade — "
+                                "pip install pytesseract + Tesseract binary "
+                                "(apt install tesseract-ocr / brew install tesseract)"
+                            ),
+                            expected_elements=expected,
+                            elements_missing=list(expected),
+                            ocr_engine="sidecar_only",
+                            ocr_text_len=len(sidecar_text),
+                        )
                     return VisionAnalysisResult(
                         image_uri=str(image_uri),
                         passed=False,
@@ -151,8 +188,9 @@ class VisionBridge:
                         color_mode=color_mode,
                         is_blank_placeholder=is_blank,
                         description=(
-                            "expected_elements provided but OCR unavailable "
-                            "(pip install pytesseract + Tesseract binary, or write sidecar .txt)"
+                            "expected_elements provided but OCR unavailable — "
+                            "pip install pytesseract + Tesseract binary "
+                            "(apt install tesseract-ocr / brew install tesseract)"
                         ),
                         expected_elements=expected,
                         elements_missing=list(expected),
@@ -160,8 +198,14 @@ class VisionBridge:
                         ocr_text_len=0,
                     )
 
+                if sidecar_text:
+                    ocr_text = (ocr_text + "\n" + sidecar_text).strip()
+                    ocr_engine = f"{ocr_engine}+sidecar"
+                    ocr_len = len(ocr_text)
+
+                hay = ocr_text.lower()
                 for el in expected:
-                    if el.lower() in hay:
+                    if _element_in_hay(el, hay):
                         found.append(el)
                     else:
                         missing.append(el)

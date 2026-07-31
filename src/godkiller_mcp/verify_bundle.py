@@ -10,21 +10,55 @@ from pathlib import Path
 from typing import List, Tuple
 
 from godkiller_mcp.safe_exec import run_command_safely
-from godkiller_mcp.schema import TaskState
+from godkiller_mcp.schema import EvidenceType, TaskState
 
 # Kernel verify: only these command shapes are accepted.
-_ALLOWED_PREFIXES = (
+_TEST_PREFIXES = (
     ("python", "-m", "pytest"),
     ("python3", "-m", "pytest"),
     ("py", "-m", "pytest"),
     ("pytest",),
     ("python", "-m", "unittest"),
     ("python3", "-m", "unittest"),
+)
+_LINT_PREFIXES = (
     ("ruff",),
     ("mypy",),
 )
+_ALLOWED_PREFIXES = _TEST_PREFIXES + _LINT_PREFIXES
+
+
+def is_test_verify_command(command_or_fp: str) -> bool:
+    """True if fingerprint/command is pytest/unittest (not lint-only)."""
+    if not command_or_fp:
+        return False
+    # fingerprints may be joined with || for multi-command
+    chunks = [c.strip() for c in command_or_fp.replace("||", "\n").split("\n") if c.strip()]
+    if not chunks and command_or_fp.strip():
+        chunks = [command_or_fp.strip()]
+    for chunk in chunks:
+        argv = _split(chunk)
+        if not argv:
+            continue
+        lower = [a.lower() for a in argv]
+        for prefix in _TEST_PREFIXES:
+            plen = len(prefix)
+            if lower[:plen] == list(prefix):
+                return True
+    return False
+
 
 _FORBIDDEN_META = re.compile(r"[;&|`$]|&&|\|\|")
+
+# Pytest flags that can escape the workspace / inject config (critic: shallow allowlist).
+_PYTEST_DENY_FLAGS = {
+    "-c",
+    "--override-ini",
+    "-p",
+    "--pyargs",
+    "--confcutdir",
+    "--rootdir",
+}
 
 
 def _split(command: str) -> List[str]:
@@ -36,7 +70,77 @@ def _split(command: str) -> List[str]:
         return command.strip().split()
 
 
-def detect_hacking(command: str) -> Tuple[bool, str]:
+def _pytest_argv_denied(argv: List[str]) -> Tuple[bool, str]:
+    """Block dangerous pytest argv even when prefix allowlist matches."""
+    lower = [a.lower() for a in argv]
+    # Find pytest entry
+    start = 0
+    if lower[:3] in (["python", "-m", "pytest"], ["python3", "-m", "pytest"], ["py", "-m", "pytest"]):
+        start = 3
+    elif lower[:1] == ["pytest"]:
+        start = 1
+    else:
+        return False, ""
+    rest = argv[start:]
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        key = tok.split("=", 1)[0].lower() if tok.startswith("-") else tok.lower()
+        # -cCONFIG / -c CONFIG / --override-ini=... / -p no:x
+        if key in _PYTEST_DENY_FLAGS or any(
+            key.startswith(f"{d}=") for d in _PYTEST_DENY_FLAGS if d.startswith("--")
+        ):
+            return True, f"verify deny-list: pytest flag `{tok}` not allowed (workspace escape / config inject)"
+        # short -c without space already covered; -c value as next arg
+        if tok in ("-c", "-p") or tok.lower() in ("--override-ini", "--pyargs", "--confcutdir", "--rootdir"):
+            return True, f"verify deny-list: pytest flag `{tok}` not allowed"
+        i += 1
+    return False, ""
+
+
+def _pytest_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bool, str]:
+    """Deny absolute / .. path args that escape work_dir."""
+    lower = [a.lower() for a in argv]
+    start = 0
+    if lower[:3] in (["python", "-m", "pytest"], ["python3", "-m", "pytest"], ["py", "-m", "pytest"]):
+        start = 3
+    elif lower[:1] == ["pytest"]:
+        start = 1
+    elif lower[:3] in (["python", "-m", "unittest"], ["python3", "-m", "unittest"]):
+        start = 3
+    else:
+        return False, ""
+    root = work_dir.resolve()
+    i = start
+    while i < len(argv):
+        tok = argv[i]
+        if tok.startswith("-"):
+            # skip flag values that are not paths we care about
+            if tok in ("-k", "-m", "--maxfail", "-n") and i + 1 < len(argv):
+                i += 2
+                continue
+            i += 1
+            continue
+        # positional path-like
+        if "/" in tok or "\\" in tok or tok.endswith((".py", ".txt")) or tok.startswith("tests"):
+            p = Path(tok)
+            candidate = p if p.is_absolute() else (root / p)
+            try:
+                resolved = candidate.resolve()
+                resolved.relative_to(root)
+            except (OSError, ValueError):
+                return True, f"verify deny: path escapes workspace: {tok}"
+            # also reject obvious parent escapes in the raw string
+            if ".." in Path(tok).parts:
+                try:
+                    (root / tok).resolve().relative_to(root)
+                except (OSError, ValueError):
+                    return True, f"verify deny: path escapes workspace: {tok}"
+        i += 1
+    return False, ""
+
+
+def detect_hacking(command: str, *, cwd: str | Path | None = None) -> Tuple[bool, str]:
     """Return (blocked, reason). Prefer allowlist over silly substring bans."""
     if not command or not command.strip():
         return True, "Empty verify command"
@@ -46,15 +150,26 @@ def detect_hacking(command: str) -> Tuple[bool, str]:
     if not argv:
         return True, "Empty verify command"
     lower = [a.lower() for a in argv]
+    matched = False
     for prefix in _ALLOWED_PREFIXES:
         plen = len(prefix)
         if lower[:plen] == list(prefix):
-            return False, ""
-    return (
-        True,
-        "Command not on verify allowlist "
-        "(allowed: pytest / python -m pytest|unittest / ruff / mypy)",
-    )
+            matched = True
+            break
+    if not matched:
+        return (
+            True,
+            "Command not on verify allowlist "
+            "(allowed: pytest / python -m pytest|unittest / ruff / mypy)",
+        )
+    denied, reason = _pytest_argv_denied(argv)
+    if denied:
+        return True, reason
+    if cwd is not None:
+        outside, why = _pytest_paths_outside_workspace(argv, Path(cwd))
+        if outside:
+            return True, why
+    return False, ""
 
 
 @dataclass
@@ -68,13 +183,16 @@ class VerifyResult:
     command_fingerprint: str = ""
     cwd: str = ""
     result_digest: str = ""
+    commands: List[str] | None = None
+    is_test_suite: bool = False
 
     @property
     def summary(self) -> str:
         if self.hack_blocked:
             return f"verify_bundle BLOCKED: {self.reason}"
         if self.passed:
-            return "verify_bundle PASS"
+            kind = "TEST" if self.is_test_suite else "LINT"
+            return f"verify_bundle PASS ({kind})"
         return f"verify_bundle FAIL: {self.reason or self.stderr[:200]}"
 
     def compute_digest(self) -> str:
@@ -83,6 +201,7 @@ class VerifyResult:
                 self.command_fingerprint,
                 str(self.exit_code),
                 "1" if self.passed else "0",
+                "T" if self.is_test_suite else "L",
                 self.stdout[-8000:],
                 self.stderr[-4000:],
                 self.cwd,
@@ -103,25 +222,53 @@ class VerifyResult:
             "reason": self.reason,
             "summary": self.summary,
             "command_fingerprint": self.command_fingerprint,
+            "commands": list(self.commands or []),
+            "is_test_suite": self.is_test_suite,
             "cwd": self.cwd,
             "result_digest": digest,
         }
 
 
 def task_has_passing_verify_bundle(state: TaskState) -> Tuple[bool, str]:
+    from godkiller_mcp.freshness import evidence_fresh_against_disk
+
+    saw_lint_only = False
     for ev in state.evidences:
         payload = ev.payload or {}
         if (
-            payload.get("source") == "verify_bundle"
-            and payload.get("passed")
-            and payload.get("server_authored") is True
+            payload.get("source") != "verify_bundle"
+            or not payload.get("passed")
+            or payload.get("server_authored") is not True
         ):
-            if not payload.get("result_digest"):
-                return (
-                    False,
-                    "verify_bundle evidence missing result_digest — rerun verify_bundle on this build",
-                )
-            return True, "verify_bundle passed"
+            continue
+        # Claim-grade: must be PASSING_TEST from a real test runner — not LOG, not lint-only
+        if ev.type != EvidenceType.PASSING_TEST:
+            continue
+        if payload.get("is_test_suite") is False:
+            saw_lint_only = True
+            continue
+        cmds = payload.get("commands") or []
+        if cmds and not any(is_test_verify_command(str(c)) for c in cmds):
+            saw_lint_only = True
+            continue
+        if not payload.get("result_digest"):
+            return (
+                False,
+                "verify_bundle evidence missing result_digest — rerun verify_bundle on this build",
+            )
+        ok_f, reason_f = evidence_fresh_against_disk(
+            payload,
+            workspace=payload.get("cwd"),
+            state=state,
+        )
+        if not ok_f:
+            return False, reason_f
+        return True, "verify_bundle passed (fresh)"
+    if saw_lint_only:
+        return (
+            False,
+            "verify_bundle lint/mypy alone is not claim-grade — run pytest/unittest via verify_bundle",
+        )
     return False, "verify_bundle evidence missing, failed, or not server-authored"
 
 
@@ -133,13 +280,14 @@ class VerifyBundleRunner:
         work_dir = Path(cwd).resolve()
         if not commands:
             commands = ["python -m pytest -q"]
+        is_test_suite = any(is_test_verify_command(c) for c in commands)
 
         fingerprints = []
         last_stdout = ""
         last_stderr = ""
 
         for cmd in commands:
-            is_hack, reason = detect_hacking(cmd)
+            is_hack, reason = detect_hacking(cmd, cwd=work_dir)
             fp = hashlib.sha256(cmd.encode("utf-8")).hexdigest()[:16]
             fingerprints.append(fp)
             if is_hack:
@@ -150,6 +298,8 @@ class VerifyBundleRunner:
                     reason=reason,
                     command_fingerprint=",".join(fingerprints),
                     cwd=str(work_dir),
+                    commands=list(commands),
+                    is_test_suite=is_test_suite,
                 )
 
             try:
@@ -170,6 +320,8 @@ class VerifyBundleRunner:
                         reason=f"Command '{cmd}' failed with exit code {proc.returncode}",
                         command_fingerprint=",".join(fingerprints),
                         cwd=str(work_dir),
+                        commands=list(commands),
+                        is_test_suite=is_test_suite,
                     )
             except Exception as e:
                 return VerifyResult(
@@ -179,15 +331,20 @@ class VerifyBundleRunner:
                     reason=str(e),
                     command_fingerprint=",".join(fingerprints),
                     cwd=str(work_dir),
+                    commands=list(commands),
+                    is_test_suite=is_test_suite,
                 )
 
-        return VerifyResult(
+        out = VerifyResult(
             passed=True,
             hack_blocked=False,
             exit_code=0,
-            stdout=last_stdout or "All verification commands passed cleanly",
+            stdout=last_stdout,
             stderr=last_stderr,
             command_fingerprint=",".join(fingerprints),
             cwd=str(work_dir),
-            result_digest="",
+            commands=list(commands),
+            is_test_suite=is_test_suite,
         )
+        out.result_digest = out.compute_digest()
+        return out

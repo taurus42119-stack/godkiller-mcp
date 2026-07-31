@@ -53,7 +53,8 @@ def extract_queries_from_payload(payload: Optional[dict]) -> List[str]:
         raw = [raw]
     for q in raw:
         s = str(q).strip()
-        if s:
+        # B7: reject ceremonial one-letter / tiny padding strings
+        if len(s) >= 8 and not s.isdigit():
             out.append(s)
     return out
 

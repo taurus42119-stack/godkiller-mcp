@@ -1,24 +1,69 @@
 # GODKILLER MCP
 
-Phase kernel for **Google Antigravity**.  
+Phase kernel for **Google Antigravity** (MCP tools + disk proof).  
 Plan. Gate. Prove on disk. Then claim done — or get blocked.
+
+**Threat model (honest):** this package controls what happens **when the agent
+calls GODKILLER tools**. It does **not** intercept native IDE Write/Edit/Terminal.
+Those bypass MCP unless a **host PreToolUse hook** (or companion guard) wraps them —
+see `docs/HOST_VS_MCP.md` and `docs/WRITE_GUARD_HOOKS.md`.
+Without that hook, GODKILLER **does not enforce** native Write — only MCP tool calls.
+Chat ceremony ≠ execution boundary.
 
 [![PyPI](https://img.shields.io/pypi/v/godkiller-mcp.svg)](https://pypi.org/project/godkiller-mcp/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-success.svg)](tests/)
+[![CI](https://github.com/taurus42119-stack/godkiller-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/taurus42119-stack/godkiller-mcp/actions/workflows/ci.yml)
 
 ```bash
 pip install godkiller-mcp
+# host Write lock: wire PreToolUse → godkiller-write-guard --stdin
+# (see docs/WRITE_GUARD_HOOKS.md) — without this hook, native Write bypasses MCP
 ```
 
-**Contact:** [Facebook](https://www.facebook.com/search/top?q=Pronphorm%20Pakdee) · [Instagram @Kayvin.th](https://www.instagram.com/Kayvin.th)
+**Status:** MCP proof kernel — not Enterprise Ready / not OS lock.  
+**Security reports:** [GitHub Security Advisories](https://github.com/taurus42119-stack/godkiller-mcp/security/advisories/new) (see `SECURITY.md`).
 
 ---
 
 ## Mission
 
-Antigravity skips phases. GODKILLER does not allow that.
+Inside MCP: the agent cannot get `status: done` without server-side proof.  
+Outside MCP: native Write can still change files — **do not treat MCP alone as OS control**.
+
+**Contract:** the agent may *propose* done — the harness *decides*.  
+Chat summary is never status. Only `claim_done` / `prove` / `exit_checklist` with a green directive counts.
+
+| Agent failure | Why | Kernel force |
+| --- | --- | --- |
+| Won’t quit / says done while broken | model wants to end the turn | `claim_done` → `status: blocked` + `gate` |
+| Trusts terminal / stale “passed” | self-report or old logs | server verify + `result_digest` + **freshness** |
+| Confidence from shallow green | tests miss real bugs | **fault_probe** — survivors = cannot claim |
+
+**Ship hardening profile (MCP proof kernel):**
+
+```bash
+export GODKILLER_PROFILE=ship
+export GODKILLER_SEAL_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+export GODKILLER_SEAL_REQUIRE_ENV=1
+# + host PreToolUse → godkiller-write-guard  (docs/WRITE_GUARD_HOOKS.md)
+```
+
+This is the **ship deployment posture** for proof-or-block on MCP tools:
+ship armor, host-only seal, write hook. It is **not** Enterprise Ready, SSO/DLP, or full-IDE OS lock —
+see `SECURITY.md` and `docs/HOST_VS_MCP.md`.
+
+**Ship profile:** set `GODKILLER_PROFILE=ship` so even `GODKILLER_DEV_RELAX=1` cannot disarm armor.  
+Without ship: `DEV_RELAX=1` softens gates (local experiments only) — the server prints a stderr warning when relax is active.
+
+Static `gk_scan.security` is a **regex signal**, not a professional SAST / security audit.  
+Council must record a Hacker `REJECT` before `COUNCIL_PASS` (nits-only = theatre).
+
+**Seal key:** require host `GODKILLER_SEAL_KEY` (see [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)); no silent `.seal_key` mint.  
+**Write enforce:** only with host PreToolUse — demo in [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md).
+
+Preflight: `gk_verify.exit` → `exit_checklist` (`directive: pass|reject`).  
+Host last word: `python -m godkiller_mcp.prove`.
 
 | Failure mode | Kernel response |
 | --- | --- |
@@ -29,9 +74,8 @@ Antigravity skips phases. GODKILLER does not allow that.
 | Weak review | LLM council — Coder / Hacker / Optimizer, multi-round debate |
 
 ```text
-goal → mode → evidence/plan → gated edit → disk verify → claim_done
+goal → mode → evidence/plan → gated edit → disk verify → probe → exit_checklist → claim_done|blocked
 ```
-
 ---
 
 ## Arena — Antigravity A/B (the real proof)
@@ -69,7 +113,7 @@ Pre-solved twins that both pass 516 prove nothing. The honest protocol:
 | 11 | UI visual gate (critic / screenshots) |
 
 ```powershell
-$env:GODKILLER_ARENA_ROOT="C:\Users\ASUS\Desktop\GODKILLER_ISOLATED_ARENA"
+$env:GODKILLER_ARENA_ROOT="<your-arena-root>"
 python -m benchmarks.reset_arena
 # → open Antigravity bare, then:
 python -m benchmarks.score_11 --arm 3_WITHOUT_MCP
@@ -78,7 +122,7 @@ python -m benchmarks.score_11 --arm 2_WITH_MCP
 python -m benchmarks.score_11 --compare
 ```
 
-Scorecard lands in `GODKILLER_ISOLATED_ARENA\logs\11_dimension_scorecard.md` after *your* runs — not a fake pre-fill.
+Scorecard lands under `$env:GODKILLER_ARENA_ROOT\logs\` after *your* runs — not a fake pre-fill.
 
 ### Engine gauntlet (in-package kernel proof)
 
@@ -90,7 +134,7 @@ Scorecard lands in `GODKILLER_ISOLATED_ARENA\logs\11_dimension_scorecard.md` aft
 | Council host tally | all 8 vote combinations |
 | Exhaustive read | 120 size variants (incl. >3000 chars) |
 | Closed-task immutability | 80 variants |
-| Package suite | **331** passed (`pytest -q`) |
+| Package suite | **469** passed (`pytest -q` — see CI) |
 
 ```bash
 python -m benchmarks.run_arena --mode engine
@@ -107,7 +151,21 @@ pytest -q
 | Plan OS | 9-step validate before fix edits |
 | Edit safety | blast radius + path-safe `check_edit_safe` |
 | `/ultradeep` | one phase/turn · one file/edit cycle |
-| Verify | disk commands · `result_digest` · **fault_probe** kills weak suites |
+| Verify | disk · `result_digest` · **`material_hash` freshness** · fault_probe |
+| Exit checklist | `gk_verify.exit` → `directive: pass\|reject` before claim |
+| Claim | `status: done\|blocked` + `gate` — agent proposes, harness decides |
+| Ship profile | `GODKILLER_PROFILE=ship` ignores `DEV_RELAX`; default ship-like without relax |
+| Critic-proof | no LOG-forge · workspace freshness · lint ≠ claim · vacuous probe/hollow fail |
+| Anti-hype | hollow TS/JS/UI · **exit_checklist before claim** · council **refute-first** · soak needs command |
+| Critic hunt | probe allowlist · targets under workspace · workspace hash · seal vs JSON forge · deeper mutants |
+| Host prove | `python -m godkiller_mcp.prove` — re-verify outside agent self-report |
+| Not claimed | native IDE Write lock without host hook — use `gk_guard` + `docs/WRITE_GUARD_HOOKS.md` |
+| Write guard | `gk_guard.write` / `python -m godkiller_mcp.write_guard` for PreToolUse |
+| Swarm | `gk_code.swarm_*` — scout/attacker/planner/verifier (host or API parallel) |
+| `/view` | Adversarial research plan: hunt→attack→9-step→refute wake→seal (DOI live resolve) |
+| Ultradeep wake | `ultradeep_plan_refute` required after plan_validate before edit_safe |
+| Repair wake | `ultradeep_repair_wake` after verify/probe/hollow fail — self_heal still tool-fallback |
+
 | Hollow surface | unfinished bodies blocked before `claim_done` |
 | Plan lock | write-through-plan — 9-step validate before edit/claim |
 | Session ledger | hash chain under `.godkiller/session_ledger.jsonl` |

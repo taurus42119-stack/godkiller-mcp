@@ -1,27 +1,19 @@
-"""Fault probe — kill weak tests by injecting simple mutants (GODKILLER-native).
+"""Fault probe — diff-scoped mutation pressure (GODKILLER-native, deeper than v1).
 
-Inspired by mutation-testing practice, not a third-party product port.
-If a mutant still passes the suite, claim_done must not trust that suite.
+Mutates changed Python files (git diff or explicit targets). Multiple operator
+sites per file. Survivors = tests too shallow to claim_done.
 """
 
 from __future__ import annotations
 
 import ast
 import hashlib
-import shutil
-import tempfile
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from godkiller_mcp.safe_exec import run_command_safely
-
-
-@dataclass
-class Mutant:
-    kind: str
-    detail: str
-    source_hash: str
 
 
 @dataclass
@@ -31,9 +23,12 @@ class FaultProbeReport:
     killed: int = 0
     survivors: List[Dict[str, Any]] = field(default_factory=list)
     skipped_reason: str = ""
-    target: str = ""
+    targets: List[str] = field(default_factory=list)
     test_command: str = ""
     summary: str = ""
+    material_hash: str = ""
+    scope: str = ""
+    complete: bool = True
 
     def to_payload(self) -> Dict[str, Any]:
         return {
@@ -42,10 +37,15 @@ class FaultProbeReport:
             "clean": self.clean,
             "mutants_tried": self.mutants_tried,
             "killed": self.killed,
-            "survivors": self.survivors[:20],
+            "survivors": self.survivors[:40],
             "skipped_reason": self.skipped_reason,
-            "target": self.target,
+            "targets": self.targets,
+            "target": self.targets[0] if self.targets else "",
             "test_command": self.test_command,
+            "material_hash": self.material_hash,
+            "material_scope": "workspace",
+            "complete": self.complete,
+            "scope": self.scope,
             "summary": self.summary
             or (
                 "fault_probe CLEAN"
@@ -55,210 +55,425 @@ class FaultProbeReport:
         }
 
 
-class _MutateCompare(ast.NodeTransformer):
-    """Flip first Compare op (== <-> !=, < <-> >=, etc.)."""
-
-    def __init__(self):
-        self.done = False
-        self.detail = ""
-
-    def visit_Compare(self, node: ast.Compare):
-        self.generic_visit(node)
-        if self.done or not node.ops:
-            return node
-        op = node.ops[0]
-        repl = None
-        if isinstance(op, ast.Eq):
-            repl = ast.NotEq()
-            self.detail = "== -> !="
-        elif isinstance(op, ast.NotEq):
-            repl = ast.Eq()
-            self.detail = "!= -> =="
-        elif isinstance(op, ast.Lt):
-            repl = ast.GtE()
-            self.detail = "< -> >="
-        elif isinstance(op, ast.Gt):
-            repl = ast.LtE()
-            self.detail = "> -> <="
-        if repl is None:
-            return node
-        node.ops[0] = repl
-        self.done = True
-        return node
+def _flip_compare(op: ast.cmpop) -> Optional[ast.cmpop]:
+    table = {
+        ast.Eq: ast.NotEq,
+        ast.NotEq: ast.Eq,
+        ast.Lt: ast.GtE,
+        ast.Gt: ast.LtE,
+        ast.LtE: ast.Gt,
+        ast.GtE: ast.Lt,
+        ast.Is: ast.IsNot,
+        ast.IsNot: ast.Is,
+        ast.In: ast.NotIn,
+        ast.NotIn: ast.In,
+    }
+    for src, dst in table.items():
+        if isinstance(op, src):
+            return dst()
+    return None
 
 
-class _MutateBinOp(ast.NodeTransformer):
-    def __init__(self):
-        self.done = False
-        self.detail = ""
-
-    def visit_BinOp(self, node: ast.BinOp):
-        self.generic_visit(node)
-        if self.done:
-            return node
-        if isinstance(node.op, ast.Add):
-            node.op = ast.Sub()
-            self.detail = "+ -> -"
-            self.done = True
-        elif isinstance(node.op, ast.Sub):
-            node.op = ast.Add()
-            self.detail = "- -> +"
-            self.done = True
-        elif isinstance(node.op, ast.Mult):
-            node.op = ast.Div()
-            self.detail = "* -> /"
-            self.done = True
-        return node
+def _flip_binop(op: ast.operator) -> Optional[ast.operator]:
+    table = {
+        ast.Add: ast.Sub,
+        ast.Sub: ast.Add,
+        ast.Mult: ast.Div,
+        ast.Div: ast.Mult,
+        ast.BitOr: ast.BitAnd,
+        ast.BitAnd: ast.BitOr,
+    }
+    for src, dst in table.items():
+        if isinstance(op, src):
+            return dst()
+    return None
 
 
-class _MutateReturnTrue(ast.NodeTransformer):
-    def __init__(self):
-        self.done = False
-        self.detail = ""
+def _generate_mutants(src: str, *, max_per_file: int = 8) -> List[Tuple[str, str, str]]:
+    """Generate up to max_per_file single-site mutants (all sites, not only first)."""
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return []
 
-    def visit_Return(self, node: ast.Return):
-        self.generic_visit(node)
-        if self.done:
-            return node
-        if isinstance(node.value, ast.Constant) and node.value.value is True:
-            node.value = ast.Constant(value=False)
-            self.detail = "return True -> False"
-            self.done = True
-        elif isinstance(node.value, ast.Constant) and node.value.value is False:
-            node.value = ast.Constant(value=True)
-            self.detail = "return False -> True"
-            self.done = True
-        return node
+    sites: List[Tuple[str, str, ast.AST]] = []
 
+    class Finder(ast.NodeVisitor):
+        def visit_Compare(self, node: ast.Compare):
+            if node.ops and _flip_compare(node.ops[0]) is not None:
+                sites.append(("compare_flip", f"line {getattr(node, 'lineno', '?')}", node))
+            self.generic_visit(node)
 
-def _apply_mutators(src: str) -> List[Tuple[str, str, str]]:
-    """Return list of (kind, detail, mutated_source)."""
+        def visit_BinOp(self, node: ast.BinOp):
+            if _flip_binop(node.op) is not None:
+                sites.append(("binop_flip", f"line {getattr(node, 'lineno', '?')}", node))
+            self.generic_visit(node)
+
+        def visit_Return(self, node: ast.Return):
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, bool):
+                sites.append(("bool_return_flip", f"line {getattr(node, 'lineno', '?')}", node))
+            self.generic_visit(node)
+
+        def visit_Constant(self, node: ast.Constant):
+            if isinstance(node.value, bool):
+                return  # handled via Return bool flip
+            if isinstance(node.value, int) and node.value in (0, 1, -1, 2):
+                sites.append(("int_const_flip", f"line {getattr(node, 'lineno', '?')}", node))
+            if isinstance(node.value, str) and node.value == "":
+                sites.append(("empty_str_to_x", f"line {getattr(node, 'lineno', '?')}", node))
+            self.generic_visit(node)
+
+        def visit_Name(self, node: ast.Name):
+            if isinstance(node.ctx, ast.Load) and node.id in ("True", "False"):
+                sites.append(("name_bool_flip", f"line {getattr(node, 'lineno', '?')}", node))
+            self.generic_visit(node)
+
+        def visit_UnaryOp(self, node: ast.UnaryOp):
+            if isinstance(node.op, ast.Not):
+                sites.append(("drop_not", f"line {getattr(node, 'lineno', '?')}", node))
+            self.generic_visit(node)
+
+    Finder().visit(tree)
     out: List[Tuple[str, str, str]] = []
-    for kind, cls in (
-        ("compare_flip", _MutateCompare),
-        ("binop_flip", _MutateBinOp),
-        ("bool_return_flip", _MutateReturnTrue),
-    ):
+    for kind, detail, target_node in sites[:max_per_file]:
         try:
-            tree = ast.parse(src)
+            fresh = ast.parse(src)
         except SyntaxError:
-            return out
-        mut = cls()
-        new_tree = mut.visit(tree)
-        if not mut.done:
+            break
+
+        class Applier(ast.NodeTransformer):
+            def __init__(self):
+                self.done = False
+
+            def visit_Compare(self, node: ast.Compare):
+                node = self.generic_visit(node)
+                if self.done or kind != "compare_flip":
+                    return node
+                if getattr(node, "lineno", None) == getattr(target_node, "lineno", None) and node.ops:
+                    flipped = _flip_compare(node.ops[0])
+                    if flipped is not None:
+                        node.ops[0] = flipped
+                        self.done = True
+                return node
+
+            def visit_BinOp(self, node: ast.BinOp):
+                node = self.generic_visit(node)
+                if self.done or kind != "binop_flip":
+                    return node
+                if getattr(node, "lineno", None) == getattr(target_node, "lineno", None):
+                    flipped = _flip_binop(node.op)
+                    if flipped is not None:
+                        node.op = flipped
+                        self.done = True
+                return node
+
+            def visit_Return(self, node: ast.Return):
+                node = self.generic_visit(node)
+                if self.done or kind != "bool_return_flip":
+                    return node
+                if getattr(node, "lineno", None) == getattr(target_node, "lineno", None):
+                    if isinstance(node.value, ast.Constant) and isinstance(node.value.value, bool):
+                        node.value = ast.Constant(value=not node.value.value)
+                        self.done = True
+                return node
+
+            def visit_Constant(self, node: ast.Constant):
+                node = self.generic_visit(node)
+                if self.done:
+                    return node
+                if kind == "int_const_flip" and isinstance(node.value, int):
+                    if getattr(node, "lineno", None) == getattr(target_node, "lineno", None):
+                        node.value = {0: 1, 1: 0, -1: 1, 2: 3}.get(node.value, node.value + 1)
+                        self.done = True
+                if kind == "empty_str_to_x" and node.value == "":
+                    if getattr(node, "lineno", None) == getattr(target_node, "lineno", None):
+                        node.value = "x"
+                        self.done = True
+                return node
+
+            def visit_Name(self, node: ast.Name):
+                node = self.generic_visit(node)
+                if self.done or kind != "name_bool_flip":
+                    return node
+                if getattr(node, "lineno", None) == getattr(target_node, "lineno", None):
+                    if node.id == "True":
+                        return ast.Name(id="False", ctx=node.ctx)
+                    if node.id == "False":
+                        return ast.Name(id="True", ctx=node.ctx)
+                return node
+
+            def visit_UnaryOp(self, node: ast.UnaryOp):
+                node = self.generic_visit(node)
+                if self.done or kind != "drop_not":
+                    return node
+                if getattr(node, "lineno", None) == getattr(target_node, "lineno", None) and isinstance(
+                    node.op, ast.Not
+                ):
+                    self.done = True
+                    return node.operand
+                return node
+
+        applier = Applier()
+        new_tree = applier.visit(fresh)
+        if not applier.done:
             continue
         ast.fix_missing_locations(new_tree)
         try:
             text = ast.unparse(new_tree)
         except Exception:
             continue
-        out.append((kind, mut.detail, text))
+        out.append((kind, detail, text))
     return out
+
+
+def git_changed_py_files(workspace: Path) -> List[Path]:
+    """Diff-scoped targets: staged + unstaged + untracked .py under workspace."""
+    files: List[Path] = []
+    try:
+        cmds = [
+            ["git", "diff", "--name-only", "--diff-filter=ACMR"],
+            ["git", "diff", "--name-only", "--cached", "--diff-filter=ACMR"],
+            ["git", "ls-files", "--others", "--exclude-standard"],
+        ]
+        seen = set()
+        for cmd in cmds:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(workspace),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if proc.returncode != 0:
+                continue
+            for line in proc.stdout.splitlines():
+                line = line.strip()
+                if not line.endswith(".py"):
+                    continue
+                p = (workspace / line).resolve()
+                if p.is_file() and str(p) not in seen:
+                    seen.add(str(p))
+                    files.append(p)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return files
+
+
+def _is_under_workspace(path: Path, workspace: Path) -> bool:
+    try:
+        path.resolve().relative_to(workspace.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_probe_targets(
+    workspace: Path,
+    *,
+    target: Optional[str | Path] = None,
+    targets: Optional[Sequence[str | Path]] = None,
+) -> Tuple[List[Path], str]:
+    workspace = workspace.resolve()
+
+    def _accept(p: Path) -> Optional[Path]:
+        p = p.resolve()
+        if not _is_under_workspace(p, workspace):
+            return None
+        if p.is_file() and p.suffix == ".py":
+            return p
+        return None
+
+    if targets:
+        out = []
+        for t in targets:
+            p = Path(t)
+            if not p.is_absolute():
+                p = (workspace / p)
+            acc = _accept(p)
+            if acc is not None:
+                out.append(acc)
+        return out, "explicit_targets"
+    if target:
+        p = Path(target)
+        if not p.is_absolute():
+            p = workspace / p
+        acc = _accept(p)
+        if acc is not None:
+            return [acc], "explicit_target"
+        return [], "target_outside_workspace"
+    changed = git_changed_py_files(workspace)
+    if changed:
+        return [c for c in changed[:12] if _is_under_workspace(c, workspace)], "git_diff_scoped"
+    return [], "no_targets"
 
 
 def run_fault_probe(
     *,
     workspace: str | Path,
-    target_file: str | Path,
+    target_file: str | Path | None = None,
+    targets: Optional[Sequence[str | Path]] = None,
     test_command: str = "python -m pytest -q --tb=no",
     timeout_sec: int = 45,
-    max_mutants: int = 3,
+    max_mutants: int = 24,
+    max_per_file: int = 12,
 ) -> FaultProbeReport:
+    from godkiller_mcp.freshness import hash_workspace_code
+    from godkiller_mcp.verify_bundle import detect_hacking, is_test_verify_command
+
     workspace = Path(workspace).resolve()
-    target = Path(target_file)
-    if not target.is_absolute():
-        target = (workspace / target).resolve()
-    if not target.is_file() or target.suffix != ".py":
-        return FaultProbeReport(
-            clean=False,
-            skipped_reason=f"target not a python file: {target}",
-            target=str(target),
-            summary="fault_probe SKIP: bad target",
-        )
-    try:
-        original = target.read_text(encoding="utf-8")
-    except OSError as exc:
-        return FaultProbeReport(
-            clean=False,
-            skipped_reason=str(exc),
-            target=str(target),
-            summary="fault_probe SKIP: read error",
-        )
 
-    mutants = _apply_mutators(original)[:max_mutants]
-    if not mutants:
+    # B1: same allowlist as verify_bundle — no free-form shell
+    blocked, why = detect_hacking(test_command)
+    if blocked:
         return FaultProbeReport(
-            clean=True,
-            mutants_tried=0,
-            skipped_reason="no applicable mutants in file",
-            target=str(target),
+            clean=False,
+            skipped_reason=f"test_command blocked: {why}",
             test_command=test_command,
-            summary="fault_probe CLEAN (no mutants applicable)",
+            summary="fault_probe BLOCKED: illegal test_command",
+        )
+    if not is_test_verify_command(test_command):
+        return FaultProbeReport(
+            clean=False,
+            skipped_reason="test_command must be pytest/unittest (lint-only not allowed)",
+            test_command=test_command,
+            summary="fault_probe BLOCKED: test_command not claim-grade",
         )
 
-    # Baseline must pass first
+    files, scope = resolve_probe_targets(
+        workspace, target=target_file, targets=targets
+    )
+    if not files:
+        return FaultProbeReport(
+            clean=False,
+            skipped_reason="no python targets inside workspace (pass target= or edit files under git)",
+            scope=scope,
+            summary="fault_probe SKIP: no targets",
+        )
+
+    # B3: bind to full workspace tree, not decoy target list
+    mat = hash_workspace_code(workspace)
+    if not mat.get("complete", True):
+        return FaultProbeReport(
+            clean=False,
+            skipped_reason="workspace material_hash incomplete — too many code files",
+            targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
+            test_command=test_command,
+            material_hash=mat["material_hash"],
+            scope=scope,
+            complete=bool(mat.get("complete", True)),
+            summary="fault_probe BLOCKED: incomplete workspace hash",
+        )
+
     base = run_command_safely(test_command, cwd=workspace, timeout_sec=timeout_sec)
     if base.returncode != 0:
         return FaultProbeReport(
             clean=False,
             mutants_tried=0,
             skipped_reason="baseline tests already failing — fix verify_bundle first",
-            target=str(target),
+            targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
             test_command=test_command,
+            material_hash=mat["material_hash"],
+            scope=scope,
+            complete=bool(mat.get("complete", True)),
             summary="fault_probe BLOCKED: baseline red",
         )
 
     survivors: List[Dict[str, Any]] = []
     killed = 0
-    backup = original
-    try:
-        for kind, detail, mutated in mutants:
-            target.write_text(mutated, encoding="utf-8")
-            proc = run_command_safely(test_command, cwd=workspace, timeout_sec=timeout_sec)
-            entry = {
-                "kind": kind,
-                "detail": detail,
-                "exit_code": proc.returncode,
-                "digest": hashlib.sha256(mutated.encode()).hexdigest()[:16],
-            }
-            if proc.returncode == 0:
-                survivors.append(entry)
-            else:
-                killed += 1
-    finally:
-        target.write_text(backup, encoding="utf-8")
+    tried = 0
+    budget = max_mutants
 
-    clean = len(survivors) == 0
+    for fpath in files:
+        if tried >= budget:
+            break
+        if not _is_under_workspace(fpath, workspace):
+            continue
+        try:
+            original = fpath.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        mutants = _generate_mutants(original, max_per_file=max_per_file)
+        for kind, detail, mutated in mutants:
+            if tried >= budget:
+                break
+            tried += 1
+            try:
+                fpath.write_text(mutated, encoding="utf-8")
+                proc = run_command_safely(
+                    test_command, cwd=workspace, timeout_sec=timeout_sec
+                )
+                entry = {
+                    "file": str(fpath.relative_to(workspace)).replace("\\", "/"),
+                    "kind": kind,
+                    "detail": detail,
+                    "exit_code": proc.returncode,
+                    "digest": hashlib.sha256(mutated.encode()).hexdigest()[:16],
+                }
+                if proc.returncode == 0:
+                    survivors.append(entry)
+                else:
+                    killed += 1
+            finally:
+                fpath.write_text(original, encoding="utf-8")
+
+    clean = tried > 0 and len(survivors) == 0
+    if tried == 0:
+        return FaultProbeReport(
+            clean=False,
+            mutants_tried=0,
+            killed=0,
+            survivors=[],
+            targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
+            test_command=test_command,
+            material_hash=mat["material_hash"],
+            scope=scope,
+            complete=bool(mat.get("complete", True)),
+            summary="fault_probe CLEAN (no mutant sites)",
+            skipped_reason="no applicable mutant sites in scoped files",
+        )
+
     return FaultProbeReport(
         clean=clean,
-        mutants_tried=len(mutants),
+        mutants_tried=tried,
         killed=killed,
         survivors=survivors,
-        target=str(target),
+        targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
         test_command=test_command,
+        material_hash=mat["material_hash"],
+        scope=scope,
+        complete=bool(mat.get("complete", True)),
         summary=(
-            "fault_probe CLEAN — all mutants killed"
+            f"fault_probe CLEAN — killed {killed}/{tried} ({scope})"
             if clean
-            else f"fault_probe FAIL — {len(survivors)} survivor(s); tests too weak"
+            else f"fault_probe FAIL — {len(survivors)} survivor(s) in {scope}; tests too shallow"
         ),
     )
 
 
 def claim_fault_probe_gate(state, *, workspace: Optional[str] = None) -> Tuple[bool, str]:
-    """Require a clean server-authored fault_probe evidence when paths were edited."""
-    import os
+    from godkiller_mcp.ship_mode import env_disables, relax_enabled
 
-    if os.environ.get("GODKILLER_DEV_RELAX", "").strip() == "1":
+    if relax_enabled():
         return True, "fault_probe skipped (GODKILLER_DEV_RELAX)"
-    if os.environ.get("GODKILLER_FAULT_PROBE", "1").strip() in ("0", "false", "off"):
-        return True, "fault_probe disabled via GODKILLER_FAULT_PROBE=0"
+    if env_disables("GODKILLER_FAULT_PROBE"):
+        return True, "fault_probe disabled (relax only)"
 
+    from godkiller_mcp.freshness import hash_workspace_code
     from godkiller_mcp.hollow_surface import paths_touched_in_state
 
     paths = [p for p in paths_touched_in_state(state) if str(p).endswith(".py")]
     if not paths:
+        kind = getattr(getattr(state, "handle", None), "kind", None)
+        kind_v = getattr(kind, "value", str(kind or ""))
+        if kind_v in ("bugfix", "refactor", "feature"):
+            return (
+                False,
+                "fault_probe: no python edit paths — record edits via blast/edit_safe "
+                "or run fault_probe(targets=...) before claim",
+            )
         return True, "fault_probe: no python edit paths"
 
+    ws = workspace or Path.cwd()
     for ev in getattr(state, "evidences", []) or []:
         payload = ev.payload or {}
         if (
@@ -266,10 +481,30 @@ def claim_fault_probe_gate(state, *, workspace: Optional[str] = None) -> Tuple[b
             and payload.get("server_authored") is True
             and payload.get("clean") is True
         ):
-            return True, "fault_probe clean evidence present"
-
+            tried = int(payload.get("mutants_tried") or 0)
+            if tried <= 0:
+                return (
+                    False,
+                    "fault_probe inconclusive (0 mutants tried) — not claim-grade; "
+                    "deepen assertions or expand targets",
+                )
+            recorded = payload.get("material_hash")
+            if not recorded:
+                return False, "fault_probe missing material_hash — rerun probe"
+            if payload.get("complete") is False:
+                return False, "fault_probe material_hash incomplete — rerun probe"
+            # B3: always rehash full workspace — decoy targets cannot hide edits
+            live = hash_workspace_code(ws)
+            if not live.get("complete", True):
+                return False, "workspace hash incomplete — cannot validate probe freshness"
+            if live["material_hash"] != recorded:
+                return (
+                    False,
+                    "stale fault_probe: workspace changed after probe — rerun gk_verify.probe",
+                )
+            return True, "fault_probe clean + fresh (workspace)"
     return (
         False,
         "Forced gate: fault_probe clean evidence required after python edits "
-        "(gk_verify action=probe). Survivors mean tests are too weak to claim_done.",
+        "(gk_verify action=probe, diff-scoped).",
     )

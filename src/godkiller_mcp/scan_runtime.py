@@ -6,7 +6,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from godkiller_mcp.code_intel import SecurityScanEngine, _find_dev_binary
 

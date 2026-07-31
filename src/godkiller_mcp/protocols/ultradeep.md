@@ -25,6 +25,31 @@ For **every** file you will change inside the current Phase:
 
 FORBIDDEN: editing many files in one rush without think+plan per file.
 
+## Plan refute wake (HARD — before first edit)
+
+After `gk_meta.plan_validate` succeeds:
+
+1. `ultradeep_plan_refute` with ≥8 attacks on 9-step plan keys + ≥5 search queries
+2. Decision `HOLD` required before `check_edit_safe`
+3. `REOPEN` → fix plan steps → refute again
+
+This is a forced brain loop, heavier than empty think notes — still lighter than `/view`.
+
+## Repair wake (HARD — after verify/probe/hollow fail)
+
+If `verify_bundle` fails, `fault_probe` has survivors, or `hollow_surface` is unclean:
+
+1. Optional: `gk_code.self_heal` for tool traceback fallback (does **not** clear the gate)
+2. `ultradeep_repair_wake` with diagnosis (≥40 chars, real words) + ≥3 unique hypotheses
+3. If the fix changes the 9-step plan: `touches_plan=true` and plan_refute must be HOLD
+4. Then edit → `verify_bundle` again (clears wake only on green)
+
+Streak ≥3 → escalated (council/swarm before more edits).
+
 ## Cursor agent 200% tool swarm
 Use maximally: `gk_code`, `gk_scan`, `gk_browser`, `gk_evidence`, `gk_verify`, plus peer MCP
 `jcodemunch`, `codebase-memory`, `chrome-devtools` when available. Parallel recon before writes.
+
+## Posture (all modes)
+
+Pessimistic + win USER goal. Capability gap → `tool_propose` (5–10) → `tool_approve` OR `tool_reject_all` → `tool_used` if approved. **Never silent install.**

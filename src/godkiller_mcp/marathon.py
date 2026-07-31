@@ -6,7 +6,6 @@ without relying on chat context (Anthropic-style initializer + coding relay).
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -149,7 +148,6 @@ class MarathonRelay:
 
     def next_wake_prompt(self, slug: str) -> str:
         state = self.load(slug)
-        nxt = state.current_plan_phase + (0 if state.closed else 0)
         # After save of completed phase, caller should bump plan phase; prompt uses current+1 if not closed
         phase = state.current_plan_phase if not state.closed else state.current_plan_phase
         if state.closed:

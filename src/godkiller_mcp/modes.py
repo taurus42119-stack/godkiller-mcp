@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-MODES = ("ask", "plan", "debug", "ultradeep", "verify")
+MODES = ("ask", "plan", "debug", "ultradeep", "verify", "view")
 
 MODE_TO_FILE = {
     "ask": "ask.md",
@@ -18,6 +18,7 @@ MODE_TO_FILE = {
     "debug": "debug.md",
     "ultradeep": "ultradeep.md",
     "verify": "verify.md",
+    "view": "view.md",
 }
 
 MODE_DEFAULT_KIND = {
@@ -26,6 +27,7 @@ MODE_DEFAULT_KIND = {
     "debug": "bugfix",
     "ultradeep": "feature",
     "verify": "feature",
+    "view": "feature",
 }
 
 # Keyword → skill paths Anti MUST view_file (not optional). Max ~4 per match set.
@@ -179,6 +181,9 @@ class ModeProtocolStore:
             "Forced search: submit_evidence web_search queries OR marathon_save_progress — skills never waive search.",
             "Skills do NOT auto-load. Prefer skill_catalog(query=goal, task_id=...) then view_file ≤4 then record_skills_loaded.",
             "ANTI-OVERCONFIDENCE: FORBIDDEN to skip skill_catalog because you 'already know enough'. Shortlist from activate_mode alone does NOT waive gates.",
+            "POSTURE: pessimistic + win USER goal — assume tools/evidence/self can lie; still deliver what USER asked.",
+            "TOOL DOUBT: any capability gap → tool_propose (5–10 net/registry candidates) immediately; never silent install.",
+            "After propose: tool_approve (pick) OR tool_reject_all (non-hollow why existing tools suffice); if approved → tool_used before claim.",
         ]
         if shortlist_pack.get("shortlist_paths"):
             mandatory.append(
@@ -198,6 +203,15 @@ class ModeProtocolStore:
         if mode == "ultradeep":
             mandatory.append("Execute exactly ONE plan Phase this turn, then marathon_save_progress.")
             mandatory.append("Call marathon_search_gate before leaving research / before first code write.")
+            mandatory.append(
+                "PLAN REFUTE WAKE (HARD): After gk_meta.plan_validate, call ultradeep_plan_refute "
+                "(≥8 attacks on plan steps + ≥5 searches) → HOLD before check_edit_safe."
+            )
+            mandatory.append(
+                "REPAIR WAKE (HARD): If verify_bundle/fault_probe/hollow fails, call "
+                "ultradeep_repair_wake (diagnosis + ≥3 hypotheses) before next edit_safe. "
+                "gk_code.self_heal stays for tool fallback — does not replace repair_wake."
+            )
             # Additive 200% power — does NOT replace one-phase pacing
             mandatory.extend(
                 [
@@ -212,23 +226,49 @@ class ModeProtocolStore:
                     "Queue targets first: ultradeep_queue_files(paths=[...]) then process current only.",
                 ]
             )
+        if mode == "view":
+            mandatory.extend(
+                [
+                    "RESEARCH PLAN ONLY — no application code edits in /view.",
+                    "Gravity G1–G4 sets hunt/attack/refute minima (scale of work, not a calendar).",
+                    "Pipeline: view_start → record_search (≥N URLs) → record_attack (cite+stance) "
+                    "→ draft_plan (9-step adversarial) → view_refute_plan (≥20–30 ON THE PLAN) → finalize.",
+                    "Weaknesses-only. Praise / balanced review = Seal fail.",
+                    "One forced refute wake after draft — heavier than ultradeep plan_refute.",
+                ]
+            )
         if mode == "ask":
             mandatory.append("No application code edits.")
         if mode == "debug":
             mandatory.append("No fix before reproduce evidence + hypothesis.")
             mandatory.append("assert_phase to FIX is blocked until ≥3 search queries recorded.")
+            mandatory.extend(
+                [
+                    "SELF-CTF (HARD): Attack THIS workspace only — debug_self_ctf_start → "
+                    "debug_self_ctf_tick / debug_self_ctf_run_until until findings. "
+                    "Forbidden: open-internet / third-party org hunt.",
+                    "Do not stop the tick loop while force_continue=true and no findings yet.",
+                ]
+            )
 
         next_tools: List[str] = []
-        if mode in ("ask", "plan", "debug", "ultradeep"):
+        if mode in ("ask", "plan", "debug", "ultradeep", "view"):
             next_tools.extend(["open_task", "skill_catalog", "record_skills_loaded"])
+        if mode != "ask":
+            next_tools.extend(["tool_propose", "tool_approve", "tool_reject_all", "tool_used"])
         if mode == "plan":
             next_tools.append("write_spec")
         if mode == "ultradeep":
             next_tools.extend(
                 [
+                    "swarm_spawn",
+                    "swarm_collect",
                     "marathon_load_progress or marathon_init",
                     "marathon_search_gate",
                     "marathon_save_progress",
+                    "gk_meta.plan_validate",
+                    "ultradeep_plan_refute",
+                    "ultradeep_repair_wake",
                     "ultradeep_queue_files",
                     "ultradeep_think_file",
                     "ultradeep_plan_file",
@@ -248,6 +288,20 @@ class ModeProtocolStore:
                     "peer: jcodemunch + codebase-memory + chrome-devtools",
                 ]
             )
+        if mode == "view":
+            next_tools.extend(
+                [
+                    "view_start",
+                    "view_record_search",
+                    "view_record_attack",
+                    "view_draft_plan",
+                    "view_refute_plan",
+                    "view_finalize",
+                    "gk_meta.plan_validate",
+                    "competitor_scan",
+                    "godkiller_deep_scrape",
+                ]
+            )
         if mode == "verify":
             mandatory.append(
                 "Run verify_bundle; soak_run; visual_critic; competitor_scan+compare_delta if feature; "
@@ -260,13 +314,28 @@ class ModeProtocolStore:
                     "visual_critic",
                     "competitor_scan",
                     "compare_delta",
+                    "tool_propose",
+                    "tool_approve",
+                    "tool_used",
                     "write_feedback",
                     "evaluate_rubric",
                     "request_claim_done",
                 ]
             )
         if mode == "debug":
-            next_tools.extend(["blast_radius", "check_edit_safe", "record_tool_event", "verify_bundle"])
+            next_tools.extend(
+                [
+                    "debug_self_ctf_start",
+                    "debug_self_ctf_tick",
+                    "debug_self_ctf_run_until",
+                    "swarm_spawn",
+                    "blast_radius",
+                    "check_edit_safe",
+                    "record_tool_event",
+                    "verify_bundle",
+                    "ultradeep_repair_wake",
+                ]
+            )
 
         return {
             "mode": mode,

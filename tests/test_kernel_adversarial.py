@@ -44,6 +44,9 @@ def test_forged_verify_exit_code_rejected(tmp_path: Path):
 
 
 def test_server_verify_evidence_counts(tmp_path: Path):
+    from godkiller_mcp.freshness import material_hash
+
+    mat = material_hash([], workspace=tmp_path)
     store = EvidenceStore(persist_dir=tmp_path / "tasks")
     state = store.open_task(TaskKind.BUGFIX, "fix x")
     store.submit_evidence(
@@ -56,6 +59,9 @@ def test_server_verify_evidence_counts(tmp_path: Path):
             "server_authored": True,
             "exit_code": 0,
             "result_digest": "abc123deadbeef",
+            "material_hash": mat["material_hash"],
+            "material_files": [],
+            "cwd": str(tmp_path),
         },
         server_authored=True,
     )
@@ -161,7 +167,7 @@ def test_require_verify_cannot_soft_bypass_without_relax(tmp_path: Path, monkeyp
     # Advance legally through phases with minimal evidence for rubric will still fail
     # Focus: require_verify_bundle=False is ignored
     engine = PolicyEngine()
-    allowed, _, reason = engine.request_claim_done(
+    allowed, _, reason, gate = engine.request_claim_done(
         state,
         require_verify_bundle=False,
         require_blast_radius=False,
@@ -169,4 +175,5 @@ def test_require_verify_cannot_soft_bypass_without_relax(tmp_path: Path, monkeyp
         require_competitor_loop=False,
     )
     assert allowed is False
+    assert gate in ("rubric", "phase", "verify", "search", "skill", "hollow", "plan", "fault_probe", "freshness", "tool_propose", "exit", "council", "swarm", "quality")
     assert "verify_bundle" in reason or "Rubric" in reason or "VERIFY" in reason or "search" in reason.lower() or "skill" in reason.lower()

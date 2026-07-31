@@ -172,8 +172,21 @@ def test_council_host_tally_matrix(votes, monkeypatch):
     start = eng.start_host("def add(a, b):\n    return a + b\n")
     sid = start["session_id"]
     for role, vote in zip(("coder", "hacker", "optimizer"), votes):
-        sev = 9 if vote == "REJECT" and role == "hacker" else 2
-        eng.submit_opinion(sid, role, vote, critique=f"{role}:{vote}", severity=sev)
+        if vote == "REJECT":
+            sev = 9
+            critique = (
+                f"{role} rejects because the change risks incorrect results "
+                "and needs a failing test before claim."
+            )
+            must_fix = [f"add failing coverage for {role} concern path"]
+        else:
+            sev = 2
+            critique = f"{role}:{vote}"
+            must_fix = []
+        out = eng.submit_opinion(
+            sid, role, vote, critique=critique, severity=sev, must_fix=must_fix
+        )
+        assert "error" not in out, out
     fin = eng.finalize_host(sid)
     all_approve = all(v == "APPROVE" for v in votes)
     if all_approve:

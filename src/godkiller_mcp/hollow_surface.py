@@ -7,7 +7,6 @@ Fail-closed: findings block claim unless GODKILLER_DEV_RELAX=1.
 from __future__ import annotations
 
 import ast
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,9 +31,38 @@ _MARKER_RE = re.compile(
     r"\b(TODO|FIXME|XXX|HACK)\b|"
     r"NotImplementedError|"
     r"#\s*(stub|placeholder|mock\b)|"
-    r"raise\s+NotImplementedError",
+    r"raise\s+NotImplementedError|"
+    r"\bcoming\s+soon\b|"
+    r"\blorem\s+ipsum\b|"
+    r"\bplaceholder\b|"
+    r"\bmockup\b|"
+    r"\bWIP\b|"
+    r"\bTBD\b|"
+    r"not\s+implemented|"
+    r"pass\s*#\s*todo",
     re.IGNORECASE,
 )
+
+# Front-end / copy hollow signals (scanned in non-Python sources)
+_WEB_HOLLOW_RE = re.compile(
+    r"\b(TODO|FIXME|XXX|HACK|WIP|TBD)\b|"
+    r"coming\s+soon|"
+    r"lorem\s+ipsum|"
+    r"placeholder|"
+    r"mock[\s_-]?up|"
+    r"under\s+construction|"
+    r"replace\s+me|"
+    r"your\s+(text|title|content)\s+here|"
+    r"sample\s+data|"
+    r"dummy\s+(text|data|content)|"
+    r"not\s+implemented|"
+    r"throw\s+new\s+Error\s*\(\s*['\"]not implemented|"
+    r"TODO:\s*implement",
+    re.IGNORECASE,
+)
+
+_WEB_SUFFIXES = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".css", ".scss", ".html", ".mdx"}
+
 
 _ABSTRACT_DECOS = {"abstractmethod", "overload", "abc.abstractmethod"}
 
@@ -156,11 +184,13 @@ def _scan_python_source(path: Path, text: str) -> List[HollowFinding]:
     return findings
 
 
-def iter_py_files(roots: Sequence[Path], *, max_files: int = 200) -> Iterable[Path]:
+def iter_code_files(roots: Sequence[Path], *, max_files: int = 200) -> Iterable[Path]:
     n = 0
     for root in roots:
         root = root.resolve()
-        if root.is_file() and root.suffix == ".py":
+        if root.is_file() and (
+            root.suffix == ".py" or root.suffix.lower() in _WEB_SUFFIXES
+        ):
             yield root
             n += 1
             if n >= max_files:
@@ -168,13 +198,34 @@ def iter_py_files(roots: Sequence[Path], *, max_files: int = 200) -> Iterable[Pa
             continue
         if not root.is_dir():
             continue
-        for p in root.rglob("*.py"):
+        for p in root.rglob("*"):
+            if not p.is_file():
+                continue
             if any(part in _SKIP_DIRS for part in p.parts):
                 continue
+            suf = p.suffix.lower()
+            if suf == ".py" or suf in _WEB_SUFFIXES:
+                yield p
+                n += 1
+                if n >= max_files:
+                    return
+
+
+def _scan_web_source(path: Path, text: str) -> List[HollowFinding]:
+    findings: List[HollowFinding] = []
+    for i, line in enumerate(text.splitlines(), start=1):
+        if _WEB_HOLLOW_RE.search(line):
+            findings.append(
+                HollowFinding(str(path), i, "web_placeholder", line.strip()[:120])
+            )
+    return findings
+
+
+def iter_py_files(roots: Sequence[Path], *, max_files: int = 200) -> Iterable[Path]:
+    """Backward-compatible: Python-only iterator."""
+    for p in iter_code_files(roots, max_files=max_files):
+        if p.suffix == ".py":
             yield p
-            n += 1
-            if n >= max_files:
-                return
 
 
 def scan_hollow_surface(
@@ -183,14 +234,17 @@ def scan_hollow_surface(
     max_files: int = 200,
 ) -> HollowReport:
     report = HollowReport()
-    paths = list(iter_py_files([Path(r) for r in roots], max_files=max_files))
+    paths = list(iter_code_files([Path(r) for r in roots], max_files=max_files))
     report.files_scanned = len(paths)
     for path in paths:
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        report.findings.extend(_scan_python_source(path, text))
+        if path.suffix == ".py":
+            report.findings.extend(_scan_python_source(path, text))
+        else:
+            report.findings.extend(_scan_web_source(path, text))
     return report
 
 
@@ -228,7 +282,9 @@ def claim_hollow_gate(
     only when extra_roots/workspace provided. Empty scan roots → pass with note
     (verify_bundle still required elsewhere).
     """
-    if os.environ.get("GODKILLER_DEV_RELAX", "").strip() == "1":
+    from godkiller_mcp.ship_mode import relax_enabled
+
+    if relax_enabled():
         empty = HollowReport()
         return True, "hollow_surface skipped (GODKILLER_DEV_RELAX)", empty
 
@@ -238,11 +294,23 @@ def claim_hollow_gate(
     if extra_roots:
         roots.extend(Path(r) for r in extra_roots)
     if not roots and workspace:
-        # narrow default: only top-level *.py under workspace (not full tree)
         ws = Path(workspace)
         roots.extend(sorted(ws.glob("*.py"))[:40])
+        for pat in ("*.ts", "*.tsx", "*.js", "*.jsx", "*.vue", "*.css", "*.html"):
+            roots.extend(sorted(ws.glob(pat))[:20])
 
     if not roots:
+        # Vacuous pass was a critic hole — IDE-only edits never list paths
+        kind = getattr(getattr(state, "handle", None), "kind", None)
+        kind_v = getattr(kind, "value", str(kind or ""))
+        if kind_v in ("bugfix", "refactor", "feature"):
+            empty = HollowReport()
+            return (
+                False,
+                "hollow_surface: no edit paths recorded — use blast_radius/edit_safe "
+                "or pass workspace; cannot claim with empty scan on code tasks",
+                empty,
+            )
         empty = HollowReport()
         return True, "hollow_surface: no paths to scan", empty
 

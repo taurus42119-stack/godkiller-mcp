@@ -24,13 +24,20 @@ SERVER_ONLY_EVIDENCE: Set[EvidenceType] = {
     EvidenceType.EDIT_SAFE,
 }
 
+# Payload sources that only the server tools may mint (any evidence type).
+from godkiller_mcp.evidence_integrity import ARMOR_SOURCES  # noqa: E402
+
 
 class EvidenceStore:
     def __init__(self, persist_dir: Optional[str | Path] = None):
         self._tasks: Dict[str, TaskState] = {}
         self.persist_dir = Path(persist_dir) if persist_dir else None
+        self._seal_key: Optional[bytes] = None
         if self.persist_dir:
             self.persist_dir.mkdir(parents=True, exist_ok=True)
+            from godkiller_mcp.evidence_integrity import load_or_create_seal_key
+
+            self._seal_key = load_or_create_seal_key(self.persist_dir)
 
     def open_task(
         self,
@@ -94,6 +101,19 @@ class EvidenceStore:
                 "(use verify_bundle / blast_radius / check_edit_safe tools)."
             )
 
+        # Client must never set server_authored / armor source on any type (closes LOG forge)
+        if not server_authored:
+            src = str(payload.get("source") or "")
+            if src in ARMOR_SOURCES:
+                raise PermissionError(
+                    f"Forged armor source={src!r} on {et.value} is not allowed — use server tools."
+                )
+            if payload.get("server_authored") is True:
+                raise PermissionError(
+                    "Client cannot set server_authored=true on evidence payloads."
+                )
+            payload.pop("server_authored", None)
+
         # Block forged verify_bundle success via EXIT_CODE submit
         if (
             not server_authored
@@ -101,7 +121,6 @@ class EvidenceStore:
             and (
                 payload.get("source") == "verify_bundle"
                 or payload.get("passed") is True
-                or payload.get("server_authored") is True
             )
         ):
             raise PermissionError(
@@ -110,6 +129,11 @@ class EvidenceStore:
 
         if server_authored:
             payload["server_authored"] = True
+            src = str(payload.get("source") or "")
+            if src in ARMOR_SOURCES and self._seal_key:
+                from godkiller_mcp.evidence_integrity import attach_seal
+
+                payload = attach_seal(task_id, payload, self._seal_key)
 
         ev = Evidence(
             task_id=task_id,
@@ -204,7 +228,15 @@ class EvidenceStore:
         path = self.persist_dir / f"{task_id}.json"
         if not path.exists():
             return None
-        return TaskState.model_validate_json(path.read_text(encoding="utf-8"))
+        state = TaskState.model_validate_json(path.read_text(encoding="utf-8"))
+        # B5: drop armor evidences whose seals do not match (disk forge)
+        if self._seal_key:
+            from godkiller_mcp.evidence_integrity import scrub_forged_armor
+
+            dropped = scrub_forged_armor(state, self._seal_key)
+            if dropped:
+                self._persist(state)
+        return state
 
     def dump_graph(self, task_id: str) -> dict:
         state = self.get(task_id)

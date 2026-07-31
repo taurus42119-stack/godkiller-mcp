@@ -75,6 +75,8 @@ def catalog_gate(state: TaskState) -> tuple[bool, str]:
 
 
 def loaded_gate(state: TaskState, *, min_loaded: int = 1, max_loaded: int = 4) -> tuple[bool, str]:
+    from pathlib import Path
+
     paths = skills_loaded(state)
     n = len(paths)
     if n < min_loaded:
@@ -88,6 +90,14 @@ def loaded_gate(state: TaskState, *, min_loaded: int = 1, max_loaded: int = 4) -
         return (
             False,
             f"Too many skills_loaded ({n}>{max_loaded}) — brain bloat. Keep ≤{max_loaded}.",
+        )
+    # B7: paths must exist on disk (not invented ceremony strings)
+    missing = [p for p in paths if not Path(p).expanduser().exists()]
+    if missing:
+        return (
+            False,
+            f"skills_loaded paths missing on disk: {missing[:3]} — "
+            "record real SKILL.md paths after view_file",
         )
     return True, f"skills_loaded OK ({n})."
 

@@ -42,13 +42,33 @@ class PlaywrightBrowser:
         return None
 
     def navigate(self, url: str) -> Dict[str, Any]:
+        from godkiller_mcp.ssrf import assert_public_url, guard_url_or_error
+
+        blocked = guard_url_or_error(url)
+        if blocked:
+            return blocked
         err = self._ensure()
         if err:
             return err
         assert self._page is not None
         self._page.goto(url, wait_until="domcontentloaded")
-        self.state.url = url
-        return {"ok": True, "engine": "playwright", "url": url, "title": self._page.title()}
+        final = self._page.url
+        ok, reason = assert_public_url(final, resolve=True)
+        if not ok:
+            try:
+                self._page.goto("about:blank")
+            except Exception:
+                pass
+            self.state.url = ""
+            return {"ok": False, "error": reason, "ssrf_blocked": True, "final_url": final}
+        self.state.url = final
+        return {
+            "ok": True,
+            "engine": "playwright",
+            "url": final,
+            "requested": url,
+            "title": self._page.title(),
+        }
 
     def snapshot(self) -> Dict[str, Any]:
         err = self._ensure()
@@ -69,13 +89,35 @@ class PlaywrightBrowser:
         self.state.screenshots.append(str(path.resolve()))
         return {"ok": True, "engine": "playwright", "path": str(path.resolve())}
 
+    def _guard_current_url(self) -> Optional[Dict[str, Any]]:
+        from godkiller_mcp.ssrf import assert_public_url
+
+        assert self._page is not None
+        final = self._page.url or ""
+        if not final or final.startswith("about:"):
+            self.state.url = final
+            return None
+        ok, reason = assert_public_url(final, resolve=True)
+        if not ok:
+            try:
+                self._page.goto("about:blank")
+            except Exception:
+                pass
+            self.state.url = ""
+            return {"ok": False, "error": reason, "ssrf_blocked": True, "final_url": final}
+        self.state.url = final
+        return None
+
     def click(self, selector: str) -> Dict[str, Any]:
         err = self._ensure()
         if err:
             return err
         assert self._page is not None
         self._page.click(selector)
-        return {"ok": True, "engine": "playwright", "clicked": selector}
+        blocked = self._guard_current_url()
+        if blocked:
+            return blocked
+        return {"ok": True, "engine": "playwright", "clicked": selector, "url": self.state.url}
 
     def fill(self, selector: str, value: str) -> Dict[str, Any]:
         err = self._ensure()
@@ -83,7 +125,16 @@ class PlaywrightBrowser:
             return err
         assert self._page is not None
         self._page.fill(selector, value)
-        return {"ok": True, "engine": "playwright", "filled": selector, "value_len": len(value)}
+        blocked = self._guard_current_url()
+        if blocked:
+            return blocked
+        return {
+            "ok": True,
+            "engine": "playwright",
+            "filled": selector,
+            "value_len": len(value),
+            "url": self.state.url,
+        }
 
     def close(self) -> None:
         try:

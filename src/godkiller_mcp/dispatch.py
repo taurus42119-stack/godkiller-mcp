@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -39,7 +37,7 @@ from godkiller_mcp.handoff_docs import SpecFeedbackStore
 from godkiller_mcp.loop_guard import LoopDetector
 from godkiller_mcp.marathon import MarathonRelay
 from godkiller_mcp.memory_lessons import LessonMemory, MemoryTier
-from godkiller_mcp.modes import MODES, ModeProtocolStore
+from godkiller_mcp.modes import ModeProtocolStore
 from godkiller_mcp.skill_catalog import build_catalog, filter_catalog, suggest_from_catalog
 from godkiller_mcp.policy import PolicyEngine, rubric_for_kind
 from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction, TaskKind
@@ -108,6 +106,13 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
     if blocked:
         return _json({"ok": False, "allowed": False, "reason": blocked, "action": "block"})
 
+    from godkiller_mcp import dispatch_debug, dispatch_swarm, dispatch_tools, dispatch_view
+
+    for mod in (dispatch_view, dispatch_debug, dispatch_swarm, dispatch_tools):
+        handled = await mod.handle(name, arguments)
+        if handled is not None:
+            return handled
+
     if name == "godkiller_route_intent":
         decision = router.route_intent(arguments["prompt"])
         return _json(decision.__dict__)
@@ -134,7 +139,9 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         # Default: full file contents. Truncate only if caller sets max_chars_per_file.
         max_chars = arguments.get("max_chars_per_file", None)
         engine = ExhaustiveReaderEngine()
-        res = engine.read_all(dpath, max_files=mfiles, max_chars_per_file=max_chars)
+        res = await asyncio.to_thread(
+            engine.read_all, dpath, max_files=mfiles, max_chars_per_file=max_chars
+        )
         return _json(res)
 
     if name == "godkiller_auto_skillify":
@@ -182,6 +189,21 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             arguments["session_id"],
             advance_round=bool(arguments.get("advance_round", False)),
         )
+        task_id = arguments.get("task_id")
+        if task_id and arguments.get("attach", True) and res.get("verdict") not in (
+            None,
+            "COUNCIL_ERROR",
+            "COUNCIL_IN_PROGRESS",
+        ):
+            payload = {**res, "source": "council_finalize", "server_authored": True}
+            store.submit_evidence(
+                task_id=task_id,
+                evidence_type=EvidenceType.LOG,
+                summary=f"council {res.get('verdict')}",
+                payload=payload,
+                server_authored=True,
+            )
+            res["evidence_attached"] = True
         return _json(res)
 
     if name == "godkiller_pipeline":
@@ -243,8 +265,14 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         pat = arguments["pattern"]
         repl = arguments["replacement"]
         prev_only = arguments.get("preview_only", True)
+        from godkiller_mcp.ship_mode import relax_enabled
+
+        if not relax_enabled():
+            prev_only = True
         engine = AutoFixEngine()
         res = engine.fix(fpath, pattern=pat, replacement=repl, preview_only=prev_only)
+        if not prev_only and not relax_enabled():
+            res = {**(res if isinstance(res, dict) else {"result": res}), "forced_preview": True}
         return _json(res)
 
     if name == "godkiller_ast_grep":
@@ -267,7 +295,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         wroot = arguments.get("workspace_root", ".")
         mtokens = arguments.get("max_tokens", 1000)
         generator = RepoMapGenerator(wroot if wroot != "." else ROOT)
-        map_text = generator.get_repo_map(max_tokens=mtokens)
+        map_text = await asyncio.to_thread(generator.get_repo_map, max_tokens=mtokens)
         return [TextContent(type="text", text=map_text)]
 
     if name == "godkiller_hyper_search":
@@ -442,16 +470,18 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         )
 
     if name == "request_claim_done":
-        import os
+
+        from godkiller_mcp.claim_verdict import build_claim_payload
 
         state = store.get(arguments["task_id"])
         if state.closed:
             return _json(
-                {
-                    "allowed": False,
-                    "reason": "Task is already closed.",
-                    "action": PolicyAction.BLOCK.value,
-                }
+                build_claim_payload(
+                    allowed=False,
+                    reason="Task is already closed.",
+                    gate="closed",
+                    action=PolicyAction.BLOCK.value,
+                )
             )
         loops.record(
             arguments["task_id"],
@@ -464,21 +494,45 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             ok_ui, reason_ui = browser.require_ui_proof_for_feature(state.handle.task_id)
             if not ok_ui:
                 blocked = workflow.what_blocked_claim_done(state.handle.task_id, reason_ui)
-                return _json({"allowed": False, "reason": reason_ui, "action": PolicyAction.BLOCK.value, "graph": blocked})
+                return _json(
+                    build_claim_payload(
+                        allowed=False,
+                        reason=reason_ui,
+                        gate="ui_proof",
+                        action=PolicyAction.BLOCK.value,
+                        graph=blocked,
+                    )
+                )
         handoff_ok = None
         handoff_reason = ""
         if arguments.get("handoff_slug"):
             handoff_ok, handoff_reason = handoff.require_passing_feedback(arguments["handoff_slug"])
-        relax = os.environ.get("GODKILLER_DEV_RELAX", "").strip() == "1"
-        require_vb = True if not relax else bool(arguments.get("require_verify_bundle", True))
-        allowed, results, reason = policy.request_claim_done(
+        from godkiller_mcp.ship_mode import relax_enabled, ship_mode
+
+        # Ship / armor: ignore client attempts to turn gates off or drop ladder
+        if not relax_enabled():
+            require_vb = True
+            require_quality = True
+            require_competitor = True
+            ladder = "L1_presence"
+        else:
+            require_vb = bool(arguments.get("require_verify_bundle", True))
+            require_quality = bool(arguments.get("require_quality_loop", True))
+            require_competitor = bool(arguments.get("require_competitor_loop", True))
+            ladder = arguments.get("min_ambition_ladder") or "L1_presence"
+        if ship_mode() and not relax_enabled():
+            # Floor ladder — client cannot lower below L1
+            ladder = arguments.get("min_ambition_ladder") or "L1_presence"
+            if not ladder or ladder.startswith("L0"):
+                ladder = "L1_presence"
+        allowed, results, reason, gate = policy.request_claim_done(
             state,
             require_verify_bundle=require_vb,
             handoff_feedback_ok=handoff_ok,
             handoff_reason=handoff_reason,
-            require_quality_loop=arguments.get("require_quality_loop", True),
-            require_competitor_loop=arguments.get("require_competitor_loop", True),
-            min_ambition_ladder=arguments.get("min_ambition_ladder") or "L1_presence",
+            require_quality_loop=require_quality,
+            require_competitor_loop=require_competitor,
+            min_ambition_ladder=ladder,
         )
         if allowed:
             try:
@@ -487,12 +541,13 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                     loops.note_phase_advance(state.handle.task_id, Phase.CLAIM_DONE)
             except ValueError as exc:
                 return _json(
-                    {
-                        "allowed": False,
-                        "reason": f"Cannot close: {exc}",
-                        "action": PolicyAction.BLOCK.value,
-                        "results": [r.model_dump() for r in results],
-                    }
+                    build_claim_payload(
+                        allowed=False,
+                        reason=f"Cannot close: {exc}",
+                        gate="phase_close",
+                        action=PolicyAction.BLOCK.value,
+                        results=results,
+                    )
                 )
             store.mark_closed(state.handle.task_id)
             state.last_policy_action = PolicyAction.ALLOW_CLAIM_DONE
@@ -501,7 +556,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
 
                 append_ledger(
                     "claim_done",
-                    {"allowed": True, "reason": reason},
+                    {"allowed": True, "status": "done", "gate": "ok", "reason": reason},
                     task_id=state.handle.task_id,
                 )
             except Exception:
@@ -514,20 +569,29 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
 
                 append_ledger(
                     "claim_done_blocked",
-                    {"allowed": False, "reason": reason},
+                    {
+                        "allowed": False,
+                        "status": "blocked",
+                        "gate": gate,
+                        "reason": reason,
+                    },
                     task_id=state.handle.task_id,
                 )
             except Exception:
                 pass
-        out = {
-            "allowed": allowed,
-            "reason": reason,
-            "action": state.last_policy_action.value if state.last_policy_action else None,
-            "results": [r.model_dump() for r in results],
-        }
+        graph = None
         if not allowed:
-            out["graph"] = workflow.what_blocked_claim_done(state.handle.task_id, reason)
-        return _json(out)
+            graph = workflow.what_blocked_claim_done(state.handle.task_id, reason)
+        return _json(
+            build_claim_payload(
+                allowed=allowed,
+                reason=reason,
+                gate=gate,
+                results=results,
+                graph=graph,
+                action=state.last_policy_action.value if state.last_policy_action else None,
+            )
+        )
 
     if name == "policy_decide":
         state = store.get(arguments["task_id"])
@@ -603,6 +667,53 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                                 "action": PolicyAction.BLOCK.value,
                             }
                         )
+                ok_pr, reason_pr = ude.require_plan_refute_hold(state.handle.metadata)
+                if not ok_pr:
+                    return _json(
+                        {
+                            "allowed": False,
+                            "safe": False,
+                            "reason": reason_pr,
+                            "action": PolicyAction.BLOCK.value,
+                        }
+                    )
+            from godkiller_mcp.repair_wake import require_repair_clear
+
+            ok_rw, reason_rw = require_repair_clear(state.handle.metadata)
+            if not ok_rw:
+                return _json(
+                    {
+                        "allowed": False,
+                        "safe": False,
+                        "reason": reason_rw,
+                        "action": PolicyAction.BLOCK.value,
+                        "repair_wake": (state.handle.metadata or {}).get("repair_wake"),
+                    }
+                )
+            from godkiller_mcp.swarm import require_swarm_before_edit
+
+            ok_sw, reason_sw = require_swarm_before_edit(state)
+            if not ok_sw:
+                return _json(
+                    {
+                        "allowed": False,
+                        "safe": False,
+                        "reason": reason_sw,
+                        "action": PolicyAction.BLOCK.value,
+                    }
+                )
+            from godkiller_mcp.debug_engine import require_self_ctf_before_fix
+
+            ok_ctf, reason_ctf = require_self_ctf_before_fix(state)
+            if not ok_ctf:
+                return _json(
+                    {
+                        "allowed": False,
+                        "safe": False,
+                        "reason": reason_ctf,
+                        "action": PolicyAction.BLOCK.value,
+                    }
+                )
         if task_id and arguments.get("require_blast", True):
             state = store.get(task_id)
             ok_b, reason_b = require_blast_before_edit(state.evidence_types())
@@ -660,21 +771,35 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         return _json(out)
 
     if name == "verify_bundle":
+        from godkiller_mcp.freshness import material_hash
+
         result = verify_runner.run(
             arguments["workspace"],
             arguments.get("commands"),
         )
         out = result.to_payload()
         task_id = arguments.get("task_id")
+        # Critic-proof: always bind freshness to the workspace tree — never agent decoy paths alone
+        mat = material_hash([arguments["workspace"]], workspace=arguments["workspace"])
+        out["material_hash"] = mat["material_hash"]
+        out["material_files"] = mat["files"]
+        out["material_file_count"] = mat["file_count"]
+        out["material_scope"] = "workspace"
+        out["complete"] = mat.get("complete", True)
+        out["truncated"] = mat.get("truncated", False)
+        out["manifest_hash"] = mat.get("manifest_hash")
+        out["total_code_files"] = mat.get("total_code_files")
         if arguments.get("attach", True) and task_id:
-            ev_type = EvidenceType.PASSING_TEST if result.passed else EvidenceType.EXIT_CODE
-            if result.hack_blocked:
+            # Lint-only green must NOT mint PASSING_TEST (claim-grade)
+            if result.passed and result.is_test_suite and not result.hack_blocked:
+                ev_type = EvidenceType.PASSING_TEST
+            else:
                 ev_type = EvidenceType.EXIT_CODE
             ev = store.submit_evidence(
                 task_id=task_id,
                 evidence_type=ev_type,
                 summary=result.summary,
-                payload=result.to_payload(),
+                payload=dict(out),
                 server_authored=True,
             )
             # Always also record exit_code evidence for rubric EXIT_CODE checks
@@ -683,7 +808,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                     task_id=task_id,
                     evidence_type=EvidenceType.EXIT_CODE,
                     summary="verify_bundle exit 0",
-                    payload=result.to_payload(),
+                    payload=dict(out),
                     server_authored=True,
                 )
                 try:
@@ -698,6 +823,27 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 signature=f"verify_bundle:{'pass' if result.passed else 'fail'}",
                 phase=store.get(task_id).handle.phase,
             )
+            from godkiller_mcp.repair_wake import (
+                clear_after_verify_pass,
+                mark_repair_required,
+            )
+
+            if result.passed and not result.hack_blocked:
+                repaired = clear_after_verify_pass(store.get(task_id).handle.metadata)
+                store.update_metadata(task_id, {"repair_wake": repaired})
+                out["repair_wake"] = repaired
+            elif not result.passed or result.hack_blocked:
+                armed = mark_repair_required(
+                    store.get(task_id).handle.metadata,
+                    reason=result.summary or "verify_bundle failed",
+                    source="verify_bundle",
+                )
+                store.update_metadata(task_id, {"repair_wake": armed})
+                out["repair_wake"] = armed
+                out["next"] = (
+                    "verify failed — call ultradeep_repair_wake (diagnosis + ≥3 hypotheses) "
+                    "before edit_safe; gk_code.self_heal remains available for tool fallback"
+                )
         try:
             from godkiller_mcp.session_ledger import append_ledger
 
@@ -706,6 +852,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 {
                     "passed": result.passed,
                     "result_digest": out.get("result_digest"),
+                    "material_hash": out.get("material_hash"),
                     "cwd": out.get("cwd"),
                 },
                 task_id=task_id,
@@ -729,6 +876,16 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 payload=payload,
                 server_authored=True,
             )
+            if not report.clean:
+                from godkiller_mcp.repair_wake import mark_repair_required
+
+                armed = mark_repair_required(
+                    store.get(task_id).handle.metadata,
+                    reason=payload.get("summary") or "hollow_surface unclean",
+                    source="hollow_surface",
+                )
+                store.update_metadata(task_id, {"repair_wake": armed})
+                payload["repair_wake"] = armed
         try:
             from godkiller_mcp.session_ledger import append_ledger
 
@@ -736,6 +893,45 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         except Exception:
             pass
         return _json(payload)
+
+    if name == "exit_checklist":
+        from godkiller_mcp.exit_checklist import build_exit_checklist
+
+        state = store.get(arguments["task_id"])
+        report = build_exit_checklist(
+            state,
+            workspace=arguments.get("workspace"),
+            min_ambition_ladder=arguments.get("min_ambition_ladder") or "L1_presence",
+        )
+        # Persist as server evidence so claim_done can require directive=pass
+        payload = {
+            **report,
+            "source": "exit_checklist",
+            "server_authored": True,
+        }
+        if arguments.get("attach", True):
+            store.submit_evidence(
+                task_id=state.handle.task_id,
+                evidence_type=EvidenceType.LOG,
+                summary=f"exit_checklist {report['directive']}",
+                payload=payload,
+                server_authored=True,
+            )
+        try:
+            from godkiller_mcp.session_ledger import append_ledger
+
+            append_ledger(
+                "exit_checklist",
+                {
+                    "directive": report["directive"],
+                    "blocking": report["blocking"],
+                    "profile": report["profile"],
+                },
+                task_id=state.handle.task_id,
+            )
+        except Exception:
+            pass
+        return _json(report)
 
     if name == "ledger_tail":
         from godkiller_mcp.session_ledger import read_ledger_tail, verify_ledger
@@ -860,11 +1056,13 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         )
         out = result.to_payload()
         if arguments.get("attach", True):
+            payload = {**result.to_payload(), "source": "visual_critic", "server_authored": True}
             ev = store.submit_evidence(
                 task_id=arguments["task_id"],
                 evidence_type=EvidenceType.OTHER if result.verdict.value != "GREEN" else EvidenceType.LOG,
                 summary=result.summary,
-                payload=result.to_payload(),
+                payload=payload,
+                server_authored=True,
             )
             out["evidence_id"] = ev.id
         if result.escalate:
@@ -896,7 +1094,8 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 task_id=arguments["task_id"],
                 evidence_type=EvidenceType.LOG if result.passed else EvidenceType.EXIT_CODE,
                 summary=f"soak_run {'PASS' if result.passed else 'FAIL'}",
-                payload=result.to_payload(),
+                payload={**result.to_payload(), "server_authored": True},
+                server_authored=True,
             )
             out["evidence_id"] = ev.id
         loops.record(
@@ -917,8 +1116,9 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             ev = store.submit_evidence(
                 task_id=arguments["task_id"],
                 evidence_type=EvidenceType.OTHER,
-                summary=f"competitor_scan n={len(result.competitors)}",
-                payload=result.to_payload(),
+                summary=f"competitor_scan n={len(result.competitors)} urls={result._valid_urls}",
+                payload={**result.to_payload(), "server_authored": True},
+                server_authored=True,
             )
             out["evidence_id"] = ev.id
         return _json(out)
@@ -940,7 +1140,8 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                     if result.passed
                     else "compare_delta still losing — continue ladder"
                 ),
-                payload=result.to_payload(),
+                payload={**result.to_payload(), "server_authored": True},
+                server_authored=True,
             )
             out["evidence_id"] = ev.id
         if result.still_losing:
@@ -1236,7 +1437,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         )
         opened = None
         marathon_state = None
-        if arguments.get("open_kernel_task", True) and mode in ("ask", "plan", "debug", "ultradeep"):
+        if arguments.get("open_kernel_task", True) and mode in ("ask", "plan", "debug", "ultradeep", "view"):
             kind = arguments.get("kind") or payload["kind_suggestion"]
             opened_state = store.open_task(
                 kind=kind,
@@ -1277,6 +1478,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                         "ultradeep_file_gate": gate,
                         "mode": "ultradeep",
                         "marathon_slug": slug,
+                        "require_swarm": True,
                     },
                 )
                 mstate = marathon.save(
@@ -1298,6 +1500,14 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 payload["per_file_gate"] = ude.status_payload(gate)
                 payload["power_mode"] = (
                     "200% Cursor-agent tool swarm + legacy ultradeep crucible + marathon pacing"
+                )
+            if mode == "debug":
+                store.update_metadata(
+                    opened_state.handle.task_id,
+                    {"mode": "debug", "require_self_ctf": True},
+                )
+                payload["power_mode"] = (
+                    "Self-CTF: debug_self_ctf_start → tick (workspace only) until findings"
                 )
         return _json(
             {
@@ -1396,6 +1606,62 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         gate = ude.get_gate(state.handle.metadata)
         return _json(ude.status_payload(gate))
 
+    if name == "ultradeep_plan_refute":
+        task_id = arguments["task_id"]
+        result = ude.record_plan_refute(
+            findings=arguments.get("findings") or [],
+            search_queries=arguments.get("search_queries") or arguments.get("queries") or [],
+            broken_steps=arguments.get("broken_steps"),
+            decision=arguments.get("decision") or "HOLD",
+        )
+        store.update_metadata(task_id, {"ultradeep_plan_refute": result})
+        if result.get("ok"):
+            store.submit_evidence(
+                task_id,
+                EvidenceType.LOG,
+                "ultradeep_plan_refute HOLD",
+                {**result, "source": "ultradeep_plan_refute", "server_authored": True},
+                server_authored=True,
+            )
+        return _json(result)
+
+    if name == "ultradeep_repair_wake":
+        from godkiller_mcp.repair_wake import (
+            get_repair,
+            merge_wake_into,
+            record_repair_wake,
+        )
+
+        task_id = arguments["task_id"]
+        state = store.get(task_id)
+        meta = state.handle.metadata or {}
+        plan_refute = meta.get("ultradeep_plan_refute") or {}
+        plan_refute_ok = plan_refute.get("status") == "HOLD" and plan_refute.get("ok") is True
+        wake = record_repair_wake(
+            diagnosis=arguments.get("diagnosis") or "",
+            hypotheses=arguments.get("hypotheses") or [],
+            tools_tried=arguments.get("tools_tried"),
+            touches_plan=bool(arguments.get("touches_plan", False)),
+            plan_refute_ok=plan_refute_ok or bool(arguments.get("plan_refute_ok", False)),
+            self_heal_used=bool(arguments.get("self_heal_used", False)),
+        )
+        merged = merge_wake_into(get_repair(meta), wake)
+        if wake.get("ok"):
+            # preserve streak from armed state until verify clears
+            merged["streak"] = int(get_repair(meta).get("streak") or 0)
+            merged["escalated"] = merged["streak"] >= 3
+        store.update_metadata(task_id, {"repair_wake": merged})
+        out = {**wake, "repair_wake": merged}
+        if wake.get("ok"):
+            store.submit_evidence(
+                task_id,
+                EvidenceType.LOG,
+                "ultradeep_repair_wake",
+                {**out, "source": "ultradeep_repair_wake", "server_authored": True},
+                server_authored=True,
+            )
+        return _json(out)
+
     if name == "gk_memory_query_graph":
         return _json(workflow.query_related(arguments["task_id"]))
 
@@ -1452,12 +1718,18 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
 
         report = run_fault_probe(
             workspace=arguments["workspace"],
-            target_file=arguments["target"],
+            target_file=arguments.get("target"),
+            targets=arguments.get("targets"),
             test_command=arguments.get("test_command") or "python -m pytest -q --tb=no",
             timeout_sec=int(arguments.get("timeout_sec") or 45),
-            max_mutants=int(arguments.get("max_mutants") or 3),
+            max_mutants=int(arguments.get("max_mutants") or 8),
+            max_per_file=int(arguments.get("max_per_file") or 6),
         )
         out = report.to_payload()
+        out["cwd"] = str(Path(arguments["workspace"]).resolve())
+        out["material_files"] = [
+            {"path": t} for t in (out.get("targets") or [])
+        ]
         task_id = arguments.get("task_id")
         if task_id and arguments.get("attach", True):
             store.submit_evidence(
@@ -1467,6 +1739,17 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 payload=out,
                 server_authored=True,
             )
+            survivors = out.get("survivors") or []
+            if out.get("clean") is False or (isinstance(survivors, list) and len(survivors) > 0):
+                from godkiller_mcp.repair_wake import mark_repair_required
+
+                armed = mark_repair_required(
+                    store.get(task_id).handle.metadata,
+                    reason=out.get("summary") or "fault_probe survivors",
+                    source="fault_probe",
+                )
+                store.update_metadata(task_id, {"repair_wake": armed})
+                out["repair_wake"] = armed
         try:
             append_ledger("fault_probe", out, task_id=task_id)
         except Exception:
@@ -1477,14 +1760,19 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         path = Path(arguments["path"])
         if not path.exists():
             return _json({"ok": False, "error": f"missing file: {path}"})
-        text = path.read_text(encoding="utf-8", errors="ignore")
+
+        def _read() -> tuple[str, int]:
+            raw = path.read_text(encoding="utf-8", errors="ignore")
+            return raw, len(raw)
+
+        text, nchars = await asyncio.to_thread(_read)
         max_chars = int(arguments.get("max_chars") or 200000)
-        truncated = len(text) > max_chars
+        truncated = nchars > max_chars
         return _json(
             {
                 "ok": True,
                 "path": str(path.resolve()),
-                "chars": len(text),
+                "chars": nchars,
                 "truncated": truncated,
                 "content": text[:max_chars],
             }

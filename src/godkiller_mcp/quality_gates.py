@@ -101,10 +101,12 @@ class CompetitorScanResult:
     queries: List[str]
     competitors: List[Dict[str, str]]  # name, url, notes
     min_required: int = 2
+    _valid_urls: int = 0
 
     @property
     def passed(self) -> bool:
-        return len(self.competitors) >= self.min_required and len(self.queries) >= 1
+        # Claim-grade: enough named competitors WITH http(s) URLs + at least one query
+        return self._valid_urls >= self.min_required and len(self.queries) >= 1
 
     def to_payload(self) -> Dict[str, Any]:
         return {
@@ -114,6 +116,7 @@ class CompetitorScanResult:
             "competitors": self.competitors,
             "min_required": self.min_required,
             "count": len(self.competitors),
+            "valid_http_urls": self._valid_urls,
             "at": _utcnow(),
         }
 
@@ -162,9 +165,11 @@ def run_visual_critic(
     """
     Pixel-first critic.
 
-    Text regex / agent checklist can only force RED (or annotate findings).
-    They cannot produce GREEN without an on-disk screenshot that VisionBridge passes.
+    Text regex / agent soft checklist can only force RED (or annotate).
+    GREEN requires on-disk screenshot + VisionBridge pass + expected_elements
+    fully matched. Soft client True values never unlock GREEN alone.
     """
+    del kind  # reserved for surface-specific rules; elements gate applies to all GREEN
     checklist = dict(checklist or {})
     findings_l = list(findings or [])
     blob = " ".join([description or "", " ".join(findings_l), str(checklist)])
@@ -172,12 +177,13 @@ def run_visual_critic(
     for p in ph:
         findings_l.append(f"Placeholder signal detected: {p}")
 
+    elems = [str(x).strip() for x in (expected_elements or []) if str(x).strip()]
+    # Server-owned hard axes only — soft keys are never trusted from the client
     required_keys = [
         "first_screen_readable",
         "not_placeholder",
-        "materials_or_hierarchy_ok",
-        "reference_delta_acceptable",
         "pixels_verified",
+        "elements_matched",
     ]
 
     vision_payload: Optional[Dict[str, Any]] = None
@@ -188,6 +194,8 @@ def run_visual_critic(
         )
         for k in required_keys:
             checklist[k] = False
+        checklist["materials_or_hierarchy_ok"] = False
+        checklist["reference_delta_acceptable"] = False
         result = VisualCriticResult(
             verdict=CriticVerdict.RED,
             findings=findings_l,
@@ -202,7 +210,7 @@ def run_visual_critic(
 
     vr = VisionBridge().analyze_screenshot(
         screenshot_path,
-        expected_elements=list(expected_elements) if expected_elements else None,
+        expected_elements=elems or None,
     )
     vision_payload = {
         "passed": vr.passed,
@@ -211,57 +219,82 @@ def run_visual_critic(
         "height": vr.height,
         "is_blank_placeholder": vr.is_blank_placeholder,
         "description": vr.description,
+        "expected_elements": list(vr.expected_elements or elems),
         "elements_found": vr.elements_found,
         "elements_missing": vr.elements_missing,
         "ocr_engine": vr.ocr_engine,
         "path": str(screenshot_path),
     }
-    checklist["pixels_verified"] = bool(vr.passed) and not vr.is_blank_placeholder
+    base_pixels = (not vr.is_blank_placeholder) and vr.width >= 100 and vr.height >= 100
+    if vr.width == 0 and vr.height == 0:
+        # size-only fallback without PIL dims — trust VisionBridge.passed for blankness
+        base_pixels = bool(vr.passed) and not vr.is_blank_placeholder
+    checklist["pixels_verified"] = base_pixels and not vr.is_blank_placeholder
     if vr.is_blank_placeholder:
         checklist["not_placeholder"] = False
         findings_l.append(f"VisionBridge blank/placeholder: {vr.description}")
     else:
         checklist["not_placeholder"] = True
-    if not vr.passed:
+    if not base_pixels:
         findings_l.append(f"VisionBridge failed: {vr.description}")
         checklist["first_screen_readable"] = False
         checklist["pixels_verified"] = False
     else:
         checklist["first_screen_readable"] = True
 
-    # Soft axes: agent may claim, but only after pixels_verified
+    # Soft axes: recorded False always — client True must not unlock GREEN
     for soft in ("materials_or_hierarchy_ok", "reference_delta_acceptable"):
-        if soft not in checklist:
-            checklist[soft] = False
-        if checklist["pixels_verified"] and checklist.get(soft) is True:
-            pass
-        elif not checklist["pixels_verified"]:
-            checklist[soft] = False
+        if checklist.get(soft) is True:
+            findings_l.append(
+                f"soft_checklist_ignored: {soft}=True from client does not unlock GREEN"
+            )
+        checklist[soft] = False
+
+    elements_ok = bool(elems) and not list(vr.elements_missing or []) and bool(vr.passed)
+    if not elems:
+        findings_l.append(
+            "elements_required: expected_elements>=1 required for GREEN "
+            "(soft checklist alone is not enough)"
+        )
+        checklist["elements_matched"] = False
+    elif vr.elements_missing:
+        findings_l.append(f"elements_missing: {list(vr.elements_missing)}")
+        checklist["elements_matched"] = False
+    elif not vr.passed:
+        findings_l.append(f"VisionBridge element check failed: {vr.description}")
+        checklist["elements_matched"] = False
+    else:
+        checklist["elements_matched"] = True
 
     if ph:
         checklist["not_placeholder"] = False
 
-    failed_checks = [k for k, v in checklist.items() if not v]
+    failed_checks = [k for k in required_keys if not checklist.get(k)]
     for k in failed_checks:
         findings_l.append(f"Checklist failed: {k}")
 
-    pixels_ok = bool(vision_payload.get("passed")) and checklist.get("pixels_verified")
-    forced_red = bool(ph) or not pixels_ok or not checklist.get("not_placeholder", False)
+    pixels_ok = bool(checklist.get("pixels_verified")) and checklist.get("not_placeholder", False)
+    forced_red = bool(ph) or not pixels_ok
 
     av = (agent_verdict or "").upper().strip()
     if forced_red or av == "RED":
         verdict = CriticVerdict.RED
-    elif not all(checklist.get(k, False) for k in required_keys):
-        verdict = CriticVerdict.RED
+    elif not elements_ok or not all(checklist.get(k, False) for k in required_keys):
+        # Pixels OK but missing elements → YELLOW (not GREEN); else RED
+        verdict = CriticVerdict.YELLOW if pixels_ok and not elems else CriticVerdict.RED
+        if pixels_ok and elems and not elements_ok:
+            verdict = CriticVerdict.YELLOW
     elif av == "YELLOW":
         verdict = CriticVerdict.YELLOW
     else:
         verdict = CriticVerdict.GREEN
 
-    # Never GREEN without pixels
-    if verdict == CriticVerdict.GREEN and not pixels_ok:
-        verdict = CriticVerdict.RED
-        findings_l.append("invariant: GREEN blocked without VisionBridge pass")
+    # Never GREEN without pixels + matched expected_elements
+    if verdict == CriticVerdict.GREEN and (not pixels_ok or not elements_ok):
+        verdict = CriticVerdict.YELLOW if pixels_ok else CriticVerdict.RED
+        findings_l.append(
+            "invariant: GREEN blocked without VisionBridge pass + expected_elements match"
+        )
 
     escalate = verdict == CriticVerdict.RED
     summary = f"visual_critic {verdict.value}: {len(findings_l)} findings"
@@ -272,7 +305,11 @@ def run_visual_critic(
         escalate=escalate,
         summary=summary,
     )
-    result._extra_payload = {"vision": vision_payload, "pixels_required": False}  # type: ignore[attr-defined]
+    result._extra_payload = {  # type: ignore[attr-defined]
+        "vision": vision_payload,
+        "pixels_required": False,
+        "elements_required": True,
+    }
     return result
 
 
@@ -288,12 +325,27 @@ def run_soak(
     timeout_sec: int = 120,
 ) -> SoakResult:
     """
-    Prefer agent-reported metrics from a real play/session.
-    Optional command run (e.g. smoke script) contributes exit_code.
+    Prefer a real command (smoke/soak script). In ship mode, self-reported
+    errors=0 without a command is NOT a pass — that was the hype hole.
     """
+    from godkiller_mcp.ship_mode import ship_mode
+
     exit_code = None
-    cmd = command or ""
+    cmd = (command or "").strip()
     if command and workspace:
+        from godkiller_mcp.verify_bundle import detect_hacking
+
+        is_hack, hack_reason = detect_hacking(cmd, cwd=workspace)
+        if is_hack:
+            return SoakResult(
+                passed=False,
+                duration_sec=duration_sec,
+                errors=max(errors, 1),
+                stuck_pct=stuck_pct,
+                notes=(notes + f"\nsoak blocked: {hack_reason}").strip(),
+                command=cmd,
+                exit_code=1,
+            )
         try:
             proc = run_command_safely(
                 command,
@@ -313,7 +365,13 @@ def run_soak(
             errors = max(errors, 1)
             notes = (notes + f"\nsoak command error: {exc}").strip()
 
-    passed = errors == 0 and stuck_pct <= max_stuck_pct and (exit_code is None or exit_code == 0)
+    if ship_mode() and not cmd:
+        # Fail closed: no command = not claim-grade soak
+        passed = False
+        notes = (notes + "\nsoak requires command+workspace in ship mode").strip()
+    else:
+        passed = errors == 0 and stuck_pct <= max_stuck_pct and (exit_code is None or exit_code == 0)
+
     return SoakResult(
         passed=passed,
         duration_sec=float(duration_sec),
@@ -342,10 +400,17 @@ def build_competitor_scan(
                     "notes": (c.get("notes") or "").strip(),
                 }
             )
+    # Anti self-score: need real http(s) URLs, not invented names alone
+    with_url = [
+        c
+        for c in cleaned
+        if c.get("url", "").lower().startswith(("http://", "https://"))
+    ]
     return CompetitorScanResult(
         queries=[q.strip() for q in queries if q and str(q).strip()],
-        competitors=cleaned,
+        competitors=with_url,
         min_required=min_required,
+        _valid_urls=len(with_url),
     )
 
 
@@ -360,11 +425,21 @@ def build_compare_delta(
     """
     axes: positive = we win on that axis, negative = we lose.
     If still_losing omitted, infer from any axis <= lose_threshold.
+    Anti self-score: empty axes or missing best_competitor cannot PASS.
     """
+    clean_axes = {k: float(v) for k, v in (axes or {}).items()}
+    inferred = any(v <= lose_threshold for v in clean_axes.values()) if clean_axes else True
     if still_losing is None:
-        still_losing = any(float(v) <= lose_threshold for v in axes.values()) if axes else True
+        still_losing = inferred
+    # Cannot claim winning if axes empty or all clearly losing while still_losing=false
+    if not clean_axes:
+        still_losing = True
+    elif still_losing is False and inferred:
+        still_losing = True  # override self-score lie
+    if not (best_competitor or "").strip():
+        still_losing = True
     return CompareDeltaResult(
-        axes={k: float(v) for k, v in axes.items()},
+        axes=clean_axes,
         still_losing=bool(still_losing),
         notes=notes,
         best_competitor=best_competitor,
@@ -474,5 +549,22 @@ def quality_claim_gates(
                 False,
                 "Quality gate: visual_critic GREEN requires VisionBridge pass on a real screenshot "
                 "(text/checklist alone is not enough).",
+            )
+        expected = [
+            str(x).strip()
+            for x in (vision.get("expected_elements") or [])
+            if str(x).strip()
+        ]
+        if not expected:
+            return (
+                False,
+                "Quality gate: visual_critic GREEN requires expected_elements>=1 "
+                "(soft checklist alone is not enough).",
+            )
+        missing = vision.get("elements_missing") or []
+        if missing:
+            return (
+                False,
+                f"Quality gate: visual_critic elements_missing={list(missing)}.",
             )
     return True, "Quality + dissatisfaction gates satisfied."

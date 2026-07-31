@@ -9,7 +9,7 @@ Modes:
     Run package tests/ + benchmarks/gauntlet
 
 Env:
-  GODKILLER_ARENA_ROOT  default C:\\Users\\ASUS\\Desktop\\GODKILLER_ISOLATED_ARENA
+  GODKILLER_ARENA_ROOT  default ~/Desktop/GODKILLER_ISOLATED_ARENA (override recommended)
 """
 
 from __future__ import annotations

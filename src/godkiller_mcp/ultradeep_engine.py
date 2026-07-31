@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Sequence
 FILE_STAGES = ("think", "plan", "edit", "verify", "done")
 MIN_THINK_CHARS = 120
 MIN_PLAN_CHARS = 80
+MIN_PLAN_REFUTE_FINDINGS = 8
+MIN_PLAN_REFUTE_SEARCHES = 5
 
 
 def _utcnow() -> str:
@@ -21,6 +23,129 @@ def _utcnow() -> str:
 
 def _norm(path: str) -> str:
     return path.replace("\\", "/").strip()
+
+
+def plan_refute_status(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    meta = metadata or {}
+    pr = meta.get("ultradeep_plan_refute")
+    if not isinstance(pr, dict):
+        return {"status": "missing", "ok": False}
+    return pr
+
+
+def require_plan_refute_hold(metadata: Optional[Dict[str, Any]]) -> tuple[bool, str]:
+    """Block edits until plan_refute status is HOLD (after valid 9-step plan)."""
+    from godkiller_mcp.ship_mode import env_disables, relax_enabled
+
+    if relax_enabled():
+        return True, "plan_refute skipped (DEV_RELAX)"
+    if env_disables("GODKILLER_PLAN_REFUTE"):
+        return True, "plan_refute disabled (relax only)"
+    meta = metadata or {}
+    # Only enforce when a validated plan exists (or plan_dict present)
+    plan_meta = meta.get("plan_validation") or {}
+    if not plan_meta.get("valid") and not meta.get("plan_dict"):
+        return True, "plan_refute not required yet (no validated plan)"
+    pr = plan_refute_status(meta)
+    if pr.get("status") == "HOLD" and pr.get("ok") is True:
+        return True, "plan_refute HOLD"
+    if pr.get("status") == "REOPEN":
+        return (
+            False,
+            f"ultradeep plan_refute REOPEN — fix steps {pr.get('broken_steps') or []} "
+            "then ultradeep_plan_refute again",
+        )
+    return (
+        False,
+        "Forced wake: call ultradeep_plan_refute (≥8 attacks on 9-step plan + ≥5 searches) "
+        "and get HOLD before edit_safe",
+    )
+
+
+def record_plan_refute(
+    *,
+    findings: Sequence[Any],
+    search_queries: Sequence[str],
+    broken_steps: Optional[Sequence[str]] = None,
+    decision: str = "HOLD",
+) -> Dict[str, Any]:
+    """Validate refute payload; return metadata blob for ultradeep_plan_refute."""
+    from godkiller_mcp.evidence_quality import dedupe_findings, is_hollow_text
+
+    cleaned: List[str] = []
+    hollow_rejects = 0
+    for f in findings or []:
+        if isinstance(f, dict):
+            text = str(f.get("text") or f.get("finding") or f.get("attack") or "").strip()
+            step = str(f.get("step") or f.get("plan_step") or "").strip()
+            line = f"{step}: {text}".strip(": ").strip() if step else text
+        else:
+            line = str(f).strip()
+        hollow, _why = is_hollow_text(line, min_chars=16, min_unique_words=4)
+        if hollow:
+            hollow_rejects += 1
+            continue
+        cleaned.append(line[:500])
+    cleaned, dupes = dedupe_findings(cleaned)
+    queries_raw = [str(q).strip() for q in (search_queries or []) if str(q).strip()]
+    queries = []
+    for q in queries_raw:
+        hollow, _ = is_hollow_text(q, min_chars=8, min_unique_words=2)
+        if not hollow:
+            queries.append(q)
+    queries, _ = dedupe_findings(queries)
+    decision_u = str(decision or "HOLD").upper().strip()
+    if decision_u not in ("HOLD", "REOPEN"):
+        decision_u = "REOPEN" if broken_steps else "HOLD"
+
+    if len(cleaned) < MIN_PLAN_REFUTE_FINDINGS:
+        return {
+            "ok": False,
+            "status": "blocked",
+            "reason": (
+                f"plan_refute needs ≥{MIN_PLAN_REFUTE_FINDINGS} unique substantial findings "
+                f"(got {len(cleaned)}; hollow_rejected={hollow_rejects}, dupes={dupes}) "
+                "— asdf/nits spam does not wake the brain"
+            ),
+            "findings": cleaned,
+            "search_queries": queries,
+        }
+    if len(queries) < MIN_PLAN_REFUTE_SEARCHES:
+        return {
+            "ok": False,
+            "status": "blocked",
+            "reason": (
+                f"plan_refute needs ≥{MIN_PLAN_REFUTE_SEARCHES} distinct non-hollow search queries "
+                f"(got {len(queries)})"
+            ),
+            "findings": cleaned,
+            "search_queries": queries,
+        }
+    broken = [str(s) for s in (broken_steps or []) if s]
+    if decision_u == "REOPEN" or broken:
+        return {
+            "ok": False,
+            "status": "REOPEN",
+            "reason": "plan_refute REOPEN — patch broken plan steps then re-refute",
+            "broken_steps": broken or ["unspecified"],
+            "findings": cleaned[:40],
+            "search_queries": queries[:20],
+            "updated_at": _utcnow(),
+            "source": "ultradeep_plan_refute",
+            "server_authored": True,
+        }
+    return {
+        "ok": True,
+        "status": "HOLD",
+        "reason": "plan_refute HOLD — may proceed to per-file think→plan→edit",
+        "findings": cleaned[:40],
+        "search_queries": queries[:20],
+        "broken_steps": [],
+        "updated_at": _utcnow(),
+        "source": "ultradeep_plan_refute",
+        "server_authored": True,
+        "quality": {"hollow_rejected": hollow_rejects, "dupes_dropped": dupes},
+    }
 
 
 def empty_file_gate(enabled: bool = True) -> Dict[str, Any]:

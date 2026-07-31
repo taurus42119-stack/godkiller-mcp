@@ -4,9 +4,9 @@
 Auto scores from:
   - sealed oracle pytest (full body required)
   - delta vs 1_ORIGINAL
-  - on-disk session artifacts (.godkiller, council, marathon, screenshots)
+  - HMAC-sealed `.godkiller` task artifacts (dims 5–11)
 
-Missing evidence = 0 for that dimension. No vibe points.
+Missing evidence = 0 for that dimension. Keyword haystacks do not score 5–11.
 
   python -m benchmarks.score_11 --arm 3_WITHOUT_MCP
   python -m benchmarks.score_11 --arm 2_WITH_MCP
@@ -249,11 +249,9 @@ def _walk_text_blobs(root: Path, max_files: int = 400) -> str:
 
 def artifact_signals(arm_dir: Path, arena_root: Path) -> dict:
     """
-    Session evidence only (fail-closed).
+    Legacy keyword haystack (NOT used for dims 5–11 scoring).
 
-    Counts `.godkiller/` state written by the live MCP session, plus optional
-    `session_evidence/` the operator drops after Antigravity. Ignores static
-    `.agents` scaffold / old plan novels so bare vs WITH stays honest.
+    Kept for compare/debug dumps only — prefer sealed_artifact_signals.
     """
     del arena_root
     hay = "\n".join(
@@ -285,11 +283,223 @@ def artifact_signals(arm_dir: Path, arena_root: Path) -> dict:
         "claim_done": "claim_done" in hay,
         "server_authored": "server_authored" in hay,
         "council": ("council" in hay) and (("coder" in hay) or ("hacker" in hay) or ("optimizer" in hay)),
-        "security": ("xss" in hay) or ("security_hardening" in hay) or ("\"hacker\"" in hay),
+        "security": ("xss" in hay) or ("security_hardening" in hay) or ('"hacker"' in hay),
         "visual_critic": ("visual_critic" in hay) or ("anti-slop" in hay),
         "screenshot_count": len(shots),
         "marathon": "marathon_" in hay or "marathon_save" in hay or "marathon_init" in hay,
         "hay_chars": len(hay),
+        "sealed": False,
+    }
+
+
+def _empty_sealed_signals(*, reason: str) -> dict:
+    return {
+        "exhaustive_read": False,
+        "open_task": False,
+        "plan_os": False,
+        "blast_radius": False,
+        "edit_safe": False,
+        "verify_bundle": False,
+        "claim_done": False,
+        "server_authored": False,
+        "council": False,
+        "security": False,
+        "visual_critic": False,
+        "screenshot_count": 0,
+        "marathon": False,
+        "hay_chars": 0,
+        "sealed": False,
+        "seal_reason": reason,
+        "sealed_sources": [],
+        "task_files": 0,
+    }
+
+
+def _load_seal_secret_for_arm(arm_dir: Path) -> Optional[bytes]:
+    """Resolve seal key for scoring — env preferred; never invent a key."""
+    from godkiller_mcp.evidence_integrity import _decode_env_key, _truthy_env
+
+    env_raw = os.environ.get("GODKILLER_SEAL_KEY", "").strip()
+    if env_raw:
+        try:
+            return _decode_env_key(env_raw)
+        except ValueError:
+            return None
+
+    if not _truthy_env("GODKILLER_ALLOW_LEGACY_SEAL"):
+        return None
+    if os.environ.get("GODKILLER_PROFILE", "").strip().lower() in (
+        "ship",
+        "prod",
+        "production",
+        "strict",
+    ):
+        return None
+    for cand in (
+        arm_dir / ".godkiller" / "tasks" / ".seal_key",
+        arm_dir / ".godkiller" / ".seal_key",
+    ):
+        if cand.is_file():
+            return cand.read_bytes().strip()
+    return None
+
+
+def _iter_task_jsons(arm_dir: Path) -> List[Path]:
+    roots = [
+        arm_dir / ".godkiller" / "tasks",
+        arm_dir / ".godkiller",
+    ]
+    out: List[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for p in root.glob("task_*.json"):
+            key = str(p.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(p)
+        for p in root.glob("*.json"):
+            if p.name.startswith("."):
+                continue
+            if p.name in (".seal_key_SOURCE",):
+                continue
+            key = str(p.resolve())
+            if key in seen:
+                continue
+            # Prefer files that look like task dumps
+            try:
+                raw = p.read_text(encoding="utf-8", errors="ignore")[:200]
+            except OSError:
+                continue
+            if '"task_id"' in raw or '"evidences"' in raw:
+                seen.add(key)
+                out.append(p)
+    return out
+
+
+def sealed_artifact_signals(arm_dir: Path) -> dict:
+    """
+    Dims 5–11 evidence from HMAC-verified armor rows (+ server-only blast/edit).
+
+    Fail-closed: no seal key / no tasks → all False.
+    Keyword haystacks and lone .png files do not score.
+    """
+    from godkiller_mcp.evidence_integrity import ARMOR_SOURCES, verify_seal
+
+    secret = _load_seal_secret_for_arm(arm_dir)
+    if not secret:
+        return _empty_sealed_signals(reason="no_seal_key")
+
+    task_files = _iter_task_jsons(arm_dir)
+    if not task_files:
+        return _empty_sealed_signals(reason="no_task_json")
+
+    sealed_sources: set[str] = set()
+    has_blast = False
+    has_edit = False
+    exhaustive = False
+    plan_os = False
+    open_task = False
+    claim_done = False
+    server_authored_any = False
+
+    for path in task_files:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        handle = data.get("handle") or {}
+        tid = str(handle.get("task_id") or "")
+        if not tid:
+            continue
+        open_task = True
+        hist = data.get("phase_history") or []
+        if len(hist) >= 2:
+            open_task = True
+        phase = str(handle.get("phase") or "").lower()
+        if phase in ("claim_done", "closed"):
+            claim_done = True
+        meta = handle.get("metadata") or {}
+        if isinstance(meta, dict):
+            meta_blob = json.dumps(meta, ensure_ascii=False).lower()
+            if "chosen_design" in meta_blob or "plan_os" in meta_blob:
+                plan_os = True
+            if "exhaustive" in meta_blob or "full_content" in meta_blob:
+                # metadata alone is weak — require server_authored evidence below too
+                pass
+
+        for ev in data.get("evidences") or []:
+            if not isinstance(ev, dict):
+                continue
+            payload = ev.get("payload") if isinstance(ev.get("payload"), dict) else {}
+            et = str(ev.get("type") or "").lower()
+            src = str(payload.get("source") or "")
+            authored = bool(payload.get("server_authored"))
+
+            if authored:
+                server_authored_any = True
+
+            if et == "blast_radius" and authored:
+                has_blast = True
+            if et == "edit_safe" and authored:
+                has_edit = True
+
+            if src in ARMOR_SOURCES:
+                if verify_seal(tid, payload, secret):
+                    sealed_sources.add(src)
+                continue
+
+            # Non-armor server rows (e.g. exhaustive reader attach) — require authored
+            if authored and (
+                payload.get("full_content") is True
+                or payload.get("engine") == "exhaustive_reader_engine"
+                or "exhaustive" in str(payload.get("engine") or "").lower()
+            ):
+                exhaustive = True
+
+    # Exhaustive also from sealed scout/swarm payloads with full_content
+    # (already counted via sealed_sources path only if source in ARMOR — scout may be swarm_collect)
+    marathon = False
+    for root in (arm_dir / ".godkiller", arm_dir / "session_evidence"):
+        if not root.is_dir():
+            continue
+        for p in root.rglob("*"):
+            name = p.name.lower()
+            if "marathon" in name and (p.is_dir() or p.suffix.lower() in {".json", ".md"}):
+                marathon = True
+                break
+        if marathon:
+            break
+
+    # sealed verify/exit imply claim path pressure
+    if "exit_checklist" in sealed_sources:
+        claim_done = True
+
+    security = bool(
+        sealed_sources & {"fault_probe", "hollow_surface", "write_guard"}
+    )
+
+    return {
+        "exhaustive_read": exhaustive,
+        "open_task": open_task or len(task_files) > 0,
+        "plan_os": plan_os,
+        "blast_radius": has_blast,
+        "edit_safe": has_edit,
+        "verify_bundle": "verify_bundle" in sealed_sources,
+        "claim_done": claim_done,
+        "server_authored": server_authored_any or bool(sealed_sources),
+        "council": "council_finalize" in sealed_sources,
+        "security": security,
+        "visual_critic": "visual_critic" in sealed_sources,
+        "screenshot_count": 0,  # alone never scores dim 11
+        "marathon": marathon,
+        "hay_chars": 0,
+        "sealed": True,
+        "seal_reason": "ok",
+        "sealed_sources": sorted(sealed_sources),
+        "task_files": len(task_files),
     }
 
 
@@ -306,16 +516,24 @@ def score_dimensions(oracle: dict, delta: dict, signals: dict) -> Tuple[Dict[str
     # 3 integrity
     d3 = 100.0 if oracle["has_body"] and not oracle["header_only"] else 0.0
     # 4 delta — must change baseline; full copy of "already fixed" without change = 0 wow
-    # score rises with changed files (capped)
     d4 = round(min(delta["pct"], 100.0), 2)
-    # 5–11 fail-closed on artifacts
-    d5 = 100.0 if signals["exhaustive_read"] else 0.0
-    d6 = 100.0 if (signals["open_task"] or signals["plan_os"] or signals["marathon"]) else 0.0
-    d7 = 100.0 if (signals["blast_radius"] and signals["edit_safe"]) else (50.0 if (signals["blast_radius"] or signals["edit_safe"]) else 0.0)
-    d8 = 100.0 if (signals["verify_bundle"] and signals["claim_done"]) else (50.0 if signals["verify_bundle"] else 0.0)
-    d9 = 100.0 if signals["council"] else 0.0
-    d10 = 100.0 if signals["security"] else 0.0
-    d11 = 100.0 if (signals["visual_critic"] or signals["screenshot_count"] > 0) else 0.0
+    # 5–11 fail-closed on *sealed* artifacts (keyword haystack must not score)
+    d5 = 100.0 if signals.get("exhaustive_read") else 0.0
+    d6 = 100.0 if (signals.get("open_task") or signals.get("plan_os") or signals.get("marathon")) else 0.0
+    d7 = (
+        100.0
+        if (signals.get("blast_radius") and signals.get("edit_safe"))
+        else (50.0 if (signals.get("blast_radius") or signals.get("edit_safe")) else 0.0)
+    )
+    d8 = (
+        100.0
+        if (signals.get("verify_bundle") and signals.get("claim_done"))
+        else (50.0 if signals.get("verify_bundle") else 0.0)
+    )
+    d9 = 100.0 if signals.get("council") else 0.0
+    d10 = 100.0 if signals.get("security") else 0.0
+    # visual: sealed visual_critic only — lone screenshots do not count
+    d11 = 100.0 if signals.get("visual_critic") else 0.0
 
     dims = {
         "1_code_correctness": d1,
@@ -350,7 +568,7 @@ def score_arm(arena_root: Path, arm: str) -> dict:
         raise FileNotFoundError(arm_dir)
     oracle = run_oracle(arena_root, arm_dir)
     delta = baseline_delta(arena_root, arm_dir)
-    signals = artifact_signals(arm_dir, arena_root)
+    signals = sealed_artifact_signals(arm_dir)
     dims, meta = score_dimensions(oracle, delta, signals)
     suspicious = []
     if oracle["header_only"]:

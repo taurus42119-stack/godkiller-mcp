@@ -19,6 +19,27 @@ PRIVILEGED_TOOLS: Set[str] = {
     "submit_evidence",
     "hollow_surface",
     "gk_plan_validate",
+    "ultradeep_advance_file",
+    "ultradeep_plan_refute",
+    "ultradeep_repair_wake",
+    "view_start",
+    "view_record_search",
+    "view_record_attack",
+    "view_draft_plan",
+    "view_refute_plan",
+    "view_finalize",
+    "write_guard",
+    "write_guard_set_paths",
+    "swarm_spawn",
+    "swarm_submit",
+    "swarm_collect",
+    "debug_self_ctf_start",
+    "debug_self_ctf_tick",
+    "debug_self_ctf_run_until",
+    "tool_propose",
+    "tool_approve",
+    "tool_reject_all",
+    "tool_used",
 }
 
 
@@ -27,8 +48,17 @@ def strict_mode() -> bool:
 
 
 def plan_always_required() -> bool:
-    """Write-through-plan: default ON unless explicitly disabled."""
-    return os.environ.get("GODKILLER_PLAN_LOCK", "1").strip() not in ("0", "false", "off")
+    """Write-through-plan: default ON. GODKILLER_PLAN_LOCK=0 only under DEV_RELAX."""
+    from godkiller_mcp.ship_mode import env_disables, relax_enabled
+
+    if env_disables("GODKILLER_PLAN_LOCK"):
+        return False
+    if os.environ.get("GODKILLER_PLAN_LOCK", "1").strip() in ("0", "false", "off"):
+        # Ship mode ignores the kill-switch
+        if not relax_enabled():
+            return True
+        return False
+    return True
 
 
 def plan_digest(plan: Any) -> str:
@@ -52,7 +82,9 @@ def require_task_for_privileged(tool_name: str, arguments: Dict[str, Any]) -> Op
 def require_valid_plan(state) -> tuple[bool, str]:
     if not plan_always_required():
         return True, "plan_lock off"
-    if os.environ.get("GODKILLER_DEV_RELAX", "").strip() == "1":
+    from godkiller_mcp.ship_mode import relax_enabled
+
+    if relax_enabled():
         return True, "plan_lock skipped (DEV_RELAX)"
     meta = (state.handle.metadata or {}).get("plan_validation") or {}
     if meta.get("valid"):

@@ -532,7 +532,6 @@ class SecurityScanEngine:
         }
 
 
-import traceback
 
 
 class DeepScrapeEngine:
@@ -540,13 +539,22 @@ class DeepScrapeEngine:
 
     def scrape(self, url_or_html: str, max_length: int = 5000) -> Dict[str, Any]:
         if url_or_html.startswith("http://") or url_or_html.startswith("https://"):
-            if any(forbidden in url_or_html for forbidden in ["127.0.0.1", "localhost", "0.0.0.0", "169.254."]):
-                return {"error": "Access to local/loopback IP is restricted for security."}
+            from godkiller_mcp.ssrf import assert_public_url
+
+            ok, reason = assert_public_url(url_or_html)
+            if not ok:
+                return {"error": reason, "ssrf_blocked": True}
             try:
-                import urllib.request
-                req = urllib.request.Request(url_or_html, headers={"User-Agent": "GODKILLER-Agent/2.0"})
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                from godkiller_mcp.ssrf import SafeHTTPError, safe_urlopen
+
+                with safe_urlopen(
+                    url_or_html,
+                    timeout=10,
+                    headers={"User-Agent": "GODKILLER-Agent/2.0"},
+                ) as resp:
                     html_content = resp.read().decode("utf-8", errors="ignore")
+            except SafeHTTPError as e:
+                return {"error": e.reason, "ssrf_blocked": True}
             except Exception as e:
                 return {"error": f"Failed to fetch URL: {e}"}
         else:
@@ -603,7 +611,7 @@ class LogTraceEngine:
 
 
 class AutoFixEngine:
-    """Experimental regex find/replace (not a real AST rewriter)."""
+    """Experimental regex find/replace (not a real AST rewriter). Ship forces preview."""
 
     def fix(
         self,
@@ -612,6 +620,14 @@ class AutoFixEngine:
         replacement: str,
         preview_only: bool = True,
     ) -> Dict[str, Any]:
+        from godkiller_mcp.ship_mode import relax_enabled
+
+        forced_preview = False
+        if not relax_enabled():
+            if not preview_only:
+                forced_preview = True
+            preview_only = True
+
         pfile = Path(file_path)
         if not pfile.exists():
             return {"error": f"File not found: {file_path}"}
@@ -635,7 +651,7 @@ class AutoFixEngine:
             if not preview_only and count > 0:
                 pfile.write_text(new_content, encoding="utf-8")
 
-            return {
+            out = {
                 "engine": "regex_autofix",
                 "tier": "experimental",
                 "file": str(pfile),
@@ -645,6 +661,10 @@ class AutoFixEngine:
                 "preview_only": preview_only,
                 "diff": "\n".join(diff_lines) if diff_lines else "No matches found to replace.",
             }
+            if forced_preview:
+                out["forced_preview"] = True
+                out["reason"] = "ship/non-relax forces preview_only — disk write blocked"
+            return out
         except Exception as e:
             return {"error": f"Failed auto-fix: {e}"}
 
@@ -808,7 +828,6 @@ class SelfHealingEngine:
 
         # 1) Structured traceback → parse frames (always preferred when frames exist)
         if frames or exc not in ("UnknownException",) and "Error" in exc:
-            root = task_context.get("root_dir") or task_context.get("workspace") or "."
             return {
                 "diagnosis": (
                     f"Structured traceback: {exc}: {msg[:120]} "
@@ -923,7 +942,16 @@ class SelfHealingEngine:
 
 
 class EpistemicConfidenceGate:
-    """Edit readiness from file AST + symbol hit-rate (not fixed +20/+15)."""
+    """Edit readiness heuristic (NOT Bayesian). Named weights; require symbol or search hit."""
+
+    W_FILE = 25.0
+    W_AST = 25.0
+    W_SYM = 20.0
+    W_DEFS = 10.0
+    W_SEARCH = 10.0
+    W_HITS = 10.0
+    W_SEARCH_FALLBACK = 5.0
+    THRESHOLD = 70.0
 
     def evaluate(
         self,
@@ -953,6 +981,7 @@ class EpistemicConfidenceGate:
                 "file": file_path,
                 "metrics": metrics,
                 "score": 0.0,
+                "threshold": self.THRESHOLD,
                 "allowed_to_edit": False,
                 "missing": ["file_exists"],
                 "reasons": ["File does not exist"],
@@ -984,21 +1013,20 @@ class EpistemicConfidenceGate:
         except Exception as e:
             reasons.append(f"Read/analyze failed: {e}")
 
-        # Weighted score from measured quantities (0..100)
         score = 0.0
         if metrics["file_exists"]:
-            score += 25.0
+            score += self.W_FILE
         if metrics["ast_parse_ok"]:
-            score += 25.0
-        score += min(20.0, metrics["symbol_hit_rate"] * 20.0)
+            score += self.W_AST
+        score += min(self.W_SYM, metrics["symbol_hit_rate"] * self.W_SYM)
         if metrics["def_count"] + metrics["class_count"] > 0:
-            score += 10.0
+            score += self.W_DEFS
         if has_searched:
-            score += 10.0
+            score += self.W_SEARCH
         if search_hit_count is not None:
-            score += min(10.0, float(search_hit_count) * 2.0)
+            score += min(self.W_HITS, float(search_hit_count) * 2.0)
         elif has_searched:
-            score += 5.0
+            score += self.W_SEARCH_FALLBACK
 
         missing = []
         if not metrics["file_exists"]:
@@ -1009,38 +1037,68 @@ class EpistemicConfidenceGate:
             missing.append("symbol_hit_rate>=0.5")
         if not has_searched:
             missing.append("search_done")
+        hit_ok = float(metrics["symbol_hit_rate"] or 0) > 0 or (
+            search_hit_count is not None and int(search_hit_count) > 0
+        )
+        if not hit_ok:
+            missing.append("symbol_hit_rate>0_or_search_hit_count>0")
 
-        allowed = score >= 70.0 and metrics["ast_parse_ok"] and has_searched
+        allowed = (
+            score >= self.THRESHOLD
+            and metrics["ast_parse_ok"]
+            and has_searched
+            and hit_ok
+        )
         return {
             "engine": "edit_readiness_metrics",
             "file": file_path,
             "metrics": metrics,
             "score": round(score, 2),
-            "threshold": 70.0,
+            "threshold": self.THRESHOLD,
+            "weights": {
+                "file": self.W_FILE,
+                "ast": self.W_AST,
+                "sym": self.W_SYM,
+                "defs": self.W_DEFS,
+                "search": self.W_SEARCH,
+                "hits": self.W_HITS,
+            },
             "allowed_to_edit": allowed,
             "missing": missing,
             "reasons": reasons,
             "recommendation": "PROCEED" if allowed else "BLOCK_EDIT_FORCE_RECON",
+            "honest": "heuristic weights — not Bayesian / not formal verification",
         }
 
 
 import concurrent.futures
+import os as _os
 
 
 class ExhaustiveReaderEngine:
-    """Full-file directory reader. Truncation only when max_chars_per_file is set."""
+    """Full-file directory reader with byte budget (fail-visible when exceeded)."""
+
+    DEFAULT_MAX_TOTAL_BYTES = 32_000_000
 
     def read_all(
         self,
         dir_path: str,
         max_files: int = 200,
         max_chars_per_file: Optional[int] = None,
+        max_total_bytes: Optional[int] = None,
+        max_workers: Optional[int] = None,
     ) -> Dict[str, Any]:
         root = Path(dir_path)
         if not root.exists():
             return {"error": f"Directory path does not exist: {dir_path}"}
 
+        budget = int(max_total_bytes if max_total_bytes is not None else self.DEFAULT_MAX_TOTAL_BYTES)
+        workers_env = _os.environ.get("GODKILLER_EXHAUSTIVE_WORKERS", "").strip()
+        workers = int(max_workers if max_workers is not None else (workers_env or 10))
+        workers = max(1, min(workers, 32))
+
         file_list: List[Path] = []
+        skipped_binary: List[str] = []
         if root.is_file():
             file_list.append(root)
         else:
@@ -1051,6 +1109,23 @@ class ExhaustiveReaderEngine:
                         for part in pfile.parts
                     ):
                         continue
+                    # Skip obvious binaries by suffix
+                    if pfile.suffix.lower() in (
+                        ".png",
+                        ".jpg",
+                        ".jpeg",
+                        ".gif",
+                        ".webp",
+                        ".pdf",
+                        ".zip",
+                        ".exe",
+                        ".dll",
+                        ".so",
+                        ".pyc",
+                        ".whl",
+                    ):
+                        skipped_binary.append(str(pfile))
+                        continue
                     file_list.append(pfile)
 
         truncated_listing = len(file_list) > max_files
@@ -1058,21 +1133,32 @@ class ExhaustiveReaderEngine:
         contents: Dict[str, str] = {}
         truncated_files: List[str] = []
         total_bytes = 0
+        budget_exceeded = False
 
-        def _read_single(p: Path) -> Tuple[str, str, bool, int]:
+        def _read_single(p: Path) -> Tuple[str, str, bool, int, bool]:
             try:
+                # Peek binary
+                head = p.read_bytes()[:8192]
+                if b"\x00" in head:
+                    return (str(p), "", False, 0, True)
                 txt = p.read_text(encoding="utf-8", errors="ignore")
-                raw_len = len(txt)
+                raw_len = p.stat().st_size
                 was_trunc = False
-                if max_chars_per_file is not None and raw_len > max_chars_per_file:
+                if max_chars_per_file is not None and len(txt) > max_chars_per_file:
                     txt = txt[:max_chars_per_file]
                     was_trunc = True
-                return (str(p), txt, was_trunc, raw_len)
+                return (str(p), txt, was_trunc, raw_len, False)
             except Exception as e:
-                return (str(p), f"[Error reading file: {e}]", False, 0)
+                return (str(p), f"[Error reading file: {e}]", False, 0, False)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            for path_str, txt, was_trunc, raw_len in executor.map(_read_single, file_list):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            for path_str, txt, was_trunc, raw_len, is_bin in executor.map(_read_single, file_list):
+                if is_bin:
+                    skipped_binary.append(path_str)
+                    continue
+                if total_bytes + raw_len > budget and contents:
+                    budget_exceeded = True
+                    break
                 contents[path_str] = txt
                 total_bytes += raw_len
                 if was_trunc:
@@ -1084,11 +1170,16 @@ class ExhaustiveReaderEngine:
             "total_files_read": len(contents),
             "files": list(contents.keys()),
             "contents": contents,
-            "full_content": max_chars_per_file is None,
+            "full_content": max_chars_per_file is None and not budget_exceeded,
             "max_chars_per_file": max_chars_per_file,
+            "max_total_bytes": budget,
+            "max_workers": workers,
             "truncated_files": truncated_files,
             "truncated_file_listing": truncated_listing,
             "total_bytes_on_disk": total_bytes,
+            "budget_exceeded": budget_exceeded,
+            "skipped_binary": skipped_binary[:50],
+            "truncated": budget_exceeded or truncated_listing or bool(truncated_files),
         }
 
 

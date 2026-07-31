@@ -1,10 +1,9 @@
 """
 Robust Slash Command & Epistemic Intent Router
-Parses /ask, /plan, /debug, /ultradeep, /verify and classifies complex task intent
+Parses /ask, /plan, /debug, /ultradeep, /view, /verify and classifies complex task intent
 """
 
 import re
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 
@@ -27,6 +26,7 @@ class EpistemicRouter:
         "/plan": (r"^\s*/plan\b|blueprint|spec|architecture|design plan", "PLANNING", True, True, False, "Blueprint & 9-Step Spec Protocol"),
         "/debug": (r"^\s*/debug\b|fix bug|root cause|traceback|error log|failing test", "DEBUGGING", True, True, True, "Systematic Root-Cause Debugging Protocol"),
         "/ultradeep": (r"^\s*/ultradeep\b|marathon|supreme|orchestrate|phase", "ULTRADEEP", True, True, True, "Supreme Orchestrator Relay Protocol"),
+        "/view": (r"^\s*/view\b|lit review|literature review|adversarial review|critique paper|research critique", "VIEW", True, True, False, "Adversarial Research Planning Protocol"),
         "/verify": (r"^\s*/verify\b|rubric|claim done|empirical proof|pytest check", "VERIFICATION", False, False, True, "Empirical Pytest Proof Protocol")
     }
 

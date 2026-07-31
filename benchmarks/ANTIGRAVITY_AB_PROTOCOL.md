@@ -16,8 +16,8 @@ Goal: prove **Bare vs GODKILLER** with *your* Antigravity sessions — not pre-s
 ### 0) Reset both arms to the broken challenge
 
 ```powershell
-cd "C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\godkiller_mcp_pypi_package"
-$env:GODKILLER_ARENA_ROOT="C:\Users\ASUS\Desktop\GODKILLER_ISOLATED_ARENA"
+cd "<path-to-godkiller_mcp_pypi_package>"
+$env:GODKILLER_ARENA_ROOT="<your-arena-root>"
 python -m benchmarks.reset_arena
 ```
 

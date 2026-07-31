@@ -1,11 +1,11 @@
-"""Run verification commands without shell=True when possible."""
+"""Run verification commands without a shell — never shell=True (RCE surface)."""
 
 from __future__ import annotations
 
 import shlex
 import subprocess
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
 
 def split_command(command: str) -> List[str]:
@@ -13,7 +13,6 @@ def split_command(command: str) -> List[str]:
     try:
         return shlex.split(command, posix=os_name_is_posix())
     except ValueError:
-        # Unbalanced quotes — fall back to naive split
         return command.strip().split()
 
 
@@ -30,9 +29,8 @@ def run_command_safely(
     timeout_sec: int = 30,
 ) -> subprocess.CompletedProcess[str]:
     """
-    Prefer argv list + shell=False.
-    On Windows, allow shell=True only for builtins that have no .exe (e.g. `dir`),
-    but never for empty/whitespace commands.
+    Always argv + shell=False.
+    FileNotFoundError is fail-closed (no Windows shell=True fallback — that was RCE).
     """
     if isinstance(command, str):
         argv = split_command(command)
@@ -41,6 +39,11 @@ def run_command_safely(
 
     if not argv:
         raise ValueError("Empty command")
+
+    # Defense in depth: refuse shell metacharacters even in argv form
+    joined = " ".join(argv)
+    if any(c in joined for c in (";", "&", "|", "`", "$", "\n", "\r")):
+        raise ValueError("Shell metacharacters are not allowed in safe_exec argv")
 
     work_dir = Path(cwd)
     try:
@@ -52,17 +55,9 @@ def run_command_safely(
             text=True,
             timeout=timeout_sec,
         )
-    except FileNotFoundError:
-        # Windows builtins / PATH edge cases: last-resort shell, still with argv[0] only if needed
-        import os
-
-        if os.name == "nt" and isinstance(command, str):
-            return subprocess.run(
-                command,
-                shell=True,
-                cwd=work_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout_sec,
-            )
-        raise
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Executable not found for argv={argv!r} (cwd={work_dir}). "
+            "GODKILLER refuses shell=True fallback — install the tool on PATH "
+            "or use an allowlisted python -m form."
+        ) from exc

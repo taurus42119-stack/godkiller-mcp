@@ -289,6 +289,22 @@ class CouncilDebateEngine:
                 "must_fix": must_fix or [],
             }
         )
+        # Block hollow REJECT theatre at submit time
+        norm = session.opinions[role]
+        if str(norm.get("vote") or "").upper() == "REJECT":
+            from godkiller_mcp.claim_armor import _substantial_hacker_reject
+
+            if not _substantial_hacker_reject(norm):
+                del session.opinions[role]
+                return {
+                    "error": (
+                        "Hacker/role REJECT rejected as theatre: need non-hollow critique "
+                        "(≥24 chars), ≥1 substantial must_fix, severity≥5"
+                    ),
+                    "verdict": "COUNCIL_ERROR",
+                    "session_id": session_id,
+                    "role": role,
+                }
         missing = [r for r in ROLES if r not in session.opinions]
         out: Dict[str, Any] = {
             "engine": "host_multi_agent_council",

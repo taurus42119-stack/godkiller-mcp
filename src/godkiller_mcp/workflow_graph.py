@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from godkiller_mcp.evidence_store import EvidenceStore
-from godkiller_mcp.schema import Phase, TaskState
+from godkiller_mcp.schema import Phase
 
 
 class WorkflowGraph:

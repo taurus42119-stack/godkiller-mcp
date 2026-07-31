@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "godkiller-mcp"
-version = "1.1.0"
+version = "1.1.1"
 description = "GODKILLER MCP — Antigravity phase/evidence orchestrator with code, scan, and browser facades"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,20 +12,41 @@ license = { text = "MIT" }
 authors = [
     { name = "GODKILLER Team" }
 ]
+keywords = ["mcp", "antigravity", "agent", "verification", "policy", "harness"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
 dependencies = [
-    "mcp>=1.0.0",
-    "pytest>=8.0.0",
-    "pydantic>=2.0.0",
-    "Pillow>=10.0.0",
+    "mcp>=1.2.0,<2",
+    "pydantic>=2.6.0,<3",
+    "Pillow>=10.2.0,<12",
 ]
 
 [project.optional-dependencies]
-scrape = ["beautifulsoup4>=4.12.0"]
-browser = ["playwright>=1.40.0"]
-all = ["beautifulsoup4>=4.12.0", "playwright>=1.40.0"]
+dev = [
+    "pytest>=8.0.0,<9",
+]
+scrape = ["beautifulsoup4>=4.12.0,<5"]
+browser = ["playwright>=1.40.0,<2"]
+all = [
+    "pytest>=8.0.0,<9",
+    "beautifulsoup4>=4.12.0,<5",
+    "playwright>=1.40.0,<2",
+]
 
 [project.scripts]
 godkiller-mcp = "godkiller_mcp.server:main"
+godkiller-prove = "godkiller_mcp.prove:main"
+godkiller-write-guard = "godkiller_mcp.write_guard:main"
 
 [project.urls]
 Homepage = "https://github.com/taurus42119-stack/godkiller-mcp"
@@ -35,8 +56,22 @@ Repository = "https://github.com/taurus42119-stack/godkiller-mcp"
 where = ["src"]
 
 [tool.setuptools.package-data]
-godkiller_mcp = ["protocols/*.md"]
+godkiller_mcp = ["protocols/*.md", "hooks/*.json", "py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "benchmarks/gauntlet"]
 pythonpath = ["src", "."]
+
+[tool.ruff]
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+# Full-package lint: real defects only (solo CI — not style churn on UP*)
+select = ["E", "F"]
+ignore = ["E501", "E402", "E741"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+pretty = true
