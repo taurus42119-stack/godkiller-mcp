@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_GAUNTLET = ROOT / "benchmarks" / "gauntlet"
+DEFAULT_GAUNTLET = ROOT  # full suite: tests/ + benchmarks/gauntlet/
 OUT_DIR = ROOT / "benchmarks" / "arena_logs"
 
 
@@ -58,7 +58,7 @@ def run_arm(name: str, test_path: Path, timeout_sec: int = 120) -> dict:
     test_path = test_path.resolve()
     started = time.perf_counter()
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-v", "--tb=short", str(test_path)],
+        [sys.executable, "-m", "pytest", "-v", "--tb=line", "tests", "benchmarks/gauntlet"],
         cwd=str(ROOT),
         capture_output=True,
         text=True,

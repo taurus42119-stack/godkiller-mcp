@@ -1,30 +1,31 @@
 {
-  "graded_at": "2026-07-31T01:32:10.940699+00:00",
+  "graded_at": "2026-07-31T01:42:29.243322+00:00",
   "grader": "benchmarks.grade_arena",
   "source": "C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package\\benchmarks\\arena_logs\\arena_run.json",
   "result": {
     "arm": "gauntlet",
-    "folder": "C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package\\benchmarks\\gauntlet",
+    "folder": "C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package",
     "pytest_passed": true,
     "exit_code": 0,
     "counts": {
-      "passed": 13,
+      "passed": 211,
       "failed": 0,
       "skipped": 0,
-      "collected": 13,
-      "summary_line": "============================= 13 passed in 0.23s =============================="
+      "collected": 211,
+      "summary_line": "============================= 211 passed in 1.30s ============================="
     },
     "dimensions": {
       "1_pytest_pass_rate": 100.0,
-      "2_collected_tests": 13,
+      "2_collected_tests": 211,
       "3_failed_tests": 0,
-      "4_wall_clock_seconds": 0.717,
+      "4_wall_clock_seconds": 1.842,
       "5_output_integrity": 100.0,
-      "6_output_chars": 1911
+      "6_output_chars": 21739,
+      "7_passed_markers_in_log": 119
     },
     "overall_score": 100.0,
     "suspicious_flags": [],
-    "summary_line": "============================= 13 passed in 0.23s =============================="
+    "summary_line": "============================= 211 passed in 1.30s ============================="
   },
   "note": "Scores derived only from recorded pytest counts + output body checks."
 }

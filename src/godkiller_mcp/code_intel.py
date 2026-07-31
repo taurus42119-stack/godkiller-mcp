@@ -142,7 +142,7 @@ def blast_radius(symbol: str, workspace_root: str | Path) -> BlastRadiusReport:
 def check_edit_safe(
     target_files: List[str], workspace_root: str | Path
 ) -> EditSafeResult:
-    """Reject paths outside workspace (including escape via .. / absolute)."""
+    """Reject paths outside workspace (including escape via .. / absolute / ~)."""
     root = Path(workspace_root).resolve()
     reasons: List[str] = []
     resolved: List[str] = []
@@ -154,7 +154,11 @@ def check_edit_safe(
         )
 
     for raw in target_files:
-        p = Path(raw)
+        s = str(raw)
+        if s.startswith("~") or s.startswith("~/") or s.startswith("~\\"):
+            reasons.append(f"home_escape:{raw}")
+            continue
+        p = Path(s)
         candidate = p if p.is_absolute() else (root / p)
         try:
             resolved_path = candidate.resolve()

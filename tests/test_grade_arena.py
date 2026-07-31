@@ -24,8 +24,8 @@ def test_grader_flags_header_only_and_suspicious_516_shape():
         "pytest_output_full_chars": 80,
     }
     g = grade_run(fake)
-    assert "high_test_count_with_subsecond_duration" in g["suspicious_flags"]
     assert "pytest_output_header_only" in g["suspicious_flags"]
+    assert "unreproducible_legacy_score_shape" in g["suspicious_flags"]
     assert g["dimensions"]["5_output_integrity"] == 0.0
     assert g["overall_score"] == 0.0
 

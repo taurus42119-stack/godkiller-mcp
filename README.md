@@ -50,35 +50,32 @@ Single variable: MCP off / on.
 
 | Gate | Load |
 | --- | --- |
-| Kernel forge/skip | adversarial suite |
-| Engine gauntlet | exhaustive · council · pipeline · heal · vision · grader |
-| Blind oracle | disk green required |
-| Output integrity | full pytest body scored — header-only runs score 0 |
+| Kernel forge/skip | adversarial + volume matrix |
+| Phase illegal jumps | full forward-skip matrix |
+| Verify allowlist | allow + deny command grids |
+| Council host tally | all 8 vote combinations |
+| Exhaustive read | 50 size variants (incl. >3000 chars) |
+| Blind oracle | disk green + output integrity |
 
-### Scorecard
+### Scorecard (reproducible)
 
-| # | Dimension | GODKILLER |
+| # | Dimension | Result |
 | ---: | --- | --- |
-| 1 | Anti-fake-claim | live pytest gate + server-authored evidence |
-| 2 | Phase machine | illegal jumps blocked |
-| 3 | Edit safety | workspace bound + blast radius |
-| 4 | Council | Host IDE debate (default) + optional API multi-agent |
-| 5 | Pipeline | real tool DAG execution |
-| 6 | Self-heal | diagnose + execute fallback tool |
-| 7 | Vision | pixels + `expected_elements` (OCR / sidecar) |
-| 8 | Exhaustive read | full file contents on disk |
-| 9 | Verify | allowlisted commands on disk |
-| 10 | Memory | marathon + graph |
-| 11 | Arena runner | reproducible JSON + graded scorecard |
-
-Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_scorecard.json`](benchmarks/arena_logs/graded_scorecard.json)
+| 1 | Collected | **211** |
+| 2 | Passed | **211 / 211** |
+| 3 | Wall clock | ~1.8s (runner) |
+| 4 | Output integrity | **100** (full pytest body, not header-only) |
+| 5 | Overall grade | **100** |
+| 6 | Suspicious flags | **none** |
 
 ```bash
 python -m benchmarks.run_arena
 python -m benchmarks.grade_arena
+# → arena_run.json + graded_scorecard.json
 pytest -q
 ```
 
+Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_scorecard.json`](benchmarks/arena_logs/graded_scorecard.json)
 ---
 
 ## Kernel

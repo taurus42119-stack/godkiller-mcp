@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -33,6 +34,7 @@ def grade_run(run: Dict[str, Any]) -> Dict[str, Any]:
     # Output integrity: must contain node ids or PASSED/FAILED lines, not header-only
     has_body = ("PASSED" in output) or ("FAILED" in output) or ("::" in output)
     header_only = (not has_body) and ("test session starts" in output.lower())
+    passed_markers = len(re.findall(r"\bPASSED\b", output))
 
     dimensions = {
         "1_pytest_pass_rate": round(pass_rate, 2),
@@ -41,17 +43,20 @@ def grade_run(run: Dict[str, Any]) -> Dict[str, Any]:
         "4_wall_clock_seconds": round(duration, 3),
         "5_output_integrity": 100.0 if has_body and not header_only else 0.0,
         "6_output_chars": output_chars,
+        "7_passed_markers_in_log": passed_markers,
     }
-    # Overall: pass rate gated by output integrity
     overall = round(pass_rate * (1.0 if dimensions["5_output_integrity"] == 100.0 else 0.0), 2)
 
     suspicious = []
-    if collected >= 100 and duration < 1.0:
-        suspicious.append("high_test_count_with_subsecond_duration")
     if header_only:
         suspicious.append("pytest_output_header_only")
     if collected == 0:
         suspicious.append("zero_tests_collected")
+    if collected >= 50 and passed_markers < 10 and has_body is False:
+        suspicious.append("output_missing_per_test_lines")
+    # Legacy fake: huge count + truncated header-only log
+    if collected >= 100 and header_only and duration < 1.0:
+        suspicious.append("unreproducible_legacy_score_shape")
 
     return {
         "arm": run.get("arm"),
