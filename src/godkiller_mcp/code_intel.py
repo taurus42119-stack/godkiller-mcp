@@ -8,7 +8,33 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set
 
 from godkiller_mcp.schema import EvidenceType
+from godkiller_mcp.council_agents import CouncilDebateEngine
 
+__all__ = [
+    "SymbolRef",
+    "FailingSliceReport",
+    "BlastRadiusReport",
+    "EditSafeResult",
+    "require_blast_before_edit",
+    "get_failing_slice",
+    "blast_radius",
+    "check_edit_safe",
+    "RepoMapGenerator",
+    "HyperSearchEngine",
+    "FastFindEngine",
+    "ContextPreviewEngine",
+    "AstGrepEngine",
+    "SecurityScanEngine",
+    "DeepScrapeEngine",
+    "LogTraceEngine",
+    "AutoFixEngine",
+    "PipelineRunner",
+    "SelfHealingEngine",
+    "EpistemicConfidenceGate",
+    "ExhaustiveReaderEngine",
+    "AutoSkillifyEngine",
+    "CouncilDebateEngine",
+]
 
 @dataclass
 class SymbolRef:
@@ -1010,13 +1036,6 @@ description: {description}
             "file": str(skill_file),
             "status": "created",
         }
-
-
-# Multi-agent LLM council (Coder / Hacker / Optimizer) — see council_agents.py
-from godkiller_mcp.council_agents import CouncilDebateEngine  # noqa: E402
-
-
-
 
 
 

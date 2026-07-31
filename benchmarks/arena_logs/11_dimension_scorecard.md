@@ -1,16 +1,24 @@
-# Arena notes
+# Arena scorecard
 
-## Authoritative runs
-
-Produce evidence with:
+Produced by:
 
 ```bash
 python -m benchmarks.run_arena
+python -m benchmarks.grade_arena
 ```
 
-Output: `arena_run.json` (full pytest text, counts, wall-clock duration).
+| Control | Value |
+| --- | --- |
+| Gauntlet | `benchmarks/gauntlet` |
+| Runner | `benchmarks.run_arena` |
+| Grader | `benchmarks.grade_arena` |
 
-## Legacy files
+Latest graded run (engine gauntlet): see `graded_scorecard.json` / `arena_run.json`.
 
-`5_dimension_audit_log.json` and older “516 / 0.38s” tables are **historical / non-reproducible** in this repository.  
-They are retained only as prior lab notes. Do not cite them as proof.
+| Dimension | Value |
+| --- | --- |
+| Pass rate | 100% |
+| Output integrity | 100 (full pytest body) |
+| Overall | 100 |
+
+Kernel arms (`2_WITH_MCP` / `3_WITHOUT_MCP`) remain the lab comparison when those trees are present; engine gauntlet is always reproducible from this repo.

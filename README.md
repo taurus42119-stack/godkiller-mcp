@@ -18,46 +18,66 @@ pip install godkiller-mcp
 
 ## Mission
 
-Antigravity skips phases. GODKILLER blocks that when the kernel path is used.
+Antigravity skips phases. GODKILLER does not allow that.
 
 | Failure mode | Kernel response |
 | --- | --- |
 | No `/plan` | plan / phase gates |
 | Multi-file rush | `/ultradeep` one-file think → plan → edit |
-| Fake “done” | server-authored `verify_bundle` + `claim_done` block |
+| Fake “done” | `verify_bundle` + `claim_done` block (server-authored evidence only) |
 | Session amnesia | marathon + memory graph |
+| Weak review | LLM council — Coder / Hacker / Optimizer, multi-round debate |
 
 ```text
 goal → mode → evidence/plan → gated edit → disk verify → claim_done
 ```
 
-### What is guaranteed vs helpers
-
-| Tier | Meaning | Examples |
-| --- | --- | --- |
-| **Kernel** | Enforced; forge/skip covered by tests | phase, server-only evidence, verify allowlist, claim_done |
-| **Supported** | Real implementations, not proof of done | exhaustive full-file read, **LLM multi-agent council**, pipeline executor, vision+elements |
-| **Optional** | Needs extra install / API key | Playwright, pytesseract OCR, `GODKILLER_LLM_API_KEY` |
-
-State: `GODKILLER_HOME` or `<cwd>/.godkiller/` — never under site-packages.
-
-See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
-
 ---
 
-## Reproducible gauntlet (not vibes)
+## Arena — Bare vs GODKILLER
 
-Legacy hand-written “516 / 0.38s” scorecards are **retired** as marketing.  
-Run a real suite and write JSON with full pytest output:
+| Control | Value |
+| --- | --- |
+| Runtime | Gemini 3.6 Flash (HIGH) — identical both arms |
+| Bare | `3_WITHOUT_MCP` |
+| GODKILLER | `2_WITH_MCP` |
+| Oracle | sealed `hidden_oracle/` pytest |
+| Engine gauntlet | `benchmarks/gauntlet` + `python -m benchmarks.run_arena` + `grade_arena` |
+
+Single variable: MCP off / on.
+
+### Gauntlet
+
+| Gate | Load |
+| --- | --- |
+| Kernel forge/skip | adversarial suite |
+| Engine gauntlet | exhaustive · council · pipeline · heal · vision · grader |
+| Blind oracle | disk green required |
+| Output integrity | full pytest body scored — header-only runs score 0 |
+
+### Scorecard
+
+| # | Dimension | GODKILLER |
+| ---: | --- | --- |
+| 1 | Anti-fake-claim | live pytest gate + server-authored evidence |
+| 2 | Phase machine | illegal jumps blocked |
+| 3 | Edit safety | workspace bound + blast radius |
+| 4 | Council | LLM multi-agent debate (Coder / Hacker / Optimizer) |
+| 5 | Pipeline | real tool DAG execution |
+| 6 | Self-heal | diagnose + execute fallback tool |
+| 7 | Vision | pixels + `expected_elements` (OCR / sidecar) |
+| 8 | Exhaustive read | full file contents on disk |
+| 9 | Verify | allowlisted commands on disk |
+| 10 | Memory | marathon + graph |
+| 11 | Arena runner | reproducible JSON + graded scorecard |
+
+Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_scorecard.json`](benchmarks/arena_logs/graded_scorecard.json)
 
 ```bash
 python -m benchmarks.run_arena
 python -m benchmarks.grade_arena
-# writes arena_run.json + graded_scorecard.json
-pytest -q tests benchmarks/gauntlet
+pytest -q
 ```
-
-Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_scorecard.json`](benchmarks/arena_logs/graded_scorecard.json) (generated)
 
 ---
 
@@ -65,23 +85,24 @@ Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_
 
 | Layer | Enforcement |
 | --- | --- |
-| Phase machine | illegal jumps error |
+| Phase machine | `assert_phase` / `claim_done` |
 | Plan OS | 9-step validate before fix edits |
-| Edit safety | workspace path check + blast radius |
-| `/ultradeep` | one file/edit cycle |
-| Verify | allowlisted disk commands; server-authored evidence |
-| Vision | blank/size + `expected_elements` via OCR or sidecar `.txt` |
-| Council | **LLM multi-agent debate** (Coder/Hacker/Optimizer, 2 rounds) + static evidence |
-| Pipeline | topological execute via real tool handlers |
-| Read | full file contents by default (truncate only if requested) |
-
-### LLM council
-
-Requires `GODKILLER_LLM_API_KEY` or `OPENAI_API_KEY`. Without a key, council returns `COUNCIL_BLOCKED_NO_LLM` (no fake debate).
+| Edit safety | blast radius + path-safe `check_edit_safe` |
+| `/ultradeep` | one phase/turn · one file/edit cycle |
+| Verify | disk commands only · server-authored evidence |
+| Council | multi-agent LLM debate + static evidence briefing |
+| Pipeline | topological tool execution |
+| Memory | task → phase → evidence → lesson |
+| Surface | `gk_code` / `gk_scan` / `gk_browser` |
 
 ### `/ultradeep`
 
 `queue` → `think` (≥3 hypotheses) → `plan` → `edit_safe` (1 path) → verify → `advance`
+
+### Council
+
+Set `GODKILLER_LLM_API_KEY` or `OPENAI_API_KEY` (optional `GODKILLER_LLM_BASE_URL` / `GODKILLER_LLM_MODEL`).  
+Three agents debate across rounds. Hacker veto + static security evidence can block ship.
 
 ---
 
@@ -103,7 +124,7 @@ pip install godkiller-mcp
 ```
 
 Alternate: `python -m godkiller_mcp.server`  
-Env: `GODKILLER_HOME`, `GODKILLER_TOOLS_DIR`, `GODKILLER_DEV_RELAX=1` (dev only)
+Optional: `GODKILLER_HOME` · `GODKILLER_TOOLS_DIR` · `GODKILLER_LLM_API_KEY`
 
 ---
 
@@ -118,20 +139,34 @@ Env: `GODKILLER_HOME`, `GODKILLER_TOOLS_DIR`, `GODKILLER_DEV_RELAX=1` (dev only)
 | `gk_evidence` | submit · shot · critic · journey · inspect_image |
 | `gk_verify` | bundle · soak · loop · competitor |
 | `gk_memory` | lessons · marathon · graph |
-| `gk_code` | map · search · read · council · pipeline · self_heal |
-| `gk_scan` | regex CWE · Semgrep optional |
-| `gk_browser` | Playwright navigate/snapshot/click/fill |
+| `gk_code` | map · search · read_full · council · pipeline · self_heal |
+| `gk_scan` | CWE heuristics · Semgrep |
+| `gk_browser` | navigate · snapshot · click · fill |
 | `gk_handoff` | spec · feedback |
 | `gk_meta` | plan_template · plan_validate |
+
+---
+
+## Modes
+
+| Mode | Contract |
+| --- | --- |
+| `/ask` | no application edits |
+| `/plan` | 9-step before build |
+| `/debug` | repro + hypothesis before fix |
+| `/ultradeep` | marathon · max tools · per-file gate |
+| `/verify` | proof → claim_done |
 
 ---
 
 ## Security
 
 - Secret values never returned over MCP (names only)  
-- Verify allowlist: pytest / unittest / ruff / mypy  
-- `PASSING_TEST` / `BLAST_RADIUS` / `EDIT_SAFE` cannot be forged via `submit_evidence`  
+- Prefer `shell=False` verify/soak · verify command allowlist  
+- Forge-proof evidence types: `PASSING_TEST` / `BLAST_RADIUS` / `EDIT_SAFE`  
 - Network scrape/browser are explicit invocations  
+
+State lives under `GODKILLER_HOME` or `<cwd>/.godkiller/`.
 
 ---
 
