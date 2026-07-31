@@ -623,9 +623,17 @@ import graphlib
 
 
 class PipelineRunner:
-    """Experimental DAG planner — dry-run only (does not execute tools)."""
+    """DAG executor that actually invokes tool handlers (not dry-run mark-success)."""
 
-    def run_pipeline(self, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def run_pipeline(
+        self,
+        steps: List[Dict[str, Any]],
+        executor: Any = None,
+    ) -> Dict[str, Any]:
+        """
+        executor: async callable(tool_name: str, args: dict) -> list|dict|str
+        If omitted, returns planned order only (explicit dry_run).
+        """
         results = []
         pipeline_context: Dict[str, Any] = {}
 
@@ -638,12 +646,25 @@ class PipelineRunner:
             ts = graphlib.TopologicalSorter(graph)
             order = list(ts.static_order())
         except Exception as e:
-            return {"error": f"Invalid DAG structure: {e}"}
+            return {"error": f"Invalid DAG structure: {e}", "engine": "pipeline_executor"}
+
+        if executor is None:
+            return {
+                "engine": "pipeline_executor",
+                "dry_run": True,
+                "note": "No executor provided — steps not run. Pass MCP handle_tool as executor.",
+                "total_steps": len(steps),
+                "execution_order": order,
+                "results": [
+                    {"step": i, "name": steps[i].get("name", "unknown"), "status": "planned_not_executed"}
+                    for i in order
+                ],
+            }
 
         for step_idx in order:
             step = steps[step_idx]
-            name = step.get("name", "unknown")
-            args = step.get("args", {})
+            name = step.get("name") or step.get("tool") or "unknown"
+            args = dict(step.get("args") or {})
 
             for k, v in list(args.items()):
                 if isinstance(v, str) and v.startswith("$"):
@@ -651,27 +672,97 @@ class PipelineRunner:
                     if ctx_key in pipeline_context:
                         args[k] = pipeline_context[ctx_key]
 
-            step_result = {
-                "step": step_idx,
-                "name": name,
-                "status": "planned_not_executed",
-                "args": args,
-            }
+            try:
+                raw = await executor(name, args)
+                if isinstance(raw, list) and raw and hasattr(raw[0], "text"):
+                    body = raw[0].text
+                    try:
+                        parsed = json.loads(body)
+                    except Exception:
+                        parsed = body
+                else:
+                    parsed = raw
+                status = "success"
+                if isinstance(parsed, dict) and parsed.get("error"):
+                    status = "error"
+                step_result = {
+                    "step": step_idx,
+                    "name": name,
+                    "status": status,
+                    "args": args,
+                    "output": parsed,
+                }
+            except Exception as exc:
+                step_result = {
+                    "step": step_idx,
+                    "name": name,
+                    "status": "error",
+                    "args": args,
+                    "error": str(exc),
+                }
+                if step.get("stop_on_error", True):
+                    pipeline_context[f"step_{step_idx}_output"] = step_result
+                    results.append(step_result)
+                    return {
+                        "engine": "pipeline_executor",
+                        "dry_run": False,
+                        "total_steps": len(steps),
+                        "execution_order": order,
+                        "results": results,
+                        "aborted_at": step_idx,
+                    }
+
             pipeline_context[f"step_{step_idx}_output"] = step_result
             results.append(step_result)
 
         return {
-            "engine": "pipeline_dry_run",
-            "tier": "experimental",
-            "note": "Steps are ordered only; no tools were invoked.",
+            "engine": "pipeline_executor",
+            "dry_run": False,
             "total_steps": len(steps),
             "execution_order": order,
             "results": results,
+            "all_ok": all(r.get("status") == "success" for r in results),
         }
 
 
 class SelfHealingEngine:
-    """Experimental heuristic: suggest a fallback tool name (does not heal)."""
+    """Diagnose failure, suggest fallback tool, optionally execute it."""
+
+    def diagnose(
+        self,
+        failed_tool: str,
+        error_or_output: str,
+        task_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        task_context = task_context or {}
+        err = (error_or_output or "").lower()
+
+        if failed_tool in ("godkiller_hyper_search", "ripgrep") or "no matches" in err:
+            return {
+                "diagnosis": "Search returned no matches; try structural search.",
+                "recommended_tool": "godkiller_ast_grep",
+                "remediated_args": {
+                    "pattern": task_context.get("pattern", "def $FUNC($$$ARGS)"),
+                    "search_path": task_context.get("search_path", "."),
+                },
+            }
+        if "syntaxerror" in err or "traceback" in err or "exception" in err:
+            return {
+                "diagnosis": "Exception/traceback text detected; parse frames.",
+                "recommended_tool": "godkiller_log_trace",
+                "remediated_args": {"log_output": error_or_output},
+            }
+        if "not found" in err or "no such file" in err:
+            return {
+                "diagnosis": "Missing path; remap repository symbols.",
+                "recommended_tool": "godkiller_repo_map",
+                "remediated_args": {"root_dir": task_context.get("root_dir", ".")},
+            }
+        return {
+            "diagnosis": "Unspecified failure; remap repo before retrying.",
+            "recommended_tool": "godkiller_repo_map",
+            "remediated_args": {"root_dir": task_context.get("root_dir", ".")},
+        }
 
     def heal(
         self,
@@ -679,55 +770,140 @@ class SelfHealingEngine:
         error_or_output: str,
         task_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        task_context = task_context or {}
+        plan = self.diagnose(failed_tool, error_or_output, task_context)
+        return {
+            "engine": "self_heal_executor",
+            "action": "SUGGEST_AND_OPTIONAL_RUN",
+            "executed": False,
+            **plan,
+        }
 
-        if failed_tool in ("godkiller_hyper_search", "ripgrep") or "no matches" in error_or_output.lower():
-            return {
-                "engine": "tool_fallback_hint",
-                "tier": "experimental",
-                "diagnosis": "Search returned no matches; try structural search.",
-                "action": "SUGGEST_TOOL",
-                "recommended_tool": "godkiller_ast_grep",
-                "remediated_args": {"pattern": task_context.get("pattern", "$A"), "search_path": task_context.get("search_path", ".")},
-            }
-        elif "syntaxerror" in error_or_output.lower() or "exception" in error_or_output.lower():
-            return {
-                "engine": "tool_fallback_hint",
-                "tier": "experimental",
-                "diagnosis": "Exception-like text detected; parse traceback next.",
-                "action": "SUGGEST_TOOL",
-                "recommended_tool": "godkiller_log_trace",
-                "remediated_args": {"log_output": error_or_output},
-            }
+    async def heal_and_run(
+        self,
+        failed_tool: str,
+        error_or_output: str,
+        task_context: Optional[Dict[str, Any]] = None,
+        executor: Any = None,
+    ) -> Dict[str, Any]:
+        plan = self.diagnose(failed_tool, error_or_output, task_context)
+        out: Dict[str, Any] = {
+            "engine": "self_heal_executor",
+            "action": "EXECUTED_FALLBACK" if executor else "SUGGEST_ONLY",
+            **plan,
+            "executed": False,
+        }
+        if executor is None:
+            return out
+        raw = await executor(plan["recommended_tool"], plan["remediated_args"])
+        if isinstance(raw, list) and raw and hasattr(raw[0], "text"):
+            try:
+                out["fallback_output"] = json.loads(raw[0].text)
+            except Exception:
+                out["fallback_output"] = raw[0].text
         else:
-            return {
-                "engine": "tool_fallback_hint",
-                "tier": "experimental",
-                "diagnosis": "Unspecified failure; remap repo before retrying.",
-                "action": "SUGGEST_TOOL",
-                "recommended_tool": "godkiller_repo_map",
-                "remediated_args": {"root_dir": "."},
-            }
+            out["fallback_output"] = raw
+        out["executed"] = True
+        return out
 
 
 class EpistemicConfidenceGate:
-    """Checklist gate (not a calibrated confidence %)."""
+    """Edit readiness from file AST + symbol hit-rate (not fixed +20/+15)."""
 
-    def evaluate(self, file_path: str, known_symbols: List[str], has_searched: bool) -> Dict[str, Any]:
-        checklist = {
-            "file_exists": Path(file_path).exists(),
-            "symbols_provided": bool(known_symbols),
+    def evaluate(
+        self,
+        file_path: str,
+        known_symbols: List[str],
+        has_searched: bool,
+        search_hit_count: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        pfile = Path(file_path)
+        metrics: Dict[str, Any] = {
+            "file_exists": pfile.exists(),
+            "byte_size": 0,
+            "ast_parse_ok": False,
+            "def_count": 0,
+            "class_count": 0,
+            "symbol_hit_rate": 0.0,
+            "symbols_requested": len(known_symbols or []),
+            "symbols_found_in_file": 0,
             "search_done": bool(has_searched),
+            "search_hit_count": search_hit_count,
         }
-        missing = [k for k, ok in checklist.items() if not ok]
-        allowed = len(missing) == 0
+        reasons: List[str] = []
+
+        if not pfile.exists():
+            return {
+                "engine": "edit_readiness_metrics",
+                "file": file_path,
+                "metrics": metrics,
+                "score": 0.0,
+                "allowed_to_edit": False,
+                "missing": ["file_exists"],
+                "reasons": ["File does not exist"],
+                "recommendation": "BLOCK_EDIT_FORCE_RECON",
+            }
+
+        try:
+            text = pfile.read_text(encoding="utf-8", errors="ignore")
+            metrics["byte_size"] = len(text.encode("utf-8"))
+            tree = ast.parse(text)
+            metrics["ast_parse_ok"] = True
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    metrics["def_count"] += 1
+                elif isinstance(node, ast.ClassDef):
+                    metrics["class_count"] += 1
+            found = 0
+            for sym in known_symbols or []:
+                if sym and sym in text:
+                    found += 1
+            metrics["symbols_found_in_file"] = found
+            if known_symbols:
+                metrics["symbol_hit_rate"] = found / max(len(known_symbols), 1)
+            else:
+                metrics["symbol_hit_rate"] = 0.0
+        except SyntaxError as e:
+            reasons.append(f"AST parse failed: {e}")
+            metrics["ast_parse_ok"] = False
+        except Exception as e:
+            reasons.append(f"Read/analyze failed: {e}")
+
+        # Weighted score from measured quantities (0..100)
+        score = 0.0
+        if metrics["file_exists"]:
+            score += 25.0
+        if metrics["ast_parse_ok"]:
+            score += 25.0
+        score += min(20.0, metrics["symbol_hit_rate"] * 20.0)
+        if metrics["def_count"] + metrics["class_count"] > 0:
+            score += 10.0
+        if has_searched:
+            score += 10.0
+        if search_hit_count is not None:
+            score += min(10.0, float(search_hit_count) * 2.0)
+        elif has_searched:
+            score += 5.0
+
+        missing = []
+        if not metrics["file_exists"]:
+            missing.append("file_exists")
+        if not metrics["ast_parse_ok"]:
+            missing.append("ast_parse_ok")
+        if known_symbols and metrics["symbol_hit_rate"] < 0.5:
+            missing.append("symbol_hit_rate>=0.5")
+        if not has_searched:
+            missing.append("search_done")
+
+        allowed = score >= 70.0 and metrics["ast_parse_ok"] and has_searched
         return {
-            "engine": "edit_readiness_checklist",
-            "tier": "experimental",
+            "engine": "edit_readiness_metrics",
             "file": file_path,
-            "checklist": checklist,
-            "missing": missing,
+            "metrics": metrics,
+            "score": round(score, 2),
+            "threshold": 70.0,
             "allowed_to_edit": allowed,
+            "missing": missing,
+            "reasons": reasons,
             "recommendation": "PROCEED" if allowed else "BLOCK_EDIT_FORCE_RECON",
         }
 
@@ -736,9 +912,14 @@ import concurrent.futures
 
 
 class ExhaustiveReaderEngine:
-    """ThreadPool-powered 100% full directory & file reader without skimming."""
+    """Full-file directory reader. Truncation only when max_chars_per_file is set."""
 
-    def read_all(self, dir_path: str, max_files: int = 200) -> Dict[str, Any]:
+    def read_all(
+        self,
+        dir_path: str,
+        max_files: int = 200,
+        max_chars_per_file: Optional[int] = None,
+    ) -> Dict[str, Any]:
         root = Path(dir_path)
         if not root.exists():
             return {"error": f"Directory path does not exist: {dir_path}"}
@@ -749,24 +930,37 @@ class ExhaustiveReaderEngine:
         else:
             for pfile in root.rglob("*"):
                 if pfile.is_file():
-                    if any(part.startswith(".") or part in ("venv", "__pycache__", "node_modules", "dist") for part in pfile.parts):
+                    if any(
+                        part.startswith(".") or part in ("venv", "__pycache__", "node_modules", "dist")
+                        for part in pfile.parts
+                    ):
                         continue
                     file_list.append(pfile)
 
+        truncated_listing = len(file_list) > max_files
         file_list = file_list[:max_files]
         contents: Dict[str, str] = {}
+        truncated_files: List[str] = []
+        total_bytes = 0
 
-        def _read_single(p: Path) -> Tuple[str, str]:
+        def _read_single(p: Path) -> Tuple[str, str, bool, int]:
             try:
                 txt = p.read_text(encoding="utf-8", errors="ignore")
-                return (str(p), txt[:3000])
+                raw_len = len(txt)
+                was_trunc = False
+                if max_chars_per_file is not None and raw_len > max_chars_per_file:
+                    txt = txt[:max_chars_per_file]
+                    was_trunc = True
+                return (str(p), txt, was_trunc, raw_len)
             except Exception as e:
-                return (str(p), f"[Error reading file: {e}]")
+                return (str(p), f"[Error reading file: {e}]", False, 0)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            results = executor.map(_read_single, file_list)
-            for path_str, txt in results:
+            for path_str, txt, was_trunc, raw_len in executor.map(_read_single, file_list):
                 contents[path_str] = txt
+                total_bytes += raw_len
+                if was_trunc:
+                    truncated_files.append(path_str)
 
         return {
             "engine": "exhaustive_reader_engine",
@@ -774,6 +968,11 @@ class ExhaustiveReaderEngine:
             "total_files_read": len(contents),
             "files": list(contents.keys()),
             "contents": contents,
+            "full_content": max_chars_per_file is None,
+            "max_chars_per_file": max_chars_per_file,
+            "truncated_files": truncated_files,
+            "truncated_file_listing": truncated_listing,
+            "total_bytes_on_disk": total_bytes,
         }
 
 
@@ -814,7 +1013,7 @@ description: {description}
 
 
 class CouncilDebateEngine:
-    """Experimental static checklist — not a multi-agent debate."""
+    """Multi-pass static analysis council (coder/structure, hacker/security, optimizer/complexity)."""
 
     def debate(
         self,
@@ -822,24 +1021,91 @@ class CouncilDebateEngine:
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         context = context or {}
-        coder_view = f"Proposal preview: {proposed_code_or_plan[:200]}"
+        text = proposed_code_or_plan or ""
+        coder: Dict[str, Any] = {"role": "coder", "findings": [], "ok": True}
+        hacker: Dict[str, Any] = {"role": "hacker", "findings": [], "ok": True}
+        optimizer: Dict[str, Any] = {"role": "optimizer", "findings": [], "ok": True}
 
-        hacker_critique = "Heuristic: check input boundaries and injection sinks."
-        if "eval(" in proposed_code_or_plan or "exec(" in proposed_code_or_plan:
-            hacker_critique = "CRITICAL: eval/exec present in proposal text."
+        # --- Hacker pass: security patterns on source or free text ---
+        security_rules = [
+            (r"\beval\s*\(", "CWE-95 eval()"),
+            (r"\bexec\s*\(", "CWE-95 exec()"),
+            (r"shell\s*=\s*True", "CWE-78 shell=True"),
+            (r"pickle\.loads\s*\(", "CWE-502 pickle.loads"),
+            (r"yaml\.load\s*\([^,\)]*\)", "CWE-502 yaml.load without Loader"),
+            (r"(password|api_key|secret)\s*=\s*['\"][^'\"]+['\"]", "CWE-798 hardcoded secret"),
+        ]
+        for pat, label in security_rules:
+            if re.search(pat, text, re.I):
+                hacker["findings"].append(label)
+                hacker["ok"] = False
 
-        optimizer_critique = "Heuristic: prefer batching / avoid obvious N+1 patterns."
+        # --- Coder + Optimizer passes via AST when parseable ---
+        tree = None
+        try:
+            tree = ast.parse(text)
+            coder["findings"].append("AST parse OK — treating input as Python")
+        except SyntaxError:
+            coder["findings"].append("Not valid Python AST — structure pass limited to text heuristics")
+            if len(text.strip()) < 20:
+                coder["ok"] = False
+                coder["findings"].append("Proposal too short to review")
 
-        consensus = "eval(" not in proposed_code_or_plan and "exec(" not in proposed_code_or_plan
+        if tree is not None:
+            funcs = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+            classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+            tries = [n for n in ast.walk(tree) if isinstance(n, ast.Try)]
+            coder["findings"].append(f"defs={len(funcs)} classes={len(classes)} try_blocks={len(tries)}")
+            if funcs and len(tries) == 0 and any(
+                "open(" in ast.dump(f) or "urlopen" in ast.dump(f) for f in funcs
+            ):
+                coder["findings"].append("I/O without try/except detected")
+                coder["ok"] = False
 
+            # nesting / length
+            max_depth = 0
+
+            def _depth(node: ast.AST, d: int = 0) -> None:
+                nonlocal max_depth
+                max_depth = max(max_depth, d)
+                for child in ast.iter_child_nodes(node):
+                    if isinstance(child, (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.FunctionDef, ast.AsyncFunctionDef)):
+                        _depth(child, d + 1)
+                    else:
+                        _depth(child, d)
+
+            _depth(tree)
+            long_funcs = []
+            for f in funcs:
+                try:
+                    span = (f.end_lineno or f.lineno) - f.lineno + 1
+                except Exception:
+                    span = 0
+                if span > 80:
+                    long_funcs.append(f"{f.name}:{span}L")
+            optimizer["findings"].append(f"max_nesting_depth={max_depth}")
+            if max_depth >= 6:
+                optimizer["findings"].append("Deep nesting (>=6) — consider refactor")
+                optimizer["ok"] = False
+            if long_funcs:
+                optimizer["findings"].append(f"Long functions: {long_funcs}")
+                optimizer["ok"] = False
+            if not long_funcs and max_depth < 6:
+                optimizer["findings"].append("Complexity within soft bounds")
+
+        consensus = bool(coder["ok"] and hacker["ok"] and optimizer["ok"])
         return {
-            "engine": "static_review_checklist",
-            "tier": "experimental",
-            "coder": coder_view,
-            "hacker": hacker_critique,
-            "optimizer": optimizer_critique,
+            "engine": "static_analysis_council",
+            "coder": coder,
+            "hacker": hacker,
+            "optimizer": optimizer,
             "consensus_reached": consensus,
-            "verdict": "CHECKLIST_OK" if consensus else "CHECKLIST_FLAGGED_SECURITY",
+            "verdict": "COUNCIL_PASS" if consensus else "COUNCIL_REJECT",
+            "passes": {
+                "structure": coder["ok"],
+                "security": hacker["ok"],
+                "complexity": optimizer["ok"],
+            },
         }
 
 

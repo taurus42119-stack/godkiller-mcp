@@ -56,7 +56,7 @@ class VisualCriticResult:
     summary: str = ""
 
     def to_payload(self) -> Dict[str, Any]:
-        return {
+        base = {
             "source": "visual_critic",
             "verdict": self.verdict.value,
             "findings": self.findings,
@@ -66,6 +66,10 @@ class VisualCriticResult:
             "summary": self.summary,
             "at": _utcnow(),
         }
+        extra = getattr(self, "_extra_payload", None)
+        if isinstance(extra, dict) and "vision" in extra:
+            base["vision"] = extra["vision"]
+        return base
 
 
 @dataclass
@@ -152,10 +156,14 @@ def run_visual_critic(
     checklist: Optional[Dict[str, bool]] = None,
     agent_verdict: Optional[str] = None,
     findings: Optional[Sequence[str]] = None,
+    screenshot_path: Optional[str] = None,
+    expected_elements: Optional[Sequence[str]] = None,
 ) -> VisualCriticResult:
     """
-    Deterministic critic scaffold. Agent must supply honest checklist;
-    placeholder language forces RED. No VLM required for MVP gate.
+    Critic combines:
+    1) placeholder regex on description/findings
+    2) required checklist keys
+    3) optional on-disk screenshot analysis via VisionBridge (real pixels + elements)
     """
     checklist = dict(checklist or {})
     findings_l = list(findings or [])
@@ -164,7 +172,35 @@ def run_visual_critic(
     for p in ph:
         findings_l.append(f"Placeholder signal detected: {p}")
 
-    # Required checklist keys for visual-ish work
+    vision_payload: Optional[Dict[str, Any]] = None
+    if screenshot_path:
+        from godkiller_mcp.vision_bridge import VisionBridge
+
+        vr = VisionBridge().analyze_screenshot(
+            screenshot_path,
+            expected_elements=list(expected_elements) if expected_elements else None,
+        )
+        vision_payload = {
+            "passed": vr.passed,
+            "score": vr.score,
+            "width": vr.width,
+            "height": vr.height,
+            "is_blank_placeholder": vr.is_blank_placeholder,
+            "description": vr.description,
+            "elements_found": vr.elements_found,
+            "elements_missing": vr.elements_missing,
+            "ocr_engine": vr.ocr_engine,
+        }
+        if vr.is_blank_placeholder:
+            checklist["not_placeholder"] = False
+            findings_l.append(f"VisionBridge blank/placeholder: {vr.description}")
+        if not vr.passed:
+            findings_l.append(f"VisionBridge failed: {vr.description}")
+            checklist["first_screen_readable"] = False
+        else:
+            checklist.setdefault("first_screen_readable", True)
+            checklist.setdefault("not_placeholder", True)
+
     required_keys = [
         "first_screen_readable",
         "not_placeholder",
@@ -179,14 +215,14 @@ def run_visual_critic(
         findings_l.append(f"Checklist failed: {k}")
 
     forced_red = bool(ph) or (not checklist.get("not_placeholder", False))
+    if vision_payload and not vision_payload.get("passed"):
+        forced_red = True
     all_green_checks = all(checklist.get(k, False) for k in required_keys)
 
     av = (agent_verdict or "").upper().strip()
     if forced_red or av == "RED" or not all_green_checks:
         verdict = CriticVerdict.RED
     elif av == "YELLOW" or kind in ("feature", "ui", "game"):
-        # Feature/UI with all checks but agent yellow stays yellow
-        verdict = CriticVerdict.GREEN if all_green_checks and av in ("", "GREEN") else CriticVerdict.YELLOW
         if all_green_checks and av in ("", "GREEN"):
             verdict = CriticVerdict.GREEN
         elif all_green_checks and av == "YELLOW":
@@ -198,13 +234,19 @@ def run_visual_critic(
 
     escalate = verdict == CriticVerdict.RED
     summary = f"visual_critic {verdict.value}: {len(findings_l)} findings"
-    return VisualCriticResult(
+    result = VisualCriticResult(
         verdict=verdict,
         findings=findings_l,
         checklist=checklist,
         escalate=escalate,
         summary=summary,
     )
+    if vision_payload:
+        # Attach for evidence payloads via to_payload extension
+        payload = result.to_payload()
+        payload["vision"] = vision_payload
+        result._extra_payload = payload  # type: ignore[attr-defined]
+    return result
 
 
 def run_soak(

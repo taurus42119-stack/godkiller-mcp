@@ -107,7 +107,10 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         return _json(decision.__dict__)
 
     if name == "godkiller_inspect_image":
-        result = vision.analyze_screenshot(arguments["path"])
+        result = vision.analyze_screenshot(
+            arguments["path"],
+            expected_elements=arguments.get("expected_elements"),
+        )
         return _json(result.__dict__)
 
     if name == "godkiller_secret_keys":
@@ -122,8 +125,10 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
     if name == "godkiller_exhaustive_read":
         dpath = arguments["dir_path"]
         mfiles = arguments.get("max_files", 200)
+        # Default: full file contents. Truncate only if caller sets max_chars_per_file.
+        max_chars = arguments.get("max_chars_per_file", None)
         engine = ExhaustiveReaderEngine()
-        res = engine.read_all(dpath, max_files=mfiles)
+        res = engine.read_all(dpath, max_files=mfiles, max_chars_per_file=max_chars)
         return _json(res)
 
     if name == "godkiller_auto_skillify":
@@ -145,7 +150,12 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
     if name == "godkiller_pipeline":
         steps_arg = arguments["steps"]
         engine = PipelineRunner()
-        res = engine.run_pipeline(steps_arg)
+        execute = arguments.get("execute", True)
+
+        async def _exec(tool_name: str, args: Dict[str, Any]):
+            return await handle_tool(tool_name, args)
+
+        res = await engine.run_pipeline(steps_arg, executor=_exec if execute else None)
         return _json(res)
 
     if name == "godkiller_self_heal":
@@ -153,15 +163,29 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         eout = arguments["error_or_output"]
         tctx = arguments.get("task_context", {})
         engine = SelfHealingEngine()
-        res = engine.heal(ftool, eout, task_context=tctx)
+        run_fallback = arguments.get("execute", True)
+
+        async def _exec(tool_name: str, args: Dict[str, Any]):
+            return await handle_tool(tool_name, args)
+
+        if run_fallback:
+            res = await engine.heal_and_run(ftool, eout, task_context=tctx, executor=_exec)
+        else:
+            res = engine.heal(ftool, eout, task_context=tctx)
         return _json(res)
 
     if name == "godkiller_confidence_check":
         fpath = arguments["file_path"]
         ksyms = arguments.get("known_symbols", [])
         hsearched = arguments.get("has_searched", False)
+        hit_count = arguments.get("search_hit_count")
         engine = EpistemicConfidenceGate()
-        res = engine.evaluate(fpath, known_symbols=ksyms, has_searched=hsearched)
+        res = engine.evaluate(
+            fpath,
+            known_symbols=ksyms,
+            has_searched=hsearched,
+            search_hit_count=hit_count,
+        )
         return _json(res)
 
     if name == "godkiller_deep_scrape":
@@ -721,6 +745,8 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             checklist=arguments.get("checklist"),
             agent_verdict=arguments.get("agent_verdict"),
             findings=arguments.get("findings"),
+            screenshot_path=arguments.get("screenshot_path") or arguments.get("path"),
+            expected_elements=arguments.get("expected_elements"),
         )
         out = result.to_payload()
         if arguments.get("attach", True):

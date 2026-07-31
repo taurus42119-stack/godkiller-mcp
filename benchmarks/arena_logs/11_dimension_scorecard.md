@@ -1,24 +1,16 @@
-# Arena — `2_WITH_MCP` vs `3_WITHOUT_MCP`
+# Arena notes
 
-| Control | Value |
-| --- | --- |
-| Runtime | Gemini 3.6 Flash (HIGH) |
-| Bare | `3_WITHOUT_MCP` |
-| GODKILLER | `2_WITH_MCP` |
-| Oracle | `hidden_oracle/` |
+## Authoritative runs
 
-Variable: MCP off / on.
+Produce evidence with:
 
-## Scorecard (honest)
+```bash
+python -m benchmarks.run_arena
+```
 
-| # | Dimension | Bare | GODKILLER | Note |
-| ---: | --- | --- | --- | --- |
-| 1 | Pass rate | 516 / 516 | 516 / 516 | Tie |
-| 2 | Speed | 0.36–0.37s | 0.31–0.32s | Process varies |
-| 3 | Tokens | ~35k–46k | ~50k–60k | Kernel premium |
-| 4 | Anti-fake-claim | summary w/o green | server `verify_bundle` | Kernel |
+Output: `arena_run.json` (full pytest text, counts, wall-clock duration).
 
-Retired as “wins”: Council / diff mass / AST node count / marketing gauntlet labels.
-Those are not proof of kernel correctness.
+## Legacy files
 
-Companion: `5_dimension_audit_log.json`.
+`5_dimension_audit_log.json` and older “516 / 0.38s” tables are **historical / non-reproducible** in this repository.  
+They are retained only as prior lab notes. Do not cite them as proof.
