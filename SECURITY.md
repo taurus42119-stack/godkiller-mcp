@@ -2,6 +2,11 @@
 
 ## Supported versions
 
+| Version | Supported |
+| --- | --- |
+| Latest published `1.1.x` | Yes — security fixes land here |
+| Older `1.x` / `0.x` | Best-effort only — upgrade to latest |
+
 Security fixes land on the latest published `godkiller-mcp` release line.
 
 ## Reporting a vulnerability

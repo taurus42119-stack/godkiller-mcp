@@ -69,17 +69,44 @@ def _literal_ip(host: str) -> Tuple[Optional[ipaddress.IPv4Address | ipaddress.I
         return None, "not_literal"
 
 
+_BLOCKED_SCHEMES = frozenset(
+    {
+        "file",
+        "gopher",
+        "dict",
+        "ftp",
+        "ftps",
+        "jar",
+        "data",
+        "php",
+        "ldap",
+        "ldaps",
+        "mailto",
+        "telnet",
+        "ssh",
+        "sftp",
+        "ws",
+        "wss",
+    }
+)
+
+
 def assert_public_url(url: str, *, resolve: bool = True) -> Tuple[bool, str]:
     """Return (ok, reason). Fail-closed on parse/resolve errors when resolve=True."""
     raw = (url or "").strip()
     if not raw:
         return False, "SSRF DENY: empty URL"
-    if not (raw.startswith("http://") or raw.startswith("https://")):
-        return False, "SSRF DENY: only http(s) URLs allowed"
     try:
         parsed = urllib.parse.urlparse(raw)
     except Exception as exc:
         return False, f"SSRF DENY: bad URL ({exc})"
+    scheme = (parsed.scheme or "").strip().lower()
+    if not scheme:
+        return False, "SSRF DENY: missing URL scheme"
+    if scheme in _BLOCKED_SCHEMES:
+        return False, f"SSRF DENY: scheme '{scheme}' blocked (protocol smuggling)"
+    if scheme not in ("http", "https"):
+        return False, f"SSRF DENY: only http(s) URLs allowed (got '{scheme}')"
     host = (parsed.hostname or "").strip().lower()
     if not host:
         return False, "SSRF DENY: missing host"

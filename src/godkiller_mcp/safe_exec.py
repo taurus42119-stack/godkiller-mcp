@@ -32,6 +32,10 @@ def run_command_safely(
     Always argv + shell=False.
     FileNotFoundError is fail-closed (no Windows shell=True fallback — that was RCE).
     """
+    raw_for_check = command if isinstance(command, str) else " ".join(str(x) for x in command)
+    if any(c in raw_for_check for c in (";", "&", "|", "`", "$", "\n", "\r")):
+        raise ValueError("Shell metacharacters are not allowed in safe_exec argv")
+
     if isinstance(command, str):
         argv = split_command(command)
     else:

@@ -9,8 +9,9 @@
 ## Local build
 
 ```bash
-pip install build
+pip install build twine
 python -m build
+twine check dist/*
 ```
 
 ## SBOM (CycloneDX)

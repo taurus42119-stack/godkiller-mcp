@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
+from godkiller_mcp.tool_hints import install_hint
+
 
 try:
     from PIL import Image, ImageStat
@@ -102,8 +104,7 @@ class VisionBridge:
                     is_blank_placeholder=not is_valid,
                     description=(
                         "expected_elements require Pillow+OCR; cannot verify — "
-                        "pip install pillow pytesseract + install Tesseract binary "
-                        "(e.g. apt install tesseract-ocr / brew install tesseract)"
+                        + install_hint("tesseract")
                     ),
                     expected_elements=expected,
                     elements_missing=expected,
@@ -170,8 +171,7 @@ class VisionBridge:
                             is_blank_placeholder=is_blank,
                             description=(
                                 "sidecar_without_ocr_not_claim_grade — "
-                                "pip install pytesseract + Tesseract binary "
-                                "(apt install tesseract-ocr / brew install tesseract)"
+                                + install_hint("tesseract")
                             ),
                             expected_elements=expected,
                             elements_missing=list(expected),
@@ -189,8 +189,7 @@ class VisionBridge:
                         is_blank_placeholder=is_blank,
                         description=(
                             "expected_elements provided but OCR unavailable — "
-                            "pip install pytesseract + Tesseract binary "
-                            "(apt install tesseract-ocr / brew install tesseract)"
+                            + install_hint("tesseract")
                         ),
                         expected_elements=expected,
                         elements_missing=list(expected),

@@ -22,9 +22,33 @@ pip install godkiller-mcp
 ```
 
 **Status:** MCP proof kernel — not Enterprise Ready / not OS lock.  
+**Free tier:** this MCP (proof-or-block on GODKILLER tool calls) is free on PyPI/GitHub.  
+**Not free:** 24-hour automation loops / deep host control — for serious interest only (not shipped in this package).  
 **Security reports:** [GitHub Security Advisories](https://github.com/taurus42119-stack/godkiller-mcp/security/advisories/new) (see `SECURITY.md`).
 
 ---
+
+## Quick MCP config
+
+Claude Desktop / compatible MCP hosts (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "godkiller": {
+      "command": "python",
+      "args": ["-m", "godkiller_mcp.server"],
+      "env": {
+        "GODKILLER_PROFILE": "ship",
+        "GODKILLER_SEAL_KEY": "REPLACE_WITH_64_HEX_FROM_secrets.token_hex_32"
+      }
+    }
+  }
+}
+```
+
+Generate a seal key once: `python -c "import secrets; print(secrets.token_hex(32))"`.  
+Do not commit the key.
 
 ## Mission
 
@@ -56,7 +80,7 @@ see `SECURITY.md` and `docs/HOST_VS_MCP.md`.
 **Ship profile:** set `GODKILLER_PROFILE=ship` so even `GODKILLER_DEV_RELAX=1` cannot disarm armor.  
 Without ship: `DEV_RELAX=1` softens gates (local experiments only) — the server prints a stderr warning when relax is active.
 
-Static `gk_scan.security` is a **regex signal**, not a professional SAST / security audit.  
+Static `gk_scan.security` is an **AST/heuristic signal** (optional Snyk/Bandit if on PATH), not a professional SAST / security audit.  
 Council must record a Hacker `REJECT` before `COUNCIL_PASS` (nits-only = theatre).
 
 **Seal key:** require host `GODKILLER_SEAL_KEY` (see [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)); no silent `.seal_key` mint.  
