@@ -1,10 +1,12 @@
-"""Adversarial multi-agent council: Coder vs Hacker vs Optimizer via LLM + static evidence."""
+"""Adversarial council: host-IDE debate (default) + optional API multi-agent."""
 
 from __future__ import annotations
 
 import ast
 import json
 import re
+import uuid
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from godkiller_mcp.llm_client import (
@@ -13,6 +15,8 @@ from godkiller_mcp.llm_client import (
     make_chat_fn,
     parse_agent_json,
 )
+
+ROLES = ("coder", "hacker", "optimizer")
 
 AGENT_PROMPTS = {
     "coder": (
@@ -37,7 +41,6 @@ AGENT_PROMPTS = {
 
 
 def static_evidence(text: str) -> Dict[str, Any]:
-    """Deterministic evidence pack fed into LLM agents (not the final verdict alone)."""
     coder: Dict[str, Any] = {"role": "coder", "findings": [], "ok": True}
     hacker: Dict[str, Any] = {"role": "hacker", "findings": [], "ok": True}
     optimizer: Dict[str, Any] = {"role": "optimizer", "findings": [], "ok": True}
@@ -114,9 +117,8 @@ def _normalize_vote(data: Dict[str, Any]) -> Dict[str, Any]:
     vote = str(data.get("vote", "REJECT")).upper().strip()
     if vote not in ("APPROVE", "REJECT"):
         vote = "REJECT"
-    severity = data.get("severity", 5)
     try:
-        severity = int(severity)
+        severity = int(data.get("severity", 5))
     except Exception:
         severity = 5
     severity = max(0, min(10, severity))
@@ -129,20 +131,253 @@ def _normalize_vote(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def tally_consensus(
+    opinions: Dict[str, Dict[str, Any]],
+    evidence: Dict[str, Any],
+) -> Dict[str, Any]:
+    current = {r: opinions[r] for r in ROLES if r in opinions}
+    missing = [r for r in ROLES if r not in current]
+    if missing:
+        return {
+            "consensus_reached": False,
+            "verdict": "COUNCIL_INCOMPLETE",
+            "missing_roles": missing,
+            "approvals": 0,
+            "hacker_veto": False,
+            "static_security_block": not evidence["hacker"]["ok"],
+            "final_opinions": current,
+            "coder": current.get("coder"),
+            "hacker": current.get("hacker"),
+            "optimizer": current.get("optimizer"),
+            "passes": {},
+        }
+
+    approvals = sum(1 for v in current.values() if v["vote"] == "APPROVE")
+    critical = any(v["vote"] == "REJECT" and v["severity"] >= 8 for v in current.values())
+    hacker_veto = current["hacker"]["vote"] == "REJECT" and current["hacker"]["severity"] >= 7
+    static_block = not evidence["hacker"]["ok"]
+    consensus = approvals == 3 and not critical and not hacker_veto and not static_block
+    return {
+        "consensus_reached": consensus,
+        "verdict": "COUNCIL_PASS" if consensus else "COUNCIL_REJECT",
+        "missing_roles": [],
+        "approvals": approvals,
+        "hacker_veto": hacker_veto,
+        "static_security_block": static_block,
+        "final_opinions": current,
+        "coder": current["coder"],
+        "hacker": current["hacker"],
+        "optimizer": current["optimizer"],
+        "passes": {
+            "coder": current["coder"]["vote"] == "APPROVE",
+            "hacker": current["hacker"]["vote"] == "APPROVE" and not hacker_veto,
+            "optimizer": current["optimizer"]["vote"] == "APPROVE",
+            "static_security": evidence["hacker"]["ok"],
+        },
+    }
+
+
+@dataclass
+class HostCouncilSession:
+    session_id: str
+    proposal: str
+    context: Dict[str, Any]
+    evidence: Dict[str, Any]
+    round: int = 1
+    max_rounds: int = 2
+    opinions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    transcript: List[Dict[str, Any]] = field(default_factory=list)
+
+
+_HOST_SESSIONS: Dict[str, HostCouncilSession] = {}
+
+
 class CouncilDebateEngine:
     """
-    Real multi-agent debate:
-      round1 independent LLM opinions (Coder/Hacker/Optimizer)
-      round2 each agent revises after seeing the others
-    Static AST evidence is attached as briefing, not the whole council.
+    Modes:
+      - host (default without API key): IDE model plays Coder/Hacker/Optimizer, MCP tallies
+      - api: server-side OpenAI-compatible multi-round debate when key present / mode=api
     """
 
-    def debate(
+    def resolve_mode(self, mode: Optional[str] = None, prefer_api: bool = False) -> str:
+        m = (mode or "auto").lower().strip()
+        if m in ("host", "api"):
+            return m
+        # auto
+        if prefer_api and load_llm_config() is not None:
+            return "api"
+        if load_llm_config() is not None and prefer_api:
+            return "api"
+        return "host"
+
+    def start_host(
         self,
         proposed_code_or_plan: str,
         context: Optional[Dict[str, Any]] = None,
         *,
-        require_llm: bool = True,
+        max_rounds: int = 2,
+    ) -> Dict[str, Any]:
+        text = proposed_code_or_plan or ""
+        evidence = static_evidence(text)
+        sid = f"council_{uuid.uuid4().hex[:10]}"
+        session = HostCouncilSession(
+            session_id=sid,
+            proposal=text,
+            context=context or {},
+            evidence=evidence,
+            max_rounds=max(1, int(max_rounds)),
+        )
+        _HOST_SESSIONS[sid] = session
+
+        scripts = []
+        for role in ROLES:
+            scripts.append(
+                {
+                    "role": role,
+                    "system": AGENT_PROMPTS[role],
+                    "user_brief": (
+                        f"Play ONLY the {role.upper()} seat for this council round {session.round}. "
+                        "Do not speak for other roles. Return JSON vote fields only.\n\n"
+                        f"PROPOSAL:\n{text[:8000]}\n\n"
+                        f"STATIC_EVIDENCE:\n{json.dumps(evidence, indent=2)[:4000]}\n\n"
+                        f"CONTEXT:\n{json.dumps(context or {}, indent=2)[:2000]}"
+                    ),
+                }
+            )
+
+        return {
+            "engine": "host_multi_agent_council",
+            "mode": "host",
+            "phase": "awaiting_opinions",
+            "session_id": sid,
+            "round": session.round,
+            "max_rounds": session.max_rounds,
+            "roles_required": list(ROLES),
+            "missing_roles": list(ROLES),
+            "static_evidence": evidence,
+            "agent_scripts": scripts,
+            "instructions": (
+                "For each role in agent_scripts: adopt that system prompt, answer user_brief, "
+                "then call gk_code council_submit with session_id, role, vote, critique, severity. "
+                "When all three roles are in, call council_finalize (or submit again for round 2 if asked)."
+            ),
+            "consensus_reached": False,
+            "verdict": "COUNCIL_IN_PROGRESS",
+        }
+
+    def submit_opinion(
+        self,
+        session_id: str,
+        role: str,
+        vote: str,
+        critique: str = "",
+        severity: int = 5,
+        must_fix: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        session = _HOST_SESSIONS.get(session_id)
+        if not session:
+            return {"error": f"Unknown council session_id: {session_id}", "verdict": "COUNCIL_ERROR"}
+        role = (role or "").lower().strip()
+        if role not in ROLES:
+            return {"error": f"Invalid role {role}; need one of {ROLES}", "verdict": "COUNCIL_ERROR"}
+
+        session.opinions[role] = _normalize_vote(
+            {
+                "vote": vote,
+                "critique": critique,
+                "severity": severity,
+                "must_fix": must_fix or [],
+            }
+        )
+        missing = [r for r in ROLES if r not in session.opinions]
+        out: Dict[str, Any] = {
+            "engine": "host_multi_agent_council",
+            "mode": "host",
+            "session_id": session_id,
+            "round": session.round,
+            "accepted_role": role,
+            "roles_present": sorted(session.opinions.keys()),
+            "missing_roles": missing,
+            "phase": "awaiting_opinions" if missing else "ready_to_finalize_or_next_round",
+        }
+        if not missing:
+            out["hint"] = (
+                "All roles in for this round. Call council_finalize to tally, "
+                "or submit revised opinions after reviewing others (round 2)."
+            )
+            out["others_for_debate"] = {
+                r: session.opinions[r] for r in ROLES if r != role
+            }
+        return out
+
+    def finalize_host(self, session_id: str, *, advance_round: bool = False) -> Dict[str, Any]:
+        session = _HOST_SESSIONS.get(session_id)
+        if not session:
+            return {"error": f"Unknown council session_id: {session_id}", "verdict": "COUNCIL_ERROR"}
+
+        if advance_round and session.round < session.max_rounds:
+            # freeze current opinions into transcript, clear for next round
+            session.transcript.append({"round": session.round, "opinions": dict(session.opinions)})
+            session.round += 1
+            session.opinions = {}
+            scripts = []
+            prev = session.transcript[-1]["opinions"]
+            for role in ROLES:
+                others = {k: v for k, v in prev.items() if k != role}
+                scripts.append(
+                    {
+                        "role": role,
+                        "system": AGENT_PROMPTS[role],
+                        "user_brief": (
+                            f"Round {session.round} debate. Revise your vote after seeing others.\n"
+                            f"PROPOSAL:\n{session.proposal[:8000]}\n\n"
+                            f"OTHERS:\n{json.dumps(others, indent=2)[:6000]}\n"
+                            f"YOUR PREVIOUS:\n{json.dumps(prev.get(role, {}), indent=2)[:2000]}"
+                        ),
+                    }
+                )
+            return {
+                "engine": "host_multi_agent_council",
+                "mode": "host",
+                "phase": "awaiting_opinions",
+                "session_id": session_id,
+                "round": session.round,
+                "max_rounds": session.max_rounds,
+                "agent_scripts": scripts,
+                "transcript": session.transcript,
+                "missing_roles": list(ROLES),
+                "verdict": "COUNCIL_IN_PROGRESS",
+                "instructions": "Submit all three roles again for this round, then finalize.",
+            }
+
+        tallied = tally_consensus(session.opinions, session.evidence)
+        if tallied["verdict"] == "COUNCIL_INCOMPLETE":
+            return {
+                "engine": "host_multi_agent_council",
+                "mode": "host",
+                "session_id": session_id,
+                "round": session.round,
+                **tallied,
+            }
+
+        session.transcript.append({"round": session.round, "opinions": dict(session.opinions)})
+        result = {
+            "engine": "host_multi_agent_council",
+            "mode": "host",
+            "session_id": session_id,
+            "rounds": len(session.transcript),
+            "static_evidence": session.evidence,
+            "transcript": session.transcript,
+            **tallied,
+        }
+        # keep session for inspection; optional cleanup
+        return result
+
+    def debate_api(
+        self,
+        proposed_code_or_plan: str,
+        context: Optional[Dict[str, Any]] = None,
+        *,
         chat_fn: Optional[ChatFn] = None,
         rounds: int = 2,
     ) -> Dict[str, Any]:
@@ -154,30 +389,14 @@ class CouncilDebateEngine:
         if chat_fn is None:
             cfg = load_llm_config()
             if cfg is None:
-                if require_llm:
-                    return {
-                        "engine": "llm_multi_agent_council",
-                        "error": (
-                            "LLM council requires GODKILLER_LLM_API_KEY or OPENAI_API_KEY "
-                            "(optional GODKILLER_LLM_BASE_URL / GODKILLER_LLM_MODEL). "
-                            "Set require_llm=false only for static evidence preview."
-                        ),
-                        "llm_required": True,
-                        "llm_configured": False,
-                        "static_evidence": evidence,
-                        "consensus_reached": False,
-                        "verdict": "COUNCIL_BLOCKED_NO_LLM",
-                    }
-                # static-only preview
-                consensus = all(evidence[r]["ok"] for r in ("coder", "hacker", "optimizer"))
                 return {
-                    "engine": "static_evidence_only",
-                    "llm_required": False,
+                    "engine": "llm_multi_agent_council",
+                    "mode": "api",
+                    "error": "API mode needs GODKILLER_LLM_API_KEY or OPENAI_API_KEY",
                     "llm_configured": False,
-                    "static_evidence": evidence,
-                    "consensus_reached": consensus,
-                    "verdict": "STATIC_PASS" if consensus else "STATIC_REJECT",
-                    "note": "Not a multi-agent debate — no LLM key configured.",
+                    "fallback": "host",
+                    "consensus_reached": False,
+                    "verdict": "COUNCIL_BLOCKED_NO_LLM",
                 }
             chat_fn = make_chat_fn(cfg)
 
@@ -214,39 +433,48 @@ class CouncilDebateEngine:
             transcript.append({"round": r, "opinions": revised})
             current = revised
 
-        approvals = sum(1 for v in current.values() if v["vote"] == "APPROVE")
-        critical = any(v["vote"] == "REJECT" and v["severity"] >= 8 for v in current.values())
-        # Security veto: hacker reject at severity>=7 blocks consensus
-        hacker_veto = current["hacker"]["vote"] == "REJECT" and current["hacker"]["severity"] >= 7
-        static_block = not evidence["hacker"]["ok"]
-        consensus = (
-            approvals == 3
-            and not critical
-            and not hacker_veto
-            and not static_block
-        )
-
+        tallied = tally_consensus(current, evidence)
         return {
             "engine": "llm_multi_agent_council",
-            "llm_required": require_llm,
+            "mode": "api",
             "llm_configured": True,
             "model": getattr(cfg, "model", "injected_chat_fn") if cfg else "injected_chat_fn",
             "rounds": len(transcript),
             "static_evidence": evidence,
             "transcript": transcript,
-            "final_opinions": current,
-            "coder": current["coder"],
-            "hacker": current["hacker"],
-            "optimizer": current["optimizer"],
-            "approvals": approvals,
-            "hacker_veto": hacker_veto,
-            "static_security_block": static_block,
-            "consensus_reached": consensus,
-            "verdict": "COUNCIL_PASS" if consensus else "COUNCIL_REJECT",
-            "passes": {
-                "coder": current["coder"]["vote"] == "APPROVE",
-                "hacker": current["hacker"]["vote"] == "APPROVE" and not hacker_veto,
-                "optimizer": current["optimizer"]["vote"] == "APPROVE",
-                "static_security": evidence["hacker"]["ok"],
-            },
+            **tallied,
         }
+
+    def debate(
+        self,
+        proposed_code_or_plan: str,
+        context: Optional[Dict[str, Any]] = None,
+        *,
+        mode: Optional[str] = None,
+        prefer_api: bool = False,
+        require_llm: bool = False,
+        chat_fn: Optional[ChatFn] = None,
+        rounds: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Entry point.
+        Default: host session (IDE plays roles).
+        mode=api or prefer_api with key: server-side LLM debate.
+        require_llm=True forces api and errors without key (legacy strict).
+        """
+        if require_llm:
+            resolved = "api"
+        else:
+            resolved = self.resolve_mode(mode, prefer_api=prefer_api)
+
+        if resolved == "api" or chat_fn is not None:
+            if chat_fn is None and load_llm_config() is None and not require_llm:
+                # soft fallback to host
+                return self.start_host(proposed_code_or_plan, context, max_rounds=rounds)
+            return self.debate_api(
+                proposed_code_or_plan,
+                context,
+                chat_fn=chat_fn,
+                rounds=rounds,
+            )
+        return self.start_host(proposed_code_or_plan, context, max_rounds=rounds)

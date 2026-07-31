@@ -143,14 +143,38 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
     if name == "godkiller_council_debate":
         prop = arguments["proposed_code_or_plan"]
         ctx = arguments.get("context", {})
-        require_llm = arguments.get("require_llm", True)
+        mode = arguments.get("mode")  # auto|host|api
+        prefer_api = bool(arguments.get("prefer_api", False))
+        require_llm = bool(arguments.get("require_llm", False))
         rounds = int(arguments.get("rounds", 2))
         engine = CouncilDebateEngine()
         res = engine.debate(
             prop,
             context=ctx,
-            require_llm=bool(require_llm),
+            mode=mode,
+            prefer_api=prefer_api,
+            require_llm=require_llm,
             rounds=rounds,
+        )
+        return _json(res)
+
+    if name == "godkiller_council_submit":
+        engine = CouncilDebateEngine()
+        res = engine.submit_opinion(
+            session_id=arguments["session_id"],
+            role=arguments["role"],
+            vote=arguments["vote"],
+            critique=arguments.get("critique", ""),
+            severity=int(arguments.get("severity", 5)),
+            must_fix=arguments.get("must_fix"),
+        )
+        return _json(res)
+
+    if name == "godkiller_council_finalize":
+        engine = CouncilDebateEngine()
+        res = engine.finalize_host(
+            arguments["session_id"],
+            advance_round=bool(arguments.get("advance_round", False)),
         )
         return _json(res)
 

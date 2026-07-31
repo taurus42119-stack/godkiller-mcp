@@ -62,7 +62,7 @@ Single variable: MCP off / on.
 | 1 | Anti-fake-claim | live pytest gate + server-authored evidence |
 | 2 | Phase machine | illegal jumps blocked |
 | 3 | Edit safety | workspace bound + blast radius |
-| 4 | Council | LLM multi-agent debate (Coder / Hacker / Optimizer) |
+| 4 | Council | Host IDE debate (default) + optional API multi-agent |
 | 5 | Pipeline | real tool DAG execution |
 | 6 | Self-heal | diagnose + execute fallback tool |
 | 7 | Vision | pixels + `expected_elements` (OCR / sidecar) |
@@ -90,7 +90,7 @@ pytest -q
 | Edit safety | blast radius + path-safe `check_edit_safe` |
 | `/ultradeep` | one phase/turn · one file/edit cycle |
 | Verify | disk commands only · server-authored evidence |
-| Council | multi-agent LLM debate + static evidence briefing |
+| Council | host debate by default · optional API multi-round |
 | Pipeline | topological tool execution |
 | Memory | task → phase → evidence → lesson |
 | Surface | `gk_code` / `gk_scan` / `gk_browser` |
@@ -101,8 +101,11 @@ pytest -q
 
 ### Council
 
-Set `GODKILLER_LLM_API_KEY` or `OPENAI_API_KEY` (optional `GODKILLER_LLM_BASE_URL` / `GODKILLER_LLM_MODEL`).  
-Three agents debate across rounds. Hacker veto + static security evidence can block ship.
+**Host mode (default):** MCP ส่งบท Coder / Hacker / Optimizer ให้โมเดลใน IDE เล่นทีละมุม → `council_submit` → `council_finalize` รวมโหวต  
+
+**API mode (optional):** ตั้ง `GODKILLER_LLM_API_KEY` หรือ `OPENAI_API_KEY` แล้วเรียก `mode=api` / `prefer_api=true` — เซิร์ฟเวอร์ดีเบตหลายรอบเอง  
+
+ไม่มี key ก็ใช้ council ได้ (host) — API เป็นของเสริม ไม่ใช่ของบังคับ
 
 ---
 
@@ -139,7 +142,7 @@ Optional: `GODKILLER_HOME` · `GODKILLER_TOOLS_DIR` · `GODKILLER_LLM_API_KEY`
 | `gk_evidence` | submit · shot · critic · journey · inspect_image |
 | `gk_verify` | bundle · soak · loop · competitor |
 | `gk_memory` | lessons · marathon · graph |
-| `gk_code` | map · search · read_full · council · pipeline · self_heal |
+| `gk_code` | map · search · read_full · council / council_submit / council_finalize · pipeline · self_heal |
 | `gk_scan` | CWE heuristics · Semgrep |
 | `gk_browser` | navigate · snapshot · click · fill |
 | `gk_handoff` | spec · feedback |
