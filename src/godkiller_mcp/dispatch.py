@@ -143,8 +143,15 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
     if name == "godkiller_council_debate":
         prop = arguments["proposed_code_or_plan"]
         ctx = arguments.get("context", {})
+        require_llm = arguments.get("require_llm", True)
+        rounds = int(arguments.get("rounds", 2))
         engine = CouncilDebateEngine()
-        res = engine.debate(prop, context=ctx)
+        res = engine.debate(
+            prop,
+            context=ctx,
+            require_llm=bool(require_llm),
+            rounds=rounds,
+        )
         return _json(res)
 
     if name == "godkiller_pipeline":

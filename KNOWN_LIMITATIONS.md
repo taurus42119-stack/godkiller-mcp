@@ -2,28 +2,40 @@
 
 Honest list so audits do not rediscover marketing gaps.
 
-## Still true / bounded
+## Bounded (still)
 
 | Area | Reality |
 | --- | --- |
 | MCP cannot force the host IDE | If Antigravity never calls kernel tools, gates do not run |
-| Council | Multi-pass **static AST** analysis — not LLM multi-agent debate |
-| OCR for `expected_elements` | Needs `pytesseract` + Tesseract **or** a sidecar `.txt`; otherwise fail-closed |
-| Verify allowlist | Default: pytest / unittest / ruff / mypy only (extend code to add more) |
-| `claim_done` extra gates | Search/skill/quality loops still accept structured agent evidence beyond verify_bundle |
-| `dispatch.py` | Still a large router; handlers package is scaffolding for further splits |
-| Legacy arena JSON | Files under `arena_logs/` that claim “516 in 0.38s” without a runner are **not** authoritative — use `python -m benchmarks.run_arena` |
+| LLM council needs API key | Set `GODKILLER_LLM_API_KEY` or `OPENAI_API_KEY` (+ optional `GODKILLER_LLM_BASE_URL` / `GODKILLER_LLM_MODEL`) |
+| OCR for `expected_elements` | Needs `pytesseract` + Tesseract **or** sidecar `.txt`; else fail-closed |
+| Verify allowlist | Default: pytest / unittest / ruff / mypy |
+| `dispatch.py` | Still a large router; further splits ongoing |
+| Legacy arena JSON | Hand-written “516 / 0.38s” files are **not** authoritative |
 
-## Fixed relative to common audit points
+## Audit points → status
 
 | Attack | Status |
 | --- | --- |
-| Exhaustive read truncated to 3000 chars silently | Fixed — full read by default; truncate only if `max_chars_per_file` set |
-| Council only checks `eval(`/`exec(` | Fixed — security + structure + complexity AST passes |
-| Confidence fixed +20/+15 | Fixed — AST/symbol hit-rate metrics |
-| Pipeline always `success` without running | Fixed — executes tool handlers when `execute=true` |
-| Self-heal substring only | Fixed — diagnoses then **runs** fallback tool |
-| `expected_elements` unused | Fixed — OCR/sidecar matching, fail-closed |
-| Visual critic regex-only | Fixed — optional on-disk VisionBridge merge |
-| Hack filter five silly substrings | Fixed — command allowlist |
-| No gauntlet / no runner | Fixed — `benchmarks/gauntlet` + `benchmarks/run_arena.py` |
+| Exhaustive read `txt[:3000]` | **Fixed** — full read by default |
+| Council only `eval(`/`exec(` | **Fixed** — LLM multi-agent debate (Coder/Hacker/Optimizer, 2 rounds) + static evidence briefing |
+| Confidence fixed +20/+15 | **Fixed** — AST/symbol metrics |
+| Self-heal if-elif only | **Fixed** — executes fallback tool |
+| Visual critic regex only | **Fixed** — VisionBridge on disk + elements |
+| DAG always success | **Fixed** — real tool execution |
+| Hack 5 substrings | **Fixed** — allowlist |
+| `expected_elements` unused | **Fixed** |
+| No gauntlet / runner / grader | **Fixed** — `run_arena` + `grade_arena` + gauntlet suite |
+| pytest_output header-only / 516@0.38s | **Fixed** — grader flags as suspicious; overall=0 |
+
+## LLM council usage
+
+```bash
+# OpenAI-compatible
+set GODKILLER_LLM_API_KEY=sk-...
+set GODKILLER_LLM_MODEL=gpt-4o-mini
+# optional: set GODKILLER_LLM_BASE_URL=https://api.openai.com/v1
+```
+
+Tool: `gk_code` action `council` / `godkiller_council_debate`  
+Default `require_llm=true` — without a key returns `COUNCIL_BLOCKED_NO_LLM` (does not fake a debate).

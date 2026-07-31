@@ -36,8 +36,8 @@ goal → mode → evidence/plan → gated edit → disk verify → claim_done
 | Tier | Meaning | Examples |
 | --- | --- | --- |
 | **Kernel** | Enforced; forge/skip covered by tests | phase, server-only evidence, verify allowlist, claim_done |
-| **Supported** | Real implementations, not proof of done | exhaustive full-file read, AST council, pipeline executor, vision+elements |
-| **Optional** | Needs extra install | Playwright browser, pytesseract OCR |
+| **Supported** | Real implementations, not proof of done | exhaustive full-file read, **LLM multi-agent council**, pipeline executor, vision+elements |
+| **Optional** | Needs extra install / API key | Playwright, pytesseract OCR, `GODKILLER_LLM_API_KEY` |
 
 State: `GODKILLER_HOME` or `<cwd>/.godkiller/` — never under site-packages.
 
@@ -52,11 +52,12 @@ Run a real suite and write JSON with full pytest output:
 
 ```bash
 python -m benchmarks.run_arena
-# writes benchmarks/arena_logs/arena_run.json
+python -m benchmarks.grade_arena
+# writes arena_run.json + graded_scorecard.json
 pytest -q tests benchmarks/gauntlet
 ```
 
-Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) (generated) · historical notes in [`arena_logs/`](benchmarks/arena_logs/)
+Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_scorecard.json`](benchmarks/arena_logs/graded_scorecard.json) (generated)
 
 ---
 
@@ -70,9 +71,13 @@ Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) (generated) 
 | `/ultradeep` | one file/edit cycle |
 | Verify | allowlisted disk commands; server-authored evidence |
 | Vision | blank/size + `expected_elements` via OCR or sidecar `.txt` |
-| Council | multi-pass AST (structure / security / complexity) |
+| Council | **LLM multi-agent debate** (Coder/Hacker/Optimizer, 2 rounds) + static evidence |
 | Pipeline | topological execute via real tool handlers |
 | Read | full file contents by default (truncate only if requested) |
+
+### LLM council
+
+Requires `GODKILLER_LLM_API_KEY` or `OPENAI_API_KEY`. Without a key, council returns `COUNCIL_BLOCKED_NO_LLM` (no fake debate).
 
 ### `/ultradeep`
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -41,23 +42,57 @@ def test_exhaustive_truncates_only_when_asked(tmp_path: Path):
     assert str(f) in res["truncated_files"]
 
 
-def test_council_rejects_eval_and_deep_nesting():
-    bad = "def f(x):\n    return eval(x)\n"
-    r = CouncilDebateEngine().debate(bad)
-    assert r["consensus_reached"] is False
-    assert r["passes"]["security"] is False
-    assert r["engine"] == "static_analysis_council"
-
-    deep = "def f():\n" + "\n".join("    " * i + "if True:" for i in range(1, 8)) + "\n" + "    " * 8 + "return 1\n"
-    r2 = CouncilDebateEngine().debate(deep)
-    assert r2["passes"]["complexity"] is False or r2["consensus_reached"] is False
+def test_council_requires_llm_without_key(monkeypatch):
+    monkeypatch.delenv("GODKILLER_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    r = CouncilDebateEngine().debate("def add(a,b):\n    return a+b\n", require_llm=True)
+    assert r["verdict"] == "COUNCIL_BLOCKED_NO_LLM"
+    assert r["llm_configured"] is False
 
 
-def test_council_passes_clean_code():
+def test_council_llm_multi_agent_debate_with_injected_chat():
+    calls = {"n": 0}
+
+    def fake_chat(system: str, user: str) -> str:
+        calls["n"] += 1
+        role = "coder"
+        if "HACKER" in system:
+            role = "hacker"
+        elif "OPTIMIZER" in system:
+            role = "optimizer"
+        # Round 2 still approve clean code
+        return json.dumps(
+            {
+                "vote": "APPROVE",
+                "critique": f"{role} ok after debate",
+                "severity": 1,
+                "must_fix": [],
+            }
+        )
+
     good = "def add(a, b):\n    return a + b\n"
-    r = CouncilDebateEngine().debate(good)
+    r = CouncilDebateEngine().debate(good, require_llm=True, chat_fn=fake_chat, rounds=2)
+    assert r["engine"] == "llm_multi_agent_council"
+    assert r["rounds"] == 2
+    assert calls["n"] == 6  # 3 agents * 2 rounds
     assert r["consensus_reached"] is True
     assert r["verdict"] == "COUNCIL_PASS"
+    assert "transcript" in r
+
+
+def test_council_llm_rejects_eval_via_static_block_and_hacker():
+    def fake_chat(system: str, user: str) -> str:
+        if "HACKER" in system:
+            return json.dumps(
+                {"vote": "REJECT", "critique": "eval is RCE", "severity": 10, "must_fix": ["remove eval"]}
+            )
+        return json.dumps({"vote": "APPROVE", "critique": "ok", "severity": 2, "must_fix": []})
+
+    bad = "def f(x):\n    return eval(x)\n"
+    r = CouncilDebateEngine().debate(bad, chat_fn=fake_chat, rounds=2)
+    assert r["consensus_reached"] is False
+    assert r["hacker_veto"] is True or r["static_security_block"] is True
+    assert r["verdict"] == "COUNCIL_REJECT"
 
 
 def test_confidence_uses_ast_metrics(tmp_path: Path):

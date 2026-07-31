@@ -1,23 +1,23 @@
 {
-  "evaluated_at": "2026-07-31T01:27:21.306905+00:00",
+  "evaluated_at": "2026-07-31T01:32:10.150635+00:00",
   "runner": "benchmarks.run_arena",
   "note": "This file is produced by a real pytest invocation. Do not treat legacy hand-written scorecards as reproducible without this runner.",
   "gauntlet": "C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package\\benchmarks\\gauntlet",
   "run": {
     "arm": "gauntlet",
     "folder": "C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package\\benchmarks\\gauntlet",
-    "timestamp": "2026-07-31T01:27:22.014129+00:00",
-    "duration_seconds": 0.701,
+    "timestamp": "2026-07-31T01:32:10.866159+00:00",
+    "duration_seconds": 0.717,
     "exit_code": 0,
     "pytest_passed": true,
     "counts": {
-      "passed": 12,
+      "passed": 13,
       "failed": 0,
       "skipped": 0,
-      "collected": 12,
-      "summary_line": "============================= 12 passed in 0.23s =============================="
+      "collected": 13,
+      "summary_line": "============================= 13 passed in 0.23s =============================="
     },
-    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package\nconfigfile: pyproject.toml\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 12 items\n\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_exhaustive_reads_full_file_by_default PASSED [  8%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_exhaustive_truncates_only_when_asked PASSED [ 16%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_council_rejects_eval_and_deep_nesting PASSED [ 25%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_council_passes_clean_code PASSED [ 33%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_confidence_uses_ast_metrics PASSED [ 41%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_pipeline_executes_real_handler PASSED [ 50%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_self_heal_executes_fallback PASSED [ 58%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_verify_allowlist_not_five_word_ban PASSED [ 66%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_vision_uses_expected_elements_fail_closed PASSED [ 75%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_visual_critic_uses_screenshot PASSED [ 83%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_phase_and_forge_still_blocked PASSED [ 91%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_edit_safe_path_escape PASSED [100%]\n\n============================= 12 passed in 0.23s ==============================\n",
-    "pytest_output_full_chars": 1774
+    "pytest_output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\\Users\\ASUS\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\ASUS\\Desktop\\ANTIGRAVITY MCP\\godkiller_mcp_pypi_package\nconfigfile: pyproject.toml\nplugins: anyio-4.14.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 13 items\n\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_exhaustive_reads_full_file_by_default PASSED [  7%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_exhaustive_truncates_only_when_asked PASSED [ 15%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_council_requires_llm_without_key PASSED [ 23%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_council_llm_multi_agent_debate_with_injected_chat PASSED [ 30%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_council_llm_rejects_eval_via_static_block_and_hacker PASSED [ 38%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_confidence_uses_ast_metrics PASSED [ 46%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_pipeline_executes_real_handler PASSED [ 53%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_self_heal_executes_fallback PASSED [ 61%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_verify_allowlist_not_five_word_ban PASSED [ 69%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_vision_uses_expected_elements_fail_closed PASSED [ 76%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_visual_critic_uses_screenshot PASSED [ 84%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_phase_and_forge_still_blocked PASSED [ 92%]\nbenchmarks/gauntlet/test_gauntlet_engines.py::test_edit_safe_path_escape PASSED [100%]\n\n============================= 13 passed in 0.23s ==============================\n",
+    "pytest_output_full_chars": 1911
   }
 }
