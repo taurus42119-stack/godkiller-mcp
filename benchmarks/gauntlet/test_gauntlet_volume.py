@@ -141,16 +141,24 @@ def test_edit_safe_rejects_escapes(tmp_path: Path, path: str):
     assert res.payload["safe"] is False
 
 
-@pytest.mark.parametrize("n", list(range(50)))
+@pytest.mark.parametrize("n", list(range(120)))
 def test_exhaustive_full_read_sizes(tmp_path: Path, n: int):
     size = 100 + n * 97  # varied lengths, many > 3000
     f = tmp_path / f"f{n}.py"
     body = ("# L%d\n" % n) + ("A" * size)
     f.write_text(body, encoding="utf-8")
-    out = ExhaustiveReaderEngine().read_all(str(tmp_path), max_files=80)
+    out = ExhaustiveReaderEngine().read_all(str(tmp_path), max_files=150)
     assert out["full_content"] is True
     assert len(out["contents"][str(f)]) == len(body)
 
+
+@pytest.mark.parametrize("i", list(range(80)))
+def test_closed_task_stays_immutable(tmp_path: Path, i: int):
+    store = EvidenceStore(persist_dir=tmp_path / f"c{i}")
+    state = store.open_task(TaskKind.FEATURE, f"g{i}")
+    store.mark_closed(state.handle.task_id)
+    with pytest.raises(RuntimeError, match="closed"):
+        store.submit_evidence(state.handle.task_id, EvidenceType.LOG, "x", {"i": i})
 
 _VOTE_COMBOS = list(itertools.product(["APPROVE", "REJECT"], repeat=3))
 
@@ -200,12 +208,3 @@ def test_open_task_kinds(tmp_path: Path, kind: TaskKind):
     state = store.open_task(kind, f"goal-{kind.value}")
     assert state.handle.kind == kind
     assert state.handle.phase == Phase.OPEN
-
-
-@pytest.mark.parametrize("i", list(range(30)))
-def test_closed_task_stays_immutable(tmp_path: Path, i: int):
-    store = EvidenceStore(persist_dir=tmp_path / f"c{i}")
-    state = store.open_task(TaskKind.FEATURE, f"g{i}")
-    store.mark_closed(state.handle.task_id)
-    with pytest.raises(RuntimeError, match="closed"):
-        store.submit_evidence(state.handle.task_id, EvidenceType.LOG, "x", {"i": i})

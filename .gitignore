@@ -21,3 +21,7 @@ dist/
 .venv/
 venv/
 uv.lock
+
+# Third-party study clones (patterns only — never ship)
+_vendor_study/
+_study_refs/

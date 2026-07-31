@@ -55,6 +55,7 @@ def test_server_verify_evidence_counts(tmp_path: Path):
             "passed": True,
             "server_authored": True,
             "exit_code": 0,
+            "result_digest": "abc123deadbeef",
         },
         server_authored=True,
     )

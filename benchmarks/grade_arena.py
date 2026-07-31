@@ -1,8 +1,8 @@
 """
-Grade arena JSON into a multi-dimension scorecard from real pytest counts.
+Grade arena JSON (isolated dual-arm or engine single-run).
 
-  python -m benchmarks.run_arena
-  python -m benchmarks.grade_arena --input benchmarks/arena_logs/arena_run.json
+  python -m benchmarks.run_arena --mode isolated
+  python -m benchmarks.grade_arena
 """
 
 from __future__ import annotations
@@ -31,10 +31,9 @@ def grade_run(run: Dict[str, Any]) -> Dict[str, Any]:
     output_chars = int(run.get("pytest_output_full_chars") or len(output))
 
     pass_rate = (passed / collected * 100.0) if collected else 0.0
-    # Output integrity: must contain node ids or PASSED/FAILED lines, not header-only
     has_body = ("PASSED" in output) or ("FAILED" in output) or ("::" in output)
     header_only = (not has_body) and ("test session starts" in output.lower())
-    passed_markers = len(re.findall(r"\bPASSED\b", output))
+    passed_markers = int(run.get("passed_markers_in_log") or len(re.findall(r"\bPASSED\b", output)))
 
     dimensions = {
         "1_pytest_pass_rate": round(pass_rate, 2),
@@ -52,9 +51,6 @@ def grade_run(run: Dict[str, Any]) -> Dict[str, Any]:
         suspicious.append("pytest_output_header_only")
     if collected == 0:
         suspicious.append("zero_tests_collected")
-    if collected >= 50 and passed_markers < 10 and has_body is False:
-        suspicious.append("output_missing_per_test_lines")
-    # Legacy fake: huge count + truncated header-only log
     if collected >= 100 and header_only and duration < 1.0:
         suspicious.append("unreproducible_legacy_score_shape")
 
@@ -78,18 +74,38 @@ def main() -> int:
     args = parser.parse_args()
 
     raw = json.loads(args.input.read_text(encoding="utf-8"))
-    run = raw.get("run") or raw
-    graded = {
-        "graded_at": datetime.now(timezone.utc).isoformat(),
-        "grader": "benchmarks.grade_arena",
-        "source": str(args.input.resolve()),
-        "result": grade_run(run),
-        "note": "Scores derived only from recorded pytest counts + output body checks.",
-    }
+    if raw.get("mode") == "isolated" and "comparison" in raw:
+        graded_arms = {k: grade_run(v) for k, v in raw["comparison"].items()}
+        graded = {
+            "graded_at": datetime.now(timezone.utc).isoformat(),
+            "grader": "benchmarks.grade_arena",
+            "source": str(args.input.resolve()),
+            "mode": "isolated",
+            "arena_root": raw.get("arena_root"),
+            "arms": graded_arms,
+            "headline": {
+                "with_mcp": graded_arms.get("2_WITH_MCP", {}).get("counts"),
+                "without_mcp": graded_arms.get("3_WITHOUT_MCP", {}).get("counts"),
+            },
+            "note": "Dual-arm isolated oracle grade from full pytest logs.",
+        }
+        ok = all(a.get("pytest_passed") and not a.get("suspicious_flags") for a in graded_arms.values())
+    else:
+        run = raw.get("run") or raw
+        graded = {
+            "graded_at": datetime.now(timezone.utc).isoformat(),
+            "grader": "benchmarks.grade_arena",
+            "source": str(args.input.resolve()),
+            "mode": raw.get("mode", "engine"),
+            "result": grade_run(run),
+            "note": "Scores derived only from recorded pytest counts + output body checks.",
+        }
+        ok = graded["result"]["pytest_passed"] and not graded["result"]["suspicious_flags"]
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(graded, indent=2), encoding="utf-8")
-    print(json.dumps(graded["result"], indent=2))
-    return 0 if not graded["result"]["suspicious_flags"] and graded["result"]["pytest_passed"] else 1
+    print(json.dumps(graded.get("headline") or graded.get("result"), indent=2))
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

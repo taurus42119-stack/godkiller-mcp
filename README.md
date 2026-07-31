@@ -34,19 +34,53 @@ goal → mode → evidence/plan → gated edit → disk verify → claim_done
 
 ---
 
-## Arena — Bare vs GODKILLER
+## Arena — Antigravity A/B (the real proof)
+
+Pre-solved twins that both pass 516 prove nothing. The honest protocol:
+
+1. Reset arms to sealed buggy `1_ORIGINAL`
+2. You open **Antigravity** on `3_WITHOUT_MCP` with MCP **off** → agent tries → we score
+3. Reset / open `2_WITH_MCP` with MCP **on** → agent tries → we score
+4. Compare **11 dimensions** (fail-closed on missing evidence)
 
 | Control | Value |
 | --- | --- |
-| Runtime | Gemini 3.6 Flash (HIGH) — identical both arms |
+| Arena root | `GODKILLER_ISOLATED_ARENA` / `GODKILLER_ARENA_ROOT` |
+| Baseline | `1_ORIGINAL` (never edit mid-run) |
 | Bare | `3_WITHOUT_MCP` |
 | GODKILLER | `2_WITH_MCP` |
-| Oracle | sealed `hidden_oracle/` pytest |
-| Engine gauntlet | `benchmarks/gauntlet` + `python -m benchmarks.run_arena` + `grade_arena` |
+| Oracle | sealed `hidden_oracle/` |
+| Protocol | [`benchmarks/ANTIGRAVITY_AB_PROTOCOL.md`](benchmarks/ANTIGRAVITY_AB_PROTOCOL.md) |
 
-Single variable: MCP off / on.
+### 11 dimensions
 
-### Gauntlet
+| # | Dimension |
+| ---: | --- |
+| 1 | Code correctness (oracle pass %) |
+| 2 | Oracle volume (≥516 collected) |
+| 3 | Output integrity (full pytest body) |
+| 4 | Delta from baseline (files actually changed) |
+| 5 | Reconnaissance / exhaustive read artifacts |
+| 6 | Phase discipline (task / plan / marathon) |
+| 7 | Blast radius + edit-safe |
+| 8 | Verify bundle + claim_done |
+| 9 | Council (Coder / Hacker / Optimizer) |
+| 10 | Security hardening signals |
+| 11 | UI visual gate (critic / screenshots) |
+
+```powershell
+$env:GODKILLER_ARENA_ROOT="C:\Users\ASUS\Desktop\GODKILLER_ISOLATED_ARENA"
+python -m benchmarks.reset_arena
+# → open Antigravity bare, then:
+python -m benchmarks.score_11 --arm 3_WITHOUT_MCP
+# → open Antigravity + MCP, then:
+python -m benchmarks.score_11 --arm 2_WITH_MCP
+python -m benchmarks.score_11 --compare
+```
+
+Scorecard lands in `GODKILLER_ISOLATED_ARENA\logs\11_dimension_scorecard.md` after *your* runs — not a fake pre-fill.
+
+### Engine gauntlet (in-package kernel proof)
 
 | Gate | Load |
 | --- | --- |
@@ -54,28 +88,15 @@ Single variable: MCP off / on.
 | Phase illegal jumps | full forward-skip matrix |
 | Verify allowlist | allow + deny command grids |
 | Council host tally | all 8 vote combinations |
-| Exhaustive read | 50 size variants (incl. >3000 chars) |
-| Blind oracle | disk green + output integrity |
-
-### Scorecard (reproducible)
-
-| # | Dimension | Result |
-| ---: | --- | --- |
-| 1 | Collected | **211** |
-| 2 | Passed | **211 / 211** |
-| 3 | Wall clock | ~1.8s (runner) |
-| 4 | Output integrity | **100** (full pytest body, not header-only) |
-| 5 | Overall grade | **100** |
-| 6 | Suspicious flags | **none** |
+| Exhaustive read | 120 size variants (incl. >3000 chars) |
+| Closed-task immutability | 80 variants |
+| Package suite | **331** passed (`pytest -q`) |
 
 ```bash
-python -m benchmarks.run_arena
-python -m benchmarks.grade_arena
-# → arena_run.json + graded_scorecard.json
+python -m benchmarks.run_arena --mode engine
 pytest -q
 ```
 
-Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_scorecard.json`](benchmarks/arena_logs/graded_scorecard.json)
 ---
 
 ## Kernel
@@ -86,11 +107,16 @@ Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_
 | Plan OS | 9-step validate before fix edits |
 | Edit safety | blast radius + path-safe `check_edit_safe` |
 | `/ultradeep` | one phase/turn · one file/edit cycle |
-| Verify | disk commands only · server-authored evidence |
-| Council | host debate by default · optional API multi-round |
-| Pipeline | topological tool execution |
-| Memory | task → phase → evidence → lesson |
-| Surface | `gk_code` / `gk_scan` / `gk_browser` |
+| Verify | disk commands · server-authored · `result_digest` |
+| Hollow surface | unfinished bodies blocked before `claim_done` |
+| Session ledger | hash chain under `.godkiller/session_ledger.jsonl` |
+| Council | host debate (default) · optional API |
+| Visual critic | **pixels required** — regex alone cannot GREEN |
+| Recovery | self_heal = traceback parse → one fallback tool run |
+
+```text
+goal → mode → evidence/plan → gated edit → disk verify → hollow → claim_done
+```
 
 ### `/ultradeep`
 
@@ -98,11 +124,9 @@ Artifacts: [`arena_run.json`](benchmarks/arena_logs/arena_run.json) · [`graded_
 
 ### Council
 
-**Host mode (default):** MCP ส่งบท Coder / Hacker / Optimizer ให้โมเดลใน IDE เล่นทีละมุม → `council_submit` → `council_finalize` รวมโหวต  
+**Host mode (default):** MCP ส่งบท Coder / Hacker / Optimizer ให้โมเดลใน IDE → `council_submit` → `council_finalize`  
 
-**API mode (optional):** ตั้ง `GODKILLER_LLM_API_KEY` หรือ `OPENAI_API_KEY` แล้วเรียก `mode=api` / `prefer_api=true` — เซิร์ฟเวอร์ดีเบตหลายรอบเอง  
-
-ไม่มี key ก็ใช้ council ได้ (host) — API เป็นของเสริม ไม่ใช่ของบังคับ
+**API mode (optional):** `GODKILLER_LLM_API_KEY` / `OPENAI_API_KEY` + `mode=api`
 
 ---
 
@@ -128,22 +152,15 @@ Optional: `GODKILLER_HOME` · `GODKILLER_TOOLS_DIR` · `GODKILLER_LLM_API_KEY`
 
 ---
 
-## Facades (12)
+## Tools — Kernel vs recovery vs experimental
 
-| Tool | Domain |
-| --- | --- |
-| `gk_route` | `/ask` `/plan` `/debug` `/ultradeep` `/verify` |
-| `gk_mode` | protocol · skills · file gate |
-| `gk_task` | open · blast · edit_safe |
-| `gk_phase` | assert · claim_done · rubric |
-| `gk_evidence` | submit · shot · critic · journey · inspect_image |
-| `gk_verify` | bundle · soak · loop · competitor |
-| `gk_memory` | lessons · marathon · graph |
-| `gk_code` | map · search · read_full · council / council_submit / council_finalize · pipeline · self_heal |
-| `gk_scan` | CWE heuristics · Semgrep |
-| `gk_browser` | navigate · snapshot · click · fill |
-| `gk_handoff` | spec · feedback |
-| `gk_meta` | plan_template · plan_validate |
+**Kernel (the product):** `gk_route` · `gk_mode` · `gk_task` · `gk_phase` · `gk_evidence` · `gk_verify` (bundle / hollow / ledger) · `gk_memory` (marathon) · `gk_code` (map / search / read_full / council*) · `gk_meta` (plan)
+
+**Recovery:** `gk_code.self_heal` (structured diagnose + one fallback exec) · `gk_code.pipeline` (runs tools or dry-run)
+
+**Optional / experimental:** `gk_browser` · `gk_scan` · `gk_handoff` · scrape · skillify · confidence · auto_fix (regex) · soak / competitor ladders
+
+Facades still exist for Antigravity routing — weight is on the kernel path above, not on equal “12 products.”
 
 ---
 

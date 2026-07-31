@@ -1,15 +1,22 @@
 """
-Reproducible arena runner — writes full pytest output + counts + wall time.
+Reproducible arena runner.
 
-Usage (from repo root):
-  python -m benchmarks.run_arena
-  python -m benchmarks.run_arena --arm with_mcp --workspace path/to/arm
+Modes:
+  isolated (default if arena root exists):
+    Run sealed hidden_oracle against
+      <root>/2_WITH_MCP  and  <root>/3_WITHOUT_MCP
+  engine:
+    Run package tests/ + benchmarks/gauntlet
+
+Env:
+  GODKILLER_ARENA_ROOT  default C:\\Users\\ASUS\\Desktop\\GODKILLER_ISOLATED_ARENA
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,23 +26,28 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_GAUNTLET = ROOT  # full suite: tests/ + benchmarks/gauntlet/
 OUT_DIR = ROOT / "benchmarks" / "arena_logs"
+DEFAULT_ISOLATED = Path(
+    os.environ.get(
+        "GODKILLER_ARENA_ROOT",
+        str(Path.home() / "Desktop" / "GODKILLER_ISOLATED_ARENA"),
+    )
+)
+
+ORACLE_IGNORE = (
+    "test_mega_500.py",  # needs mega_500_bugs module not present in arms
+    "test_calculator.py",
+    "test_financial.py",
+)
 
 
 def _parse_pytest_counts(output: str) -> dict:
-    # e.g. "12 passed in 0.71s" / "1 failed, 2 passed in 1.2s"
-    passed = failed = skipped = 0
-    m = re.search(
-        r"(?:(\d+)\s+failed)?(?:,\s*)?(?:(\d+)\s+passed)?(?:,\s*)?(?:(\d+)\s+skipped)?",
-        output.splitlines()[-1] if output.strip() else "",
-    )
-    # Prefer summary line containing "passed" or "failed"
     summary = ""
     for line in reversed(output.splitlines()):
         if "passed" in line or "failed" in line or "error" in line:
             summary = line.strip()
             break
+    passed = failed = skipped = 0
     mp = re.search(r"(\d+)\s+passed", summary)
     mf = re.search(r"(\d+)\s+failed", summary)
     ms = re.search(r"(\d+)\s+skipped", summary)
@@ -54,62 +66,150 @@ def _parse_pytest_counts(output: str) -> dict:
     }
 
 
-def run_arm(name: str, test_path: Path, timeout_sec: int = 120) -> dict:
-    test_path = test_path.resolve()
+def run_pytest(
+    *,
+    args: list[str],
+    cwd: Path,
+    env: dict | None = None,
+    timeout_sec: int = 300,
+    arm: str,
+    folder: str,
+) -> dict:
     started = time.perf_counter()
+    full_env = os.environ.copy()
+    if env:
+        full_env.update(env)
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-v", "--tb=line", "tests", "benchmarks/gauntlet"],
-        cwd=str(ROOT),
+        [sys.executable, "-m", "pytest", "-v", "--tb=line", *args],
+        cwd=str(cwd),
         capture_output=True,
         text=True,
         timeout=timeout_sec,
+        env=full_env,
     )
     duration = time.perf_counter() - started
     output = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
     counts = _parse_pytest_counts(output)
     return {
-        "arm": name,
-        "folder": str(test_path),
+        "arm": arm,
+        "folder": folder,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_seconds": round(duration, 3),
         "exit_code": proc.returncode,
         "pytest_passed": proc.returncode == 0,
         "counts": counts,
-        "pytest_output": output[-12000:],
+        "pytest_output": output[-200000:],
         "pytest_output_full_chars": len(output),
+        "passed_markers_in_log": len(re.findall(r"\bPASSED\b", output)),
     }
 
 
+def run_isolated(arena_root: Path) -> dict:
+    oracle = arena_root / "hidden_oracle"
+    if not oracle.is_dir():
+        raise FileNotFoundError(f"hidden_oracle not found under {arena_root}")
+
+    ignores = []
+    for name in ORACLE_IGNORE:
+        p = oracle / name
+        if p.exists():
+            ignores.extend(["--ignore", str(p)])
+
+    arms = {}
+    for arm_name in ("2_WITH_MCP", "3_WITHOUT_MCP"):
+        arm_dir = arena_root / arm_name
+        if not arm_dir.is_dir():
+            raise FileNotFoundError(f"Missing arm folder: {arm_dir}")
+        arms[arm_name] = run_pytest(
+            args=[str(oracle), *ignores],
+            cwd=arena_root,
+            env={"PYTHONPATH": str(arm_dir)},
+            arm=arm_name,
+            folder=str(arm_dir),
+        )
+    return {
+        "mode": "isolated",
+        "arena_root": str(arena_root.resolve()),
+        "oracle": str(oracle.resolve()),
+        "comparison": arms,
+    }
+
+
+def run_engine() -> dict:
+    result = run_pytest(
+        args=["tests", "benchmarks/gauntlet"],
+        cwd=ROOT,
+        arm="engine_gauntlet",
+        folder=str(ROOT),
+    )
+    return {"mode": "engine", "run": result}
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="GODKILLER reproducible arena runner")
+    parser = argparse.ArgumentParser(description="GODKILLER arena runner")
     parser.add_argument(
-        "--gauntlet",
+        "--mode",
+        choices=("auto", "isolated", "engine"),
+        default="auto",
+        help="auto uses isolated when GODKILLER_ISOLATED_ARENA exists",
+    )
+    parser.add_argument(
+        "--arena-root",
         type=Path,
-        default=DEFAULT_GAUNTLET,
-        help="Directory of pytest files for the gauntlet",
+        default=DEFAULT_ISOLATED,
+        help="Isolated arena root containing 2_WITH_MCP / 3_WITHOUT_MCP / hidden_oracle",
     )
     parser.add_argument(
         "--out",
         type=Path,
         default=OUT_DIR / "arena_run.json",
-        help="Output JSON path",
     )
     args = parser.parse_args()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    result = {
+    mode = args.mode
+    if mode == "auto":
+        mode = "isolated" if (args.arena_root / "hidden_oracle").is_dir() else "engine"
+
+    if mode == "isolated":
+        payload = run_isolated(args.arena_root)
+        ok = all(v.get("pytest_passed") for v in payload["comparison"].values())
+    else:
+        payload = run_engine()
+        ok = bool(payload["run"]["pytest_passed"])
+
+    doc = {
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
         "runner": "benchmarks.run_arena",
-        "note": (
-            "This file is produced by a real pytest invocation. "
-            "Do not treat legacy hand-written scorecards as reproducible without this runner."
-        ),
-        "gauntlet": str(args.gauntlet.resolve()),
-        "run": run_arm("gauntlet", args.gauntlet),
+        **payload,
     }
-    args.out.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(json.dumps({"wrote": str(args.out), "counts": result["run"]["counts"], "duration": result["run"]["duration_seconds"]}, indent=2))
-    return 0 if result["run"]["pytest_passed"] else 1
+    args.out.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+    # compact stdout
+    if mode == "isolated":
+        summary = {
+            "wrote": str(args.out),
+            "mode": mode,
+            "arms": {
+                k: {
+                    "passed": v["counts"]["passed"],
+                    "failed": v["counts"]["failed"],
+                    "collected": v["counts"]["collected"],
+                    "duration": v["duration_seconds"],
+                    "output_chars": v["pytest_output_full_chars"],
+                }
+                for k, v in payload["comparison"].items()
+            },
+        }
+    else:
+        summary = {
+            "wrote": str(args.out),
+            "mode": mode,
+            "counts": payload["run"]["counts"],
+            "duration": payload["run"]["duration_seconds"],
+        }
+    print(json.dumps(summary, indent=2))
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

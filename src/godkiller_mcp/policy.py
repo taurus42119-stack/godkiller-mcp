@@ -256,6 +256,13 @@ class PolicyEngine:
             if not ok_vb:
                 return False, results, reason_vb
 
+        # Hollow surface — unfinished / placeholder bodies cannot claim done
+        from godkiller_mcp.hollow_surface import claim_hollow_gate
+
+        ok_h, reason_h, _hollow = claim_hollow_gate(state)
+        if not ok_h:
+            return False, results, reason_h
+
         # Optional Planner/Builder/Eval soft gate (feedback.md)
         if handoff_feedback_ok is False:
             return (

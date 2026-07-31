@@ -490,9 +490,29 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 )
             store.mark_closed(state.handle.task_id)
             state.last_policy_action = PolicyAction.ALLOW_CLAIM_DONE
+            try:
+                from godkiller_mcp.session_ledger import append_ledger
+
+                append_ledger(
+                    "claim_done",
+                    {"allowed": True, "reason": reason},
+                    task_id=state.handle.task_id,
+                )
+            except Exception:
+                pass
         else:
             state.last_policy_action = PolicyAction.BLOCK
             state.failure_streak += 1
+            try:
+                from godkiller_mcp.session_ledger import append_ledger
+
+                append_ledger(
+                    "claim_done_blocked",
+                    {"allowed": False, "reason": reason},
+                    task_id=state.handle.task_id,
+                )
+            except Exception:
+                pass
         out = {
             "allowed": allowed,
             "reason": reason,
@@ -666,7 +686,54 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 signature=f"verify_bundle:{'pass' if result.passed else 'fail'}",
                 phase=store.get(task_id).handle.phase,
             )
+        try:
+            from godkiller_mcp.session_ledger import append_ledger
+
+            append_ledger(
+                "verify_bundle",
+                {
+                    "passed": result.passed,
+                    "result_digest": out.get("result_digest"),
+                    "cwd": out.get("cwd"),
+                },
+                task_id=task_id,
+            )
+        except Exception:
+            pass
         return _json(out)
+
+    if name == "hollow_surface":
+        from godkiller_mcp.hollow_surface import scan_hollow_surface
+
+        roots = arguments.get("paths") or arguments.get("roots") or [arguments.get("workspace") or "."]
+        report = scan_hollow_surface(roots, max_files=int(arguments.get("max_files") or 200))
+        payload = report.to_payload()
+        task_id = arguments.get("task_id")
+        if task_id and arguments.get("attach", True):
+            store.submit_evidence(
+                task_id=task_id,
+                evidence_type=EvidenceType.LOG,
+                summary=payload["summary"],
+                payload=payload,
+                server_authored=True,
+            )
+        try:
+            from godkiller_mcp.session_ledger import append_ledger
+
+            append_ledger("hollow_surface", payload, task_id=task_id)
+        except Exception:
+            pass
+        return _json(payload)
+
+    if name == "ledger_tail":
+        from godkiller_mcp.session_ledger import read_ledger_tail, verify_ledger
+
+        return _json(
+            {
+                "verify": verify_ledger(),
+                "tail": read_ledger_tail(int(arguments.get("n") or 20)),
+            }
+        )
 
     if name == "record_tool_event":
         phase = arguments.get("phase")

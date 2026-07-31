@@ -160,10 +160,10 @@ def run_visual_critic(
     expected_elements: Optional[Sequence[str]] = None,
 ) -> VisualCriticResult:
     """
-    Critic combines:
-    1) placeholder regex on description/findings
-    2) required checklist keys
-    3) optional on-disk screenshot analysis via VisionBridge (real pixels + elements)
+    Pixel-first critic.
+
+    Text regex / agent checklist can only force RED (or annotate findings).
+    They cannot produce GREEN without an on-disk screenshot that VisionBridge passes.
     """
     checklist = dict(checklist or {})
     findings_l = list(findings or [])
@@ -172,65 +172,96 @@ def run_visual_critic(
     for p in ph:
         findings_l.append(f"Placeholder signal detected: {p}")
 
-    vision_payload: Optional[Dict[str, Any]] = None
-    if screenshot_path:
-        from godkiller_mcp.vision_bridge import VisionBridge
-
-        vr = VisionBridge().analyze_screenshot(
-            screenshot_path,
-            expected_elements=list(expected_elements) if expected_elements else None,
-        )
-        vision_payload = {
-            "passed": vr.passed,
-            "score": vr.score,
-            "width": vr.width,
-            "height": vr.height,
-            "is_blank_placeholder": vr.is_blank_placeholder,
-            "description": vr.description,
-            "elements_found": vr.elements_found,
-            "elements_missing": vr.elements_missing,
-            "ocr_engine": vr.ocr_engine,
-        }
-        if vr.is_blank_placeholder:
-            checklist["not_placeholder"] = False
-            findings_l.append(f"VisionBridge blank/placeholder: {vr.description}")
-        if not vr.passed:
-            findings_l.append(f"VisionBridge failed: {vr.description}")
-            checklist["first_screen_readable"] = False
-        else:
-            checklist.setdefault("first_screen_readable", True)
-            checklist.setdefault("not_placeholder", True)
-
     required_keys = [
         "first_screen_readable",
         "not_placeholder",
         "materials_or_hierarchy_ok",
         "reference_delta_acceptable",
+        "pixels_verified",
     ]
-    for k in required_keys:
-        checklist.setdefault(k, False)
+
+    vision_payload: Optional[Dict[str, Any]] = None
+
+    if not screenshot_path:
+        findings_l.append(
+            "pixels_required: no screenshot_path — regex/checklist alone cannot GREEN"
+        )
+        for k in required_keys:
+            checklist[k] = False
+        result = VisualCriticResult(
+            verdict=CriticVerdict.RED,
+            findings=findings_l,
+            checklist=checklist,
+            escalate=True,
+            summary="visual_critic RED: pixels_required",
+        )
+        result._extra_payload = {"vision": None, "pixels_required": True}  # type: ignore[attr-defined]
+        return result
+
+    from godkiller_mcp.vision_bridge import VisionBridge
+
+    vr = VisionBridge().analyze_screenshot(
+        screenshot_path,
+        expected_elements=list(expected_elements) if expected_elements else None,
+    )
+    vision_payload = {
+        "passed": vr.passed,
+        "score": vr.score,
+        "width": vr.width,
+        "height": vr.height,
+        "is_blank_placeholder": vr.is_blank_placeholder,
+        "description": vr.description,
+        "elements_found": vr.elements_found,
+        "elements_missing": vr.elements_missing,
+        "ocr_engine": vr.ocr_engine,
+        "path": str(screenshot_path),
+    }
+    checklist["pixels_verified"] = bool(vr.passed) and not vr.is_blank_placeholder
+    if vr.is_blank_placeholder:
+        checklist["not_placeholder"] = False
+        findings_l.append(f"VisionBridge blank/placeholder: {vr.description}")
+    else:
+        checklist["not_placeholder"] = True
+    if not vr.passed:
+        findings_l.append(f"VisionBridge failed: {vr.description}")
+        checklist["first_screen_readable"] = False
+        checklist["pixels_verified"] = False
+    else:
+        checklist["first_screen_readable"] = True
+
+    # Soft axes: agent may claim, but only after pixels_verified
+    for soft in ("materials_or_hierarchy_ok", "reference_delta_acceptable"):
+        if soft not in checklist:
+            checklist[soft] = False
+        if checklist["pixels_verified"] and checklist.get(soft) is True:
+            pass
+        elif not checklist["pixels_verified"]:
+            checklist[soft] = False
+
+    if ph:
+        checklist["not_placeholder"] = False
 
     failed_checks = [k for k, v in checklist.items() if not v]
     for k in failed_checks:
         findings_l.append(f"Checklist failed: {k}")
 
-    forced_red = bool(ph) or (not checklist.get("not_placeholder", False))
-    if vision_payload and not vision_payload.get("passed"):
-        forced_red = True
-    all_green_checks = all(checklist.get(k, False) for k in required_keys)
+    pixels_ok = bool(vision_payload.get("passed")) and checklist.get("pixels_verified")
+    forced_red = bool(ph) or not pixels_ok or not checklist.get("not_placeholder", False)
 
     av = (agent_verdict or "").upper().strip()
-    if forced_red or av == "RED" or not all_green_checks:
+    if forced_red or av == "RED":
         verdict = CriticVerdict.RED
-    elif av == "YELLOW" or kind in ("feature", "ui", "game"):
-        if all_green_checks and av in ("", "GREEN"):
-            verdict = CriticVerdict.GREEN
-        elif all_green_checks and av == "YELLOW":
-            verdict = CriticVerdict.YELLOW
-        else:
-            verdict = CriticVerdict.RED
+    elif not all(checklist.get(k, False) for k in required_keys):
+        verdict = CriticVerdict.RED
+    elif av == "YELLOW":
+        verdict = CriticVerdict.YELLOW
     else:
-        verdict = CriticVerdict.GREEN if all_green_checks else CriticVerdict.RED
+        verdict = CriticVerdict.GREEN
+
+    # Never GREEN without pixels
+    if verdict == CriticVerdict.GREEN and not pixels_ok:
+        verdict = CriticVerdict.RED
+        findings_l.append("invariant: GREEN blocked without VisionBridge pass")
 
     escalate = verdict == CriticVerdict.RED
     summary = f"visual_critic {verdict.value}: {len(findings_l)} findings"
@@ -241,11 +272,7 @@ def run_visual_critic(
         escalate=escalate,
         summary=summary,
     )
-    if vision_payload:
-        # Attach for evidence payloads via to_payload extension
-        payload = result.to_payload()
-        payload["vision"] = vision_payload
-        result._extra_payload = payload  # type: ignore[attr-defined]
+    result._extra_payload = {"vision": vision_payload, "pixels_required": False}  # type: ignore[attr-defined]
     return result
 
 
@@ -441,5 +468,11 @@ def quality_claim_gates(
             )
         if critic["payload"].get("verdict") != CriticVerdict.GREEN.value:
             return False, "Quality gate: visual_critic must be GREEN to claim (not YELLOW)."
-
+        vision = critic["payload"].get("vision")
+        if not isinstance(vision, dict) or not vision.get("passed"):
+            return (
+                False,
+                "Quality gate: visual_critic GREEN requires VisionBridge pass on a real screenshot "
+                "(text/checklist alone is not enough).",
+            )
     return True, "Quality + dissatisfaction gates satisfied."

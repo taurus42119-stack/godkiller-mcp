@@ -42,3 +42,27 @@ def test_grader_accepts_real_body(tmp_path: Path):
     g = grade_run(run)
     assert g["suspicious_flags"] == []
     assert g["overall_score"] == 100.0
+
+
+def test_grader_accepts_isolated_516_with_full_body():
+    body = "\n".join(f"hidden_oracle/test_t{i}.py::test_x PASSED" for i in range(516))
+    body += "\n============================= 516 passed in 0.36s ============================="
+    run = {
+        "arm": "2_WITH_MCP",
+        "duration_seconds": 0.77,
+        "pytest_passed": True,
+        "counts": {
+            "passed": 516,
+            "failed": 0,
+            "skipped": 0,
+            "collected": 516,
+            "summary_line": "============================= 516 passed in 0.36s =============================",
+        },
+        "pytest_output": body,
+        "pytest_output_full_chars": len(body),
+    }
+    g = grade_run(run)
+    assert g["suspicious_flags"] == []
+    assert g["dimensions"]["2_collected_tests"] == 516
+    assert g["dimensions"]["5_output_integrity"] == 100.0
+    assert g["overall_score"] == 100.0

@@ -57,18 +57,6 @@ def detect_hacking(command: str) -> Tuple[bool, str]:
     )
 
 
-def task_has_passing_verify_bundle(state: TaskState) -> Tuple[bool, str]:
-    for ev in state.evidences:
-        payload = ev.payload or {}
-        if (
-            payload.get("source") == "verify_bundle"
-            and payload.get("passed")
-            and payload.get("server_authored") is True
-        ):
-            return True, "verify_bundle passed"
-    return False, "verify_bundle evidence missing, failed, or not server-authored"
-
-
 @dataclass
 class VerifyResult:
     passed: bool
@@ -79,6 +67,7 @@ class VerifyResult:
     reason: str = ""
     command_fingerprint: str = ""
     cwd: str = ""
+    result_digest: str = ""
 
     @property
     def summary(self) -> str:
@@ -88,7 +77,21 @@ class VerifyResult:
             return "verify_bundle PASS"
         return f"verify_bundle FAIL: {self.reason or self.stderr[:200]}"
 
+    def compute_digest(self) -> str:
+        material = "|".join(
+            [
+                self.command_fingerprint,
+                str(self.exit_code),
+                "1" if self.passed else "0",
+                self.stdout[-8000:],
+                self.stderr[-4000:],
+                self.cwd,
+            ]
+        )
+        return hashlib.sha256(material.encode("utf-8", errors="replace")).hexdigest()
+
     def to_payload(self) -> dict:
+        digest = self.result_digest or self.compute_digest()
         return {
             "source": "verify_bundle",
             "server_authored": True,
@@ -101,7 +104,25 @@ class VerifyResult:
             "summary": self.summary,
             "command_fingerprint": self.command_fingerprint,
             "cwd": self.cwd,
+            "result_digest": digest,
         }
+
+
+def task_has_passing_verify_bundle(state: TaskState) -> Tuple[bool, str]:
+    for ev in state.evidences:
+        payload = ev.payload or {}
+        if (
+            payload.get("source") == "verify_bundle"
+            and payload.get("passed")
+            and payload.get("server_authored") is True
+        ):
+            if not payload.get("result_digest"):
+                return (
+                    False,
+                    "verify_bundle evidence missing result_digest — rerun verify_bundle on this build",
+                )
+            return True, "verify_bundle passed"
+    return False, "verify_bundle evidence missing, failed, or not server-authored"
 
 
 class VerifyBundleRunner:
@@ -168,4 +189,5 @@ class VerifyBundleRunner:
             stderr=last_stderr,
             command_fingerprint=",".join(fingerprints),
             cwd=str(work_dir),
+            result_digest="",
         )
