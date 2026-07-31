@@ -1,13 +1,18 @@
-"""Tests for safe_urlopen redirect revalidation (SSRF TOCTOU)."""
+"""Tests for safe_urlopen redirect revalidation + DNS pin (SSRF)."""
 
 from __future__ import annotations
 
-import io
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from godkiller_mcp.ssrf import SafeHTTPError, assert_public_url, safe_urlopen
+from godkiller_mcp.ssrf import (
+    SafeHTTPError,
+    _PinnedResponse,
+    assert_public_url,
+    resolve_public_ips,
+    safe_urlopen,
+)
 
 
 def test_assert_blocks_localhost():
@@ -16,30 +21,26 @@ def test_assert_blocks_localhost():
     assert "SSRF" in reason
 
 
+def test_resolve_blocks_loopback_literal():
+    ok, reason, ips = resolve_public_ips("127.0.0.1", 80)
+    assert ok is False
+    assert not ips
+    assert "SSRF" in reason
+
+
 def test_safe_urlopen_blocks_redirect_to_loopback():
-    class _Resp302:
-        status = 302
-        headers = {"Location": "http://127.0.0.1/secret"}
+    def _pinned(url, **kwargs):
+        if "example.com" in url:
+            return _PinnedResponse(302, {"Location": "http://127.0.0.1/secret"}, b"")
+        raise AssertionError(f"unexpected pinned fetch {url}")
 
-        def getcode(self):
-            return 302
-
-        def close(self):
-            pass
-
-        def read(self):
-            return b""
-
-    opener = MagicMock()
-    opener.open.return_value = _Resp302()
-
-    with patch("godkiller_mcp.ssrf._opener_no_redirect", return_value=opener):
+    with patch("godkiller_mcp.ssrf._request_pinned", side_effect=_pinned):
         with patch(
-            "godkiller_mcp.ssrf.assert_public_url",
-            side_effect=lambda url, resolve=True: (
-                (True, "ok")
-                if "127.0.0.1" not in url
-                else (False, "SSRF DENY: blocked IP 127.0.0.1")
+            "godkiller_mcp.ssrf.resolve_public_ips",
+            side_effect=lambda host, port: (
+                (False, "SSRF DENY: blocked IP 127.0.0.1", [])
+                if host.startswith("127.")
+                else (True, "ok", ["93.184.216.34"])
             ),
         ):
             with pytest.raises(SafeHTTPError) as ei:
@@ -48,24 +49,32 @@ def test_safe_urlopen_blocks_redirect_to_loopback():
 
 
 def test_safe_urlopen_returns_body_on_200():
-    class _Resp200(io.BytesIO):
-        status = 200
-        headers = {}
-
-        def getcode(self):
-            return 200
-
-        def close(self):
-            pass
-
-    body = _Resp200(b'{"ok":true}')
-    opener = MagicMock()
-    opener.open.return_value = body
-
-    with patch("godkiller_mcp.ssrf._opener_no_redirect", return_value=opener):
-        with patch("godkiller_mcp.ssrf.assert_public_url", return_value=(True, "ok")):
+    with patch(
+        "godkiller_mcp.ssrf._request_pinned",
+        return_value=_PinnedResponse(200, {}, b'{"ok":true}'),
+    ):
+        with patch(
+            "godkiller_mcp.ssrf.resolve_public_ips",
+            return_value=(True, "ok", ["93.184.216.34"]),
+        ):
             resp = safe_urlopen("https://example.com/api", timeout=1)
     assert resp.read() == b'{"ok":true}'
+
+
+def test_safe_urlopen_pins_resolved_ip_not_hostname():
+    seen = {}
+
+    def _pinned(url, **kwargs):
+        seen["ips"] = list(kwargs.get("pinned_ips") or [])
+        return _PinnedResponse(200, {}, b"ok")
+
+    with patch("godkiller_mcp.ssrf._request_pinned", side_effect=_pinned):
+        with patch(
+            "godkiller_mcp.ssrf.resolve_public_ips",
+            return_value=(True, "ok", ["203.0.113.10"]),
+        ):
+            safe_urlopen("https://example.com/x", timeout=1)
+    assert seen["ips"] == ["203.0.113.10"]
 
 
 def test_detect_hacking_path_escape():

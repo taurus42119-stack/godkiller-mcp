@@ -6,6 +6,7 @@ Chat summary never overrides this object.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional, Sequence
 
 # Human-facing layer names aligned with the three-anger model + supporting gates
@@ -55,28 +56,60 @@ NEXT_ACTION: Dict[str, str] = {
 }
 
 
-def classify_from_reason(reason: str) -> str:
-    """Fallback classifier when gate id was not threaded."""
-    r = (reason or "").lower()
-    if "already closed" in r:
-        return "closed"
-    if "stale" in r or "material_hash" in r:
+KNOWN_GATE_TOKENS = frozenset(LAYER.keys())
+
+
+def classify_from_reason(reason: str, *, gate: Optional[str] = None) -> str:
+    """Prefer server gate tokens; substring match is last-resort for legacy reasons."""
+    if gate and gate in KNOWN_GATE_TOKENS and gate != "ok":
+        return gate
+    r_raw = reason or ""
+    m = re.search(r"gate[=:]([a-z_]+)", r_raw, flags=re.I)
+    if m:
+        tok = m.group(1).lower()
+        if tok in KNOWN_GATE_TOKENS and tok != "ok":
+            return tok
+        # aliases sometimes minted in prose
+        aliases = {
+            "exit_checklist": "exit",
+            "hollow_surface": "hollow",
+            "plan_lock": "plan",
+        }
+        if tok in aliases:
+            return aliases[tok]
+
+    r = r_raw.lower()
+    # Prefer stable machine phrases minted by this package
+    token_phrases = (
+        ("already closed", "closed"),
+        ("material_hash", "freshness"),
+        ("fault_probe", "fault_probe"),
+        ("exit_checklist", "exit"),
+        ("verify_bundle", "verify"),
+        ("blast_radius", "blast_radius"),
+        ("hollow_surface", "hollow"),
+        ("tool_propose", "tool_propose"),
+        ("council", "council"),
+    )
+    for needle, tok in token_phrases:
+        if needle in r:
+            return tok
+
+    if "stale" in r:
         return "freshness"
-    if "fault_probe" in r or "survivor" in r:
+    if "survivor" in r:
         return "fault_probe"
-    if "exit_checklist" in r or "gk_verify.exit" in r:
+    if "gk_verify.exit" in r:
         return "exit"
-    if "council" in r or "refute-first" in r:
+    if "refute-first" in r:
         return "council"
     if "hollow" in r:
         return "hollow"
     if "plan" in r and ("lock" in r or "validate" in r or "envelope" in r or "9-step" in r):
         return "plan"
-    if "verify_bundle" in r or "result_digest" in r:
+    if "result_digest" in r:
         return "verify"
-    if "blast_radius" in r:
-        return "blast_radius"
-    if "verify phase" in r or "must reach verify" in r:
+    if "must reach verify" in r or "verify phase" in r:
         return "phase"
     if "rubric" in r:
         return "rubric"
@@ -88,7 +121,7 @@ def classify_from_reason(reason: str) -> str:
         return "search"
     if "skill" in r:
         return "skill"
-    if "tool_propose" in r or "tool_approve" in r or "tool_used" in r or "silent install" in r:
+    if "tool_approve" in r or "tool_used" in r or "silent install" in r:
         return "tool_propose"
     if "quality" in r or "competitor" in r or "ambition" in r or "ladder" in r:
         return "quality"
@@ -107,9 +140,12 @@ def build_claim_payload(
     action: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Structured claim response — status is authoritative."""
-    g = gate or ("ok" if allowed else classify_from_reason(reason))
     if allowed:
         g = "ok"
+    elif gate and gate in KNOWN_GATE_TOKENS:
+        g = gate
+    else:
+        g = classify_from_reason(reason, gate=gate)
     status = "done" if allowed else "blocked"
     out: Dict[str, Any] = {
         "status": status,

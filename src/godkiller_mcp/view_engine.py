@@ -37,6 +37,7 @@ _PRAISE = re.compile(
     r"by and large|impressive|solid work|kudos)\b",
     re.I,
 )
+# Deny-assist only: praise regex never unlocks finalize; weakness tokens still required.
 
 
 def _utcnow() -> str:

@@ -42,7 +42,7 @@ def test_live_resolve_crossref_ok(monkeypatch: pytest.MonkeyPatch):
         def __exit__(self, *a):
             return False
 
-    with patch("godkiller_mcp.doi_resolve.urllib.request.urlopen", return_value=_Resp()):
+    with patch("godkiller_mcp.ssrf.safe_urlopen", return_value=_Resp()):
         r = resolve_doi("10.1038/nature14539")
     assert r["ok"] is True
     assert r["source"] == "crossref"
@@ -55,7 +55,7 @@ def test_live_resolve_fails_closed(monkeypatch: pytest.MonkeyPatch):
     def boom(*a, **k):
         raise TimeoutError("no net")
 
-    with patch("godkiller_mcp.doi_resolve.urllib.request.urlopen", side_effect=boom):
+    with patch("godkiller_mcp.ssrf.safe_urlopen", side_effect=boom):
         r = resolve_doi("10.9999/does.not.exist.zz")
     assert r["ok"] is False
 

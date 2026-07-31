@@ -91,41 +91,28 @@ class VisionBridge:
         if not HAS_PIL:
             file_size = path.stat().st_size
             is_valid = file_size > 500
-            # Fail closed if caller asked for element checks without Pillow/OCR
-            if expected:
-                return VisionAnalysisResult(
-                    image_uri=str(image_uri),
-                    passed=False,
-                    score=0.1,
-                    width=0,
-                    height=0,
-                    format=path.suffix.lstrip(".").upper() or "UNKNOWN",
-                    color_mode="UNKNOWN",
-                    is_blank_placeholder=not is_valid,
-                    description=(
-                        "expected_elements require Pillow+OCR; cannot verify — "
-                        + install_hint("tesseract")
-                    ),
-                    expected_elements=expected,
-                    elements_missing=expected,
-                    ocr_engine="unavailable",
-                )
+            # Size-only is never claim-grade (with or without expected_elements)
             return VisionAnalysisResult(
                 image_uri=str(image_uri),
-                passed=is_valid,
-                score=0.5 if is_valid else 0.1,
+                passed=False,
+                score=0.1 if not is_valid else 0.2,
                 width=0,
                 height=0,
                 format=path.suffix.lstrip(".").upper() or "UNKNOWN",
                 color_mode="UNKNOWN",
                 is_blank_placeholder=not is_valid,
                 description=(
-                    f"Pillow not installed; size-only check ({file_size} bytes). "
-                    "pip install pillow for real image QA"
-                    if is_valid
-                    else "Tiny image placeholder detected (Pillow unavailable)"
+                    "OCR_UNAVAILABLE size_only_not_claim_grade — "
+                    + install_hint("tesseract")
+                    if expected
+                    else (
+                        "size_only_not_claim_grade — pip install pillow "
+                        f"(saw {file_size} bytes; not claim-grade without PIL)"
+                    )
                 ),
                 expected_elements=expected,
+                elements_missing=expected,
+                ocr_engine="unavailable",
             )
 
         try:
@@ -188,7 +175,7 @@ class VisionBridge:
                         color_mode=color_mode,
                         is_blank_placeholder=is_blank,
                         description=(
-                            "expected_elements provided but OCR unavailable — "
+                            "OCR_UNAVAILABLE — expected_elements cannot be claim-grade — "
                             + install_hint("tesseract")
                         ),
                         expected_elements=expected,

@@ -71,10 +71,12 @@ class BlastRadiusReport:
         return f"Symbol: {self.symbol}, Files: {len(self.files)}, Dependents: {len(self.dependents)}"
 
     def to_evidence_payload(self) -> dict:
+        extra = getattr(self, "payload_extra", None) or {}
         return {
             "symbol": self.symbol,
             "files": self.files,
             "dependents": self.dependents,
+            **extra,
         }
 
 
@@ -119,24 +121,112 @@ def get_failing_slice(output: str, workspace_root: Optional[str | Path] = None) 
 
 
 def blast_radius(symbol: str, workspace_root: str | Path) -> BlastRadiusReport:
+    """Find files that reference ``symbol`` via AST (optional ripgrep candidate filter)."""
+    import ast
+    import re
+    import subprocess
+
     root = Path(workspace_root)
     affected_files: List[str] = []
-    dependents: List[str] = []
+    engine = "python_ast"
+    sym = (symbol or "").strip()
+    if not sym or not root.exists():
+        return BlastRadiusReport(symbol=symbol, files=[], dependents=[])
 
-    if root.exists():
-        for py_file in root.rglob("*.py"):
+    skip_parts = {"venv", "__pycache__", "node_modules", "dist", ".git"}
+
+    def _skip(p: Path) -> bool:
+        return any(part.startswith(".") or part in skip_parts for part in p.parts)
+
+    candidates: Optional[List[Path]] = None
+    rg = _find_dev_binary("rg")
+    if rg:
+        try:
+            cmd = [rg, "-l", "--glob", "*.py", "-w", "--", sym, str(root)]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            candidates = []
+            for line in proc.stdout.splitlines():
+                p = Path(line.strip())
+                if p.is_file() and not _skip(p):
+                    candidates.append(p)
+            engine = "ripgrep+ast"
+        except Exception:
+            candidates = None
+            engine = "python_ast"
+
+    name_re = re.compile(rf"(?<!\w){re.escape(sym)}(?!\w)")
+
+    class _Hit(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.hit = False
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if node.id == sym:
+                self.hit = True
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if node.attr == sym:
+                self.hit = True
+            self.generic_visit(node)
+
+        def visit_alias(self, node: ast.alias) -> None:
+            parts = (node.name or "").split(".")
+            if node.name == sym or node.asname == sym or sym in parts:
+                self.hit = True
+            self.generic_visit(node)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            if node.name == sym:
+                self.hit = True
+            self.generic_visit(node)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            if node.name == sym:
+                self.hit = True
+            self.generic_visit(node)
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            if node.name == sym:
+                self.hit = True
+            self.generic_visit(node)
+
+    files_iter = candidates if candidates is not None else [
+        p for p in root.rglob("*.py") if not _skip(p)
+    ]
+
+    used_regex = False
+    for py_file in files_iter:
+        try:
+            content = py_file.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        hit = False
+        try:
+            tree = ast.parse(content, filename=str(py_file))
+            visitor = _Hit()
+            visitor.visit(tree)
+            hit = visitor.hit
+        except SyntaxError:
+            if name_re.search(content):
+                hit = True
+                used_regex = True
+        if hit:
             try:
-                content = py_file.read_text(encoding="utf-8", errors="ignore")
-                if symbol in content:
-                    rel_path = str(py_file.relative_to(root))
-                    affected_files.append(rel_path)
-                    dependents.append(rel_path)
-            except Exception:
-                pass
+                rel = str(py_file.resolve().relative_to(root.resolve()))
+            except ValueError:
+                rel = str(py_file)
+            if rel not in affected_files:
+                affected_files.append(rel)
 
-    return BlastRadiusReport(
-        symbol=symbol, files=affected_files, dependents=dependents
-    )
+    if used_regex and engine == "python_ast":
+        engine = "regex_fallback"
+    elif used_regex and engine == "ripgrep+ast":
+        engine = "ripgrep+ast+regex"
+
+    report = BlastRadiusReport(symbol=symbol, files=affected_files, dependents=list(affected_files))
+    report.payload_extra = {"engine": engine}  # type: ignore[attr-defined]
+    return report
 
 
 def check_edit_safe(
