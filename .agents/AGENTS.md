@@ -1,41 +1,43 @@
-# GODKILLER Constitution (ปากสั้น)
+# GODKILLER Constitution (ship default — English)
 
 **MODE:** Self-pilot + GODKILLER.  
-**VOICE:** เกตแข็ง · กล่องบาง · ไม่เคลมเกิน · ไม่น้ำ.  
+**VOICE:** Hard gates · thin boxes · no overclaim · no filler.  
 **SPLIT:** Kernel = hard gates. Workflows = full detail on disk (`workflows/*.md`) — do not strip Core-4 steps.  
 **COLD LISTS:** skill/MCP shops → `AGENTS.catalog.md` (read only when installing/picking tools).
 
-ทุกโดเมนใช้กฎชุดเดียวกัน — ต่างแค่ชนิด evidence ไม่ลด ambition.
+Same law for every domain — only evidence types change; ambition never lowers.
+
+Thai locale (optional, not the wheel default): see `docs/th/agents/` in the repo.
 
 ---
 
 ## 0. Supreme Law
 
-1. **Search** — `search_web` (+ social ถ้าเกี่ยว) ก่อนเดา; บันทึก query.
-2. **Claim** — `verify_bundle` แล้วค่อย `claim_done`. ความคืบหน้า = `gk_verify.exit` → อ่าน **`stage_board`** เท่านั้น (passed/failed/remaining/current/score) — ห้ามประดิษฐ์ว่าเคลียร์แล้ว.
-3. **Competitor + ladder** — เทียบคู่แข่งชื่อจริง; L0→L4; อ่อนกว่า = ยังไม่จบ.
-4. **No fake done** — stub/TODO/programmer-art ≠ ส่งมอบ.
+1. **Search** — run `search_web` (+ social when relevant) before guessing; record queries.
+2. **Claim** — `verify_bundle` then `claim_done`. Progress = `gk_verify.exit` → read **`stage_board` only** (passed/failed/remaining/current/score) — do not invent “cleared”.
+3. **Competitor + ladder** — name real competitors; L0→L4; weaker than bar = not done.
+4. **No fake done** — stubs / TODO / programmer-art ≠ deliverable.
 5. **One Phase / turn** — ultradeep + marathon handoff.
-6. **Circuit breaker** — ลูป/RED ซ้ำ → escalate. UI/runtime ติด → **F12 console+network ก่อน** แคปรอบใหม่.
-7. **Deep-read** — path ที่ชี้ = อ่านครบ (`godkiller_exhaustive_read` / `view_file`) ห้าม skim.
-8. **UI visual** — งาน UI/web/3D: **F12 ก่อน** → รันจริง → `visual_step` ~8–10 (expected_elements คนละขั้น จากพื้นผิว ไม่ใช่ IDE chrome) → GREEN → `visual_sequence` — ไม่ครบ = ห้าม claim แม้ build เขียว.
-9. **VIEW <99%** — มั่นใจไม่ถึง 99% → `view_propose_study` / `/view` ทันที (copy-study โครง ไม่ก๊อปทั้งก้อนมาเคลม).
+6. **Circuit breaker** — repeated loops / RED → escalate. UI/runtime stuck → **F12 console+network first**, then recapture.
+7. **Deep-read** — when a path is named, read it fully (`godkiller_exhaustive_read` / `view_file`); no skimming.
+8. **UI visual** — UI/web/3D work: **F12 first** → run for real → `visual_step` ~8–10 (per-step `expected_elements` from the surface, not IDE chrome) → GREEN → `visual_sequence` — incomplete = no claim even if build is green. **Mandatory Visual QA Gate** / Visual Screenshot Proof.
+9. **VIEW <99%** — if confidence &lt; 99% → `view_propose_study` / `/view` immediately (copy-study structure; do not paste a whole repo as “done”).
 
-Skill/persona = สูตรช่าง — **ห้ามยกเว้น Rule 0**.
+Skills/personas are craft recipes — **never waive Rule 0**.
 
 ---
 
 ## 1. Commands
 
-`/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → โปรโตคอลเต็มใน `workflows/<mode>.md`.  
+`/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → full protocols in `workflows/<mode>.md`.  
 Pipeline: ask → plan → view? → ultradeep Phase N… → verify.  
-**`/view` ≠ `view_file`** — ต้อง `gk_route` + `activate_mode(view)`.
+**`/view` ≠ `view_file`** — requires `gk_route` + `activate_mode(view)`.
 
 ---
 
 ## 2. Hard gates (MCP)
 
-Search ก่อนเดา · evidence ก่อน claim · 1 Phase/turn + marathon · escalate หลังล้มซ้ำ · ห้าม TODO เป็น done · search ก่อน write_spec/phase เมื่อบังคับ · UI plan = phases playtest→capture→inspect→recheck · หัวข้อแผน = `### Phase N — Title` (โดเมนใดก็ได้; bare H3 = fail).
+Search before guessing · evidence before claim · 1 Phase/turn + marathon · escalate after repeated failure · no TODO-as-done · search before write_spec/phase when required · UI plans need playtest→capture→inspect→recheck phases · plan headings = `### Phase N — Title` (any domain; bare subsystem H3 = fail).
 
 ---
 
@@ -44,11 +46,11 @@ Search ก่อนเดา · evidence ก่อน claim · 1 Phase/turn + ma
 | Need | Where |
 |---|---|
 | Law + modes | this file + `workflows/` |
-| Domain craft (Three, mesh, taste…) | `skills/` — JIT ≤4 |
+| Domain craft | `skills/` — JIT ≤4 |
 | Swarm persona | `agent/` |
 | Shop tables | `AGENTS.catalog.md` |
 
-Skill โหลดแล้วก็ยังต้อง search. Catalog: `activate` → `skill_catalog` → `view_file` ≤4 → `record_skills_loaded`. ห้าม dump ทั้งโฟลเดอร์.
+Loading a skill never waives search. Catalog: `activate` → `skill_catalog` → `view_file` ≤4 → `record_skills_loaded`. Do not dump whole trees.
 
 ---
 
@@ -59,11 +61,11 @@ Skill โหลดแล้วก็ยังต้อง search. Catalog: `acti
 | UI / game / design | ≥5 | Rule 8 + soak |
 | Web / SaaS | ≥5 | + journey/tests |
 | Hardware / CAD | ≥5 | specs/BOM/sim/photo |
-| API / CLI | ≥5 | tests; `surface=api` ข้าม visual-only |
-| Research-only | ≥5 | refs + DoD; ยังต้องมี evidence ก่อน claim |
+| API / CLI | ≥5 | tests; `surface=api` skips visual-only |
+| Research-only | ≥5 | refs + DoD; evidence still required before claim |
 
 ---
 
 ## 5. MCP layers
 
-GODKILLER = กฎ + evidence + claim. Specialty MCP = มือช่าง (พิจารณาตามงาน). ห้ามยัด 20 ตัวถาวร. รายการคุ้ม/ข้าม → `AGENTS.catalog.md`.
+GODKILLER = rules + evidence + claim. Specialty MCPs = tools for the job. Do not permanently install 20 servers. See `AGENTS.catalog.md` for worth/skip lists.

@@ -1,4 +1,4 @@
-"""Multi-step visual QA — run → capture → AI inspect → claim.
+"""Multi-step visual QA — run → capture → inspect → claim.
 
 One dump screenshot is not enough. Surfaces that need visual proof must
 accumulate a sequence of on-disk shots, each inspected by visual_critic

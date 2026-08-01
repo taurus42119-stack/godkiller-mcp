@@ -3,14 +3,17 @@
 MCP used to pass plan_validate on 9-step JSON + keyword intents while the
 Markdown artifact used bare technical H3s (module/system names). That hides
 the phase ladder from humans. Domain-agnostic: games, SaaS, hardware, APIs.
+
+Thai «เฟส» matchers: only when GODKILLER_LOCALE=th (optional locale, not default).
 """
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
-# Canonical visible form: ### Phase 1 — Title  (also ## / ####, Thai เฟส, checklist)
+# Canonical visible form: ### Phase 1 — Title  (also ## / ####, checklist)
 PHASE_HEADING_RE = re.compile(
     r"^(#{2,4})\s*Phase\s+(\d+)\s*(?:[—\-:–]\s*|\s+)?(.*)$",
     re.I | re.M,
@@ -23,6 +26,18 @@ PHASE_LIST_RE = re.compile(
     r"^[-*]\s*(?:\[[ xX]\]\s*)?Phase\s+(\d+)\s*(?:[—\-:–]\s*|\s+)?(.*)$",
     re.I | re.M,
 )
+
+
+def _locale_th() -> bool:
+    return os.environ.get("GODKILLER_LOCALE", "").strip().lower() in ("th", "thai", "th-th")
+
+
+def _phase_heading_regexes() -> tuple[re.Pattern[str], ...]:
+    if _locale_th():
+        return (PHASE_HEADING_RE, PHASE_TH_RE, PHASE_LIST_RE)
+    return (PHASE_HEADING_RE, PHASE_LIST_RE)
+
+
 # Any markdown ### / ## heading (for anti-pattern detection)
 ANY_HEADING_RE = re.compile(r"^(#{2,4})\s+(.+)$", re.M)
 
@@ -49,23 +64,29 @@ def _phase_name_ok(name: str) -> Optional[Dict[str, Any]]:
             "raw": s,
             "level": len(m.group(1)),
         }
-    m = PHASE_TH_RE.match(s) or PHASE_TH_RE.search(s)
-    if m:
-        return {
-            "n": int(m.group(2)),
-            "title": (m.group(3) or "").strip(),
-            "raw": s,
-            "level": len(m.group(1)),
-        }
+    if _locale_th():
+        m = PHASE_TH_RE.match(s) or PHASE_TH_RE.search(s)
+        if m:
+            return {
+                "n": int(m.group(2)),
+                "title": (m.group(3) or "").strip(),
+                "raw": s,
+                "level": len(m.group(1)),
+            }
     m = PHASE_LIST_RE.match(s) or PHASE_LIST_RE.search(s)
     if m:
         return {"n": int(m.group(1)), "title": (m.group(2) or "").strip(), "raw": s}
     loose = re.match(r"^Phase\s+(\d+)\b\s*(?:[—\-:–]\s*)?(.*)$", s, re.I)
     if loose:
         return {"n": int(loose.group(1)), "title": (loose.group(2) or "").strip(), "raw": s}
-    loose_th = re.match(r"^เฟส\s*(\d+)\b\s*(?:[—\-:–]\s*)?(.*)$", s)
-    if loose_th:
-        return {"n": int(loose_th.group(1)), "title": (loose_th.group(2) or "").strip(), "raw": s}
+    if _locale_th():
+        loose_th = re.match(r"^เฟส\s*(\d+)\b\s*(?:[—\-:–]\s*)?(.*)$", s)
+        if loose_th:
+            return {
+                "n": int(loose_th.group(1)),
+                "title": (loose_th.group(2) or "").strip(),
+                "raw": s,
+            }
     return None
 
 
@@ -86,7 +107,7 @@ def extract_phase_headings(
         found.append(info)
 
     blob = text or ""
-    for rx in (PHASE_HEADING_RE, PHASE_TH_RE, PHASE_LIST_RE):
+    for rx in _phase_heading_regexes():
         for m in rx.finditer(blob):
             if rx is PHASE_LIST_RE:
                 _add({"n": int(m.group(1)), "title": (m.group(2) or "").strip(), "raw": m.group(0)})
@@ -125,7 +146,9 @@ def extract_non_phase_headings(text: str) -> List[str]:
     out: List[str] = []
     for m in ANY_HEADING_RE.finditer(text or ""):
         body = (m.group(2) or "").strip()
-        if re.match(r"^(Phase|เฟส)\s*\d+\b", body, re.I):
+        if re.match(r"^Phase\s*\d+\b", body, re.I):
+            continue
+        if _locale_th() and re.match(r"^เฟส\s*\d+\b", body):
             continue
         # Ignore top-level plan schema sections (1. Core Objective, etc.)
         if re.match(

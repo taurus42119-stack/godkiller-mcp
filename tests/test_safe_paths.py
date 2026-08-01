@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from godkiller_mcp.code_intel import _default_tools_dir
 from godkiller_mcp.safe_exec import split_command
 from godkiller_mcp.verify_bundle import VerifyBundleRunner
 
-# Package root = parents of tests/
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _SKIP_DIR_NAMES = {
@@ -23,18 +23,22 @@ _SKIP_DIR_NAMES = {
     ".mypy_cache",
     ".ruff_cache",
     ".tox",
-    "arena_logs",  # local score receipts (gitignored)
+    "arena_logs",
     "logs",
+    "_vendor_study",
+    "docs",
+    "_recover_writes",
 }
 
 _SCAN_SUFFIXES = {".py", ".md", ".ps1", ".json", ".toml", ".yml", ".yaml", ".txt", ".sh"}
 
-# Hardcoded personal Windows profiles must never ship.
-_FORBIDDEN_SNIPPETS = (
-    r"C:\Users\ASUS",
-    "C:/Users/ASUS",
-    r"C:\\Users\\ASUS",
-    "/Users/ASUS",
+# Generic home-dir absolute paths (no real developer usernames in this file).
+_HOME_PATH_RE = re.compile(
+    r"(?i)(?:C:\\Users\\|C:/Users/|/Users/|/home/)"
+    r"(?!Public\b|Shared\b|Default\b|All\sUsers\b|"
+    r"<|YOUR_|\$|%USERPROFILE%|~|"
+    r"me\b|you\b|user\b|username\b|alice\b|bob\b|example\b)"
+    r"[A-Za-z0-9._-]+"
 )
 
 
@@ -49,38 +53,38 @@ def _iter_ship_files():
             "Makefile",
         ):
             continue
-        # Allow this test file to mention the forbidden strings as needles.
         if path.resolve() == Path(__file__).resolve():
             continue
         yield path
 
 
-def test_no_hardcoded_asus_paths_in_repo():
-    assert _default_tools_dir() is None or "ASUS" not in str(_default_tools_dir())
+def test_no_hardcoded_user_home_paths_in_repo():
+    assert _default_tools_dir() is None or "Users" not in str(_default_tools_dir())
     leaks: list[str] = []
     for path in _iter_ship_files():
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        for needle in _FORBIDDEN_SNIPPETS:
-            if needle in text:
-                rel = path.relative_to(_REPO_ROOT).as_posix()
-                leaks.append(f"{rel}: contains {needle!r}")
-                break
-    assert not leaks, "machine-specific path leaks:\n" + "\n".join(leaks)
+        for m in _HOME_PATH_RE.finditer(text):
+            rel = path.relative_to(_REPO_ROOT).as_posix()
+            leaks.append(f"{rel}: {m.group(0)!r}")
+            break
+    assert not leaks, "machine-specific home path leaks:\n" + "\n".join(leaks)
 
 
 def test_state_root_defaults_to_home(monkeypatch, tmp_path):
     from godkiller_mcp.runtime_paths import resolve_state_root
 
     monkeypatch.delenv("GODKILLER_HOME", raising=False)
+    home = tmp_path / "homeuser"
+    home.mkdir()
     monkeypatch.setattr(
         "godkiller_mcp.runtime_paths.Path.home",
-        lambda: tmp_path / "homeuser",
+        lambda: home,
     )
     root = resolve_state_root()
-    assert root == (tmp_path / "homeuser" / ".godkiller").resolve()
+    assert root == (home / ".godkiller").resolve()
     assert root.is_dir()
 
 

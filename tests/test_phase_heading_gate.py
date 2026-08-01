@@ -69,7 +69,7 @@ build ledger
                 {"name": "### Phase 3 — Long real playtest / soak"},
                 {"name": "### Phase 4 — Capture stepwise screenshots visual_step"},
                 {"name": "### Phase 5 — AI inspect visual_critic"},
-                {"name": "### Phase 6 — Visual recheck เช็คอีกรอบ"},
+                {"name": "### Phase 6 — Visual recheck pass"},
             ],
         }
     )
@@ -78,6 +78,10 @@ build ledger
     assert good["valid"] is True
 
 
-def test_extract_thai_phase():
-    hs = extract_phase_headings("### เฟส 1 — แกนหลัก\n### เฟส 2 — ทดสอบ")
+def test_extract_thai_phase_requires_locale(monkeypatch):
+    md = "### เฟส 1 — แกนหลัก\n### เฟส 2 — ทดสอบ"
+    monkeypatch.delenv("GODKILLER_LOCALE", raising=False)
+    assert extract_phase_headings(md) == []
+    monkeypatch.setenv("GODKILLER_LOCALE", "th")
+    hs = extract_phase_headings(md)
     assert [h["n"] for h in hs] == [1, 2]

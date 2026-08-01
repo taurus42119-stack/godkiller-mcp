@@ -591,7 +591,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         stage_board = None
         if not allowed:
             graph = workflow.what_blocked_claim_done(state.handle.task_id, reason)
-            # Prefer last exit_checklist board so agent sees ด่านๆ progress
+            # Prefer the latest exit_checklist board for stage progress.
             for ev in reversed(state.evidence):
                 payload = ev.payload or {}
                 if str(payload.get("source") or "") != "exit_checklist":

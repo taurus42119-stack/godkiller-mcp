@@ -49,7 +49,7 @@ cfg = {
     "mcpServers": {
         "chrome-devtools": {
             "command": "npx",
-            "args": ["-y", "chrome-devtools-mcp@latest"],
+            "args": ["-y", os.environ.get("CHROME_DEVTOOLS_MCP_SPEC", "chrome-devtools-mcp@0.6.0")],
         },
         "jcodemunch-mcp": {
             "command": jcodemunch,

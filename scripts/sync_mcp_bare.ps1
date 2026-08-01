@@ -14,11 +14,12 @@ function Resolve-Tool([string]$EnvKey, [string]$DefaultName) {
 $jcode = Resolve-Tool "JCODEMUNCH_MCP" "jcodemunch-mcp"
 $cmem = Resolve-Tool "CODEBASE_MEMORY_MCP" "codebase-memory-mcp"
 
+$cdt = if ($env:CHROME_DEVTOOLS_MCP_SPEC) { $env:CHROME_DEVTOOLS_MCP_SPEC } else { "chrome-devtools-mcp@0.6.0" }
 $cfg = [ordered]@{
   mcpServers = [ordered]@{
     "chrome-devtools" = [ordered]@{
       command = "npx"
-      args = @("-y", "chrome-devtools-mcp@latest")
+      args = @("-y", $cdt)
     }
     "jcodemunch-mcp" = [ordered]@{
       command = $jcode

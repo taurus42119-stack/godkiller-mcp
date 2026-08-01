@@ -3,7 +3,7 @@
 MCP alone cannot intercept IDE Write. This module is the policy brain:
 host PreToolUse hooks call it (CLI or MCP tool) before bytes hit disk.
 
-Returns Claude-Code-compatible hook decisions:
+Returns host-compatible PreToolUse hook decisions:
   permissionDecision: allow | deny
 """
 
@@ -164,7 +164,7 @@ def _deny(reason: str, *, tool_name: str, extra: Optional[dict] = None) -> Dict[
 
 
 def decide_from_hook_event(event: Dict[str, Any], *, workspace: Optional[str] = None) -> Dict[str, Any]:
-    """Parse Claude/Cursor-style PreToolUse JSON from stdin."""
+    """Parse PreToolUse JSON from stdin (host hook payload)."""
     tool = str(event.get("tool_name") or event.get("tool") or "Write")
     inp = event.get("tool_input") or event.get("input") or {}
     path = (

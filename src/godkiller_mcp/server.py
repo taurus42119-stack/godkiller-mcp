@@ -167,7 +167,7 @@ FACADE_DESC = {
     "gk_task": "Task lifecycle: open, hypothesize, graph, policy, blast_radius, edit_safe, failing_slice.",
     "gk_phase": "Phase machine: assert, claim_done, rubric. Blocks illegal Antigravity phase skips.",
     "gk_evidence": "Evidence: submit, capture_shot, visual_critic, visual_step (~10-shot QA), visual_sequence, screenshot, journey, inspect_image.",
-    "gk_verify": "Verification: bundle, exit (stage_board ด่านๆ), soak, probe, loop_*, competitor, compare, ladder.",
+    "gk_verify": "Verification: bundle, exit (stage_board progress), soak, probe, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
     "gk_code": "Code intel helpers (map/search/read). council/swarm/pipeline/self_heal = best-effort, not magic fix or formal proof.",
     "gk_guard": "Write allowlist brain for host PreToolUse — native Write/Edit cannot bypass when hooked.",

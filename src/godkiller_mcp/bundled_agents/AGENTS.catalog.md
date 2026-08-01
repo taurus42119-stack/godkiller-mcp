@@ -1,32 +1,34 @@
-# AGENTS.catalog — cold lists (ปากสั้น)
+# AGENTS.catalog — cold lists (English ship default)
 
-อ่านเมื่อ**ติดตั้ง / คัด** skill หรือ MCP — ไม่อ่านทุกเทิร์น.  
-กฎจริงอยู่ที่ `AGENTS.md`. North star: proof + law + catalog — ของร้านนอก = อะไหล่ ไม่ใช่ระบบใหม่.
+Read when **installing / selecting** skills or MCP servers — not every turn.  
+Real law lives in `AGENTS.md`. North star: proof + law + catalog — external shops are parts, not a new system.
+
+Thai notes (optional): `docs/th/agents/`.
 
 ---
 
-## Skill shops — กติคัดเข้า
+## Skill shops — intake rules
 
-1. ขาดช่องว่างจริง  
-2. มี `name` + `description` ใน frontmatter  
-3. สแกนความปลอดภัยก่อน (แนว SkillSpector)  
-4. เข้า catalog แล้วโหลดทีละ ≤4  
-5. ห้ามซ้ำของที่มีแล้ว  
+1. Must fill a real gap  
+2. Frontmatter must include `name` + `description`  
+3. Security scan before accept  
+4. Catalog entry, then load ≤4 at a time  
+5. No duplicates of what we already ship  
 
-| Repo | คำแนะนำ |
+| Repo | Advice |
 |---|---|
-| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | คุ้ม — anti-slop UI |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | คัดทีละอัน |
-| [anthropics/skills](https://github.com/anthropics/skills) | อ้างรูปแบบ — อย่า duplicate ทั้งก้อน |
-| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | มีแล้ว — ห้ามซ้ำ |
-| [vercel-labs/skills](https://github.com/vercel-labs/skills) | เครื่องมือติดตั้ง ไม่ใช่เนื้อ |
-| [sickn33/agentic-awesome-skills](https://github.com/sickn33/agentic-awesome-skills) | แนว catalog — เรามี `skill_catalog` แล้ว |
-| [yusufkaraaslan/Skill_Seekers](https://github.com/yusufkaraaslan/Skill_Seekers) | ทีหลัง |
-| [microsoft/SkillOpt](https://github.com/microsoft/SkillOpt) | ทีหลัง |
-| [NVIDIA/SkillSpector](https://github.com/NVIDIA/SkillSpector) | เครื่องมือตรวจก่อนรับของแปลก |
-| [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | ย่อเข้า law — ไม่ต้อง 50 skills |
-| [anbeime/skill](https://github.com/anbeime/skill) / ร้านรวม | อย่าดูดทั้งร้าน |
-| pinchbench / skill-icons / colleague-skill / … | ข้าม — ไม่ช่วย claim gate |
+| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | Worth — anti-slop UI |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | Pick one at a time |
+| [anthropics/skills](https://github.com/anthropics/skills) | Pattern reference — do not duplicate whole tree |
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Already present — do not duplicate |
+| [vercel-labs/skills](https://github.com/vercel-labs/skills) | Install tooling, not content |
+| [sickn33/agentic-awesome-skills](https://github.com/sickn33/agentic-awesome-skills) | Catalog-shaped — we already have `skill_catalog` |
+| [yusufkaraaslan/Skill_Seekers](https://github.com/yusufkaraaslan/Skill_Seekers) | Later |
+| [microsoft/SkillOpt](https://github.com/microsoft/SkillOpt) | Later |
+| [NVIDIA/SkillSpector](https://github.com/NVIDIA/SkillSpector) | Pre-accept scanner for unknown packs |
+| [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | Compress into law — not 50 skills |
+| Aggregator shops | Do not vacuum entire stores |
+| pinchbench / skill-icons / … | Skip — does not help claim gates |
 
 ### Bundled (selected)
 
@@ -38,31 +40,6 @@
 | `threejs-runtime-craft` | Three/WebGL + local mirror + devtools |
 | Vendor trees (addyosmani-skills, …) | craft packs; catalog dedupe |
 
----
+### MCP servers — worth / skip
 
-## MCP shops — กติคัดเข้า
-
-1. ขาดช่องว่างจริง  
-2. ไม่ซ้ำหน้าที่ GODKILLER (อย่าเอา claim/done ซ้ำ)  
-3. โยง evidence ได้  
-4. เปิดตามโปรเจกต์ — ไม่ติดทั้ง awesome-list  
-
-[awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) / [Awesome-MCP-ZH](https://github.com/yzfly/Awesome-MCP-ZH) = ร้าน — GODKILLER ไม่กลืน.
-
-| MCP / repo | คำแนะนำ |
-|---|---|
-| [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | คุ้ม — UI F12 console+network ลำดับ 1 |
-| [DmitriyGolub/threejs-devtools-mcp](https://github.com/DmitriyGolub/threejs-devtools-mcp) | มี — scene/material/light; พิจารณาตามงาน 3D |
-| [@modelcontextprotocol/server-threejs](https://www.npmjs.com/package/@modelcontextprotocol/server-threejs) | มีทางเลือก — preview/docs |
-| [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) | ทางเลือก E2E — อย่าซ้อนคู่ DevTools ถาวร |
-| [ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp) | เมื่อ DCC 3D |
-| [github/github-mcp-server](https://github.com/github/github-mcp-server) | คุ้ม — PR/issues |
-| [DeusData/codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) | คุ้ม — AST/graph |
-| [BrowserMCP/mcp](https://github.com/BrowserMCP/mcp) | ทางเลือกถ้ายังไม่มี browser MCP |
-| [supabase/mcp](https://github.com/supabase/mcp) | เมื่อใช้ Supabase |
-| AWS / Google / Oracle / Salesforce MCP | เมื่อ cloud นั้นเป็นงานจริง |
-| [MicrosoftDocs/mcp](https://github.com/MicrosoftDocs/mcp) | เมื่อ Azure/MS docs |
-| microsoft/mcp · mcp-for-beginners | เรียน/อ้าง — ไม่ติดตั้งทั้งก้อน |
-| [activepieces/activepieces](https://github.com/activepieces/activepieces) | ทีหลัง — อย่าแทน GODKILLER |
-| xiaohongshu / xiaozhi-esp32 | เฉพาะโดเมน |
-| awesome ทั้งก้อน / Elastic เป็น MCP | ข้าม — search ใช้ IDE + GODKILLER gate พอ |
+Prefer job-shaped specialty MCPs. Never treat a third-party MCP as a replacement for GODKILLER claim gates. Full worth/skip tables stay in the workspace catalog when present.

@@ -262,7 +262,7 @@ goal → mode → evidence/plan → gated edit → disk verify → hollow → cl
 
 ### Council
 
-**Host mode (default):** MCP ส่งบท Coder / Hacker / Optimizer ให้โมเดลใน IDE → `council_submit` → `council_finalize`  
+**Host mode (default):** MCP sends Coder / Hacker / Optimizer role briefs to the IDE model → `council_submit` → `council_finalize`  
 
 **API mode (optional):** `GODKILLER_LLM_API_KEY` / `OPENAI_API_KEY` + `mode=api`
 
