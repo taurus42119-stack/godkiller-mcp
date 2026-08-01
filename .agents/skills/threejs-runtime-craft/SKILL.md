@@ -29,9 +29,11 @@ GODKILLER still owns claim/evidence — a clean threejs-devtools inspect does no
 
 ## Local mirror (official source — copy-study)
 
-Default local clone (user machine):
+Put a local clone of three.js anywhere, then point study reads at it (example):
 
-`C:\Users\ASUS\Downloads\three.js-master\three.js-master`
+`$env:USERPROFILE\Downloads\three.js-master\three.js-master`
+
+Or set a project-local path via your own env / notes — **do not commit machine-specific absolute paths**.
 
 - Prefer **project** `node_modules/three` (or `package.json` lock) when versions differ.
 - Mirror may be newer than the project — **match project version** before pasting APIs.

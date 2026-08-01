@@ -182,7 +182,7 @@ Separate root from Isolated. Machine score is `score_game` (build / boot / playa
 **Mega campaign (Isolated 516 + World 1000 + Game):** [`benchmarks/MEGA_AB_PROTOCOL.md`](benchmarks/MEGA_AB_PROTOCOL.md) · `python -m benchmarks.mega_scorecard`
 
 ```powershell
-$env:GODKILLER_GAME_ARENA_ROOT="C:\Users\ASUS\Desktop\GODKILLER_GAME_ARENA"
+$env:GODKILLER_GAME_ARENA_ROOT="$env:USERPROFILE\Desktop\GODKILLER_GAME_ARENA"
 python -m benchmarks.reset_game_arena
 python -m benchmarks.score_game --arm 3_WITHOUT_MCP
 python -m benchmarks.score_game --arm 2_WITH_MCP

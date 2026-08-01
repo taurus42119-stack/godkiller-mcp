@@ -1,19 +1,38 @@
 # Sync Antigravity / Gemini MCP configs: Bare 3 + godkiller as #4 (WITH posture).
-# Also registers the full agent skills tree via ~/.gemini/config/skills.json
-# and points GODKILLER_SKILLS_ROOTS at the same roots for gk_mode.skill_catalog.
+# Portable — no machine-specific absolute paths.
+# Optional env: GODKILLER_WORKSPACE, GODKILLER_PYTHON
 $ErrorActionPreference = "Stop"
 
-$py = "C:\Users\ASUS\AppData\Local\Programs\Python\Python312\python.exe"
-$pkg = "C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\godkiller_mcp_pypi_package"
-$skillsWorkspace = "C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\.agents\skills"
+$pkg = Split-Path -Parent $PSScriptRoot
+$workspace = if ($env:GODKILLER_WORKSPACE) {
+  $env:GODKILLER_WORKSPACE
+} else {
+  Split-Path -Parent $pkg
+}
+$skillsWorkspace = Join-Path $workspace ".agents\skills"
 $writer = Join-Path $pkg "scripts\_write_antigravity_mcp.py"
 
-if (-not (Test-Path $py)) { throw "Python 3.12 not found: $py" }
+function Resolve-Python {
+  if ($env:GODKILLER_PYTHON -and (Test-Path $env:GODKILLER_PYTHON)) {
+    return $env:GODKILLER_PYTHON
+  }
+  $cmd = Get-Command python -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  $cmd = Get-Command py -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  throw "Python not found on PATH. Set GODKILLER_PYTHON to a python.exe."
+}
+
+$py = Resolve-Python
+
 if (-not (Test-Path $pkg)) { throw "Package path missing: $pkg" }
-if (-not (Test-Path $skillsWorkspace)) { throw "Skills root missing: $skillsWorkspace" }
+if (-not (Test-Path $skillsWorkspace)) { throw "Skills root missing: $skillsWorkspace (set GODKILLER_WORKSPACE)" }
 if (-not (Test-Path $writer)) { throw "Writer missing: $writer" }
 
-Write-Host "Ensuring editable godkiller-mcp on Python 3.12..."
+Write-Host "Using python: $py"
+Write-Host "Package: $pkg"
+Write-Host "Workspace: $workspace"
+Write-Host "Ensuring editable godkiller-mcp..."
 & $py -m pip install --no-cache-dir -e $pkg | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "pip install -e failed" }
 
@@ -22,7 +41,6 @@ New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
 $sealFile = Join-Path $cfgDir "godkiller_seal_key.txt"
 if (-not (Test-Path $sealFile)) {
   $seal = (& $py -c "import secrets; print(secrets.token_hex(32))").Trim()
-  # ascii no BOM
   [System.IO.File]::WriteAllText($sealFile, $seal)
   Write-Host "created $sealFile"
 } else {
@@ -45,6 +63,7 @@ $env:GK_SKILLS = $skillsRootsEnv
 $env:GODKILLER_SEAL_KEY = $seal
 $env:GODKILLER_SKILLS_ROOTS = $skillsRootsEnv
 $env:GODKILLER_PROFILE = "ship"
+$env:GODKILLER_WORKSPACE = $workspace
 
 & $py $writer
 if ($LASTEXITCODE -ne 0) { throw "writer failed" }

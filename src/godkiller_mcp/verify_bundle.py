@@ -157,7 +157,7 @@ def _tool_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bool
 
 
 def detect_hacking(command: str, *, cwd: str | Path | None = None) -> Tuple[bool, str]:
-    """Return (blocked, reason). Prefer allowlist over silly substring bans."""
+    """Return (blocked, reason). Prefer allowlist matching over substring heuristics."""
     if not command or not command.strip():
         return True, "Empty verify command"
     if _FORBIDDEN_META.search(command):

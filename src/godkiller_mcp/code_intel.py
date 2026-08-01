@@ -798,7 +798,7 @@ def _regex_security_fallback(pfile: Path, content: str) -> List[Dict[str, Any]]:
 
 
 class DeepScrapeEngine:
-    """Firecrawl-inspired web scraper & HTML-to-clean-LLM-markdown converter."""
+    """Web scraper that converts HTML to clean markdown for LLM context."""
 
     def scrape(self, url_or_html: str, max_length: int = 5000) -> Dict[str, Any]:
         if url_or_html.startswith("http://") or url_or_html.startswith("https://"):

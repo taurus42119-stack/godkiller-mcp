@@ -8,8 +8,9 @@ from pathlib import Path
 
 def resolve_state_root(workspace: str | Path | None = None) -> Path:
     """
-    Prefer GODKILLER_HOME, else <workspace>/.godkiller, else cwd/.godkiller.
+    Prefer GODKILLER_HOME, else <workspace>/.godkiller, else ~/.godkiller.
     Never write under site-packages / the installed package path.
+    Never dump lessons.db into a random cwd when no workspace is set.
     """
     env = os.environ.get("GODKILLER_HOME", "").strip()
     if env:
@@ -17,7 +18,7 @@ def resolve_state_root(workspace: str | Path | None = None) -> Path:
     elif workspace:
         root = Path(workspace).resolve() / ".godkiller"
     else:
-        root = Path.cwd().resolve() / ".godkiller"
+        root = Path.home().resolve() / ".godkiller"
     root.mkdir(parents=True, exist_ok=True)
     return root
 

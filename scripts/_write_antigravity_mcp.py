@@ -1,12 +1,49 @@
-"""Rewrite Antigravity MCP + skills JSON without UTF-8 BOM."""
+"""Rewrite Antigravity MCP + skills JSON without UTF-8 BOM.
+
+Portable: uses PATH / sys.executable / env overrides — no machine-specific paths.
+Env:
+  GK_SEAL (required) — seal key
+  GK_SKILLS (required) — semicolon-separated skill roots
+  GODKILLER_WORKSPACE — optional workspace root (default: parent of this package)
+  GODKILLER_AGENTS_MD / GODKILLER_AGENTS_ROOT — optional overrides
+  JCODEMUNCH_MCP / CODEBASE_MEMORY_MCP — optional absolute commands
+"""
 from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
 from pathlib import Path
 
 seal = os.environ["GK_SEAL"].strip()
 skills = os.environ["GK_SKILLS"].strip()
+
+PKG_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE = Path(
+    os.environ.get("GODKILLER_WORKSPACE", str(PKG_ROOT.parent))
+).expanduser().resolve()
+AGENTS_ROOT = Path(
+    os.environ.get("GODKILLER_AGENTS_ROOT", str(WORKSPACE / ".agents"))
+).expanduser().resolve()
+AGENTS_MD = Path(
+    os.environ.get("GODKILLER_AGENTS_MD", str(AGENTS_ROOT / "AGENTS.md"))
+).expanduser().resolve()
+
+
+def _cmd(env_key: str, *candidates: str) -> str:
+    explicit = os.environ.get(env_key, "").strip()
+    if explicit:
+        return explicit
+    for name in candidates:
+        found = shutil.which(name)
+        if found:
+            return found
+    return candidates[0]
+
+
+jcodemunch = _cmd("JCODEMUNCH_MCP", "jcodemunch-mcp")
+codebase_memory = _cmd("CODEBASE_MEMORY_MCP", "codebase-memory-mcp")
 
 cfg = {
     "mcpServers": {
@@ -15,38 +52,36 @@ cfg = {
             "args": ["-y", "chrome-devtools-mcp@latest"],
         },
         "jcodemunch-mcp": {
-            "command": r"C:\Users\ASUS\AppData\Local\Programs\Python\Python312\Scripts\jcodemunch-mcp.exe",
+            "command": jcodemunch,
             "args": [],
         },
         "codebase-memory-mcp": {
-            "command": r"C:\Users\ASUS\AppData\Local\Programs\codebase-memory-mcp\codebase-memory-mcp.exe",
+            "command": codebase_memory,
         },
         "godkiller": {
-            "command": r"C:\Users\ASUS\AppData\Local\Programs\Python\Python312\python.exe",
+            "command": sys.executable,
             "args": ["-m", "godkiller_mcp.server"],
             "env": {
                 "GODKILLER_PROFILE": "ship",
                 "GODKILLER_SEAL_KEY": seal,
                 "GODKILLER_SKILLS_ROOTS": skills,
-                "GODKILLER_AGENTS_MD": r"C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\.agents\AGENTS.md",
-                "GODKILLER_AGENTS_ROOT": r"C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\.agents",
+                "GODKILLER_AGENTS_MD": str(AGENTS_MD),
+                "GODKILLER_AGENTS_ROOT": str(AGENTS_ROOT),
             },
         },
     }
 }
 
-skills_json = {
-    "entries": [
-        {"path": r"C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\.agents\skills"},
-        {"path": r"C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\.agents\skills\agent-ops"},
-        {
-            "path": r"C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\godkiller_mcp_pypi_package\.agents\skills"
-        },
-        {
-            "path": r"C:\Users\ASUS\Desktop\ANTIGRAVITY MCP\godkiller_mcp_pypi_package\src\godkiller_mcp\bundled_skills\agent-ops"
-        },
-    ]
-}
+skill_entries = []
+for p in (
+    AGENTS_ROOT / "skills",
+    AGENTS_ROOT / "skills" / "agent-ops",
+    PKG_ROOT / ".agents" / "skills",
+    PKG_ROOT / "src" / "godkiller_mcp" / "bundled_skills" / "agent-ops",
+):
+    if p.is_dir():
+        skill_entries.append({"path": str(p)})
+skills_json = {"entries": skill_entries}
 
 home = Path.home()
 paths = [
@@ -84,7 +119,6 @@ print(
     sum(1 for e in cat if e.get("family") == "agent-ops"),
 )
 
-# smoke: import server with seal set
 from godkiller_mcp.server import FACADE_ACTIONS
 
 print("facades=", sorted(FACADE_ACTIONS.keys()))
