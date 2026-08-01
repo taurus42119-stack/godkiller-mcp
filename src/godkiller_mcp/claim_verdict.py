@@ -41,7 +41,7 @@ NEXT_ACTION: Dict[str, str] = {
     "verify": "Run server verify_bundle (disk + digest); do not paste terminal text.",
     "freshness": "Code changed after verify — rerun verify_bundle and fault_probe.",
     "hollow": "Remove placeholders / unfinished bodies; re-verify; retry.",
-    "plan": "Validate 9-step plan; keep edits inside plan envelope.",
+    "plan": "Validate 9-step plan (+ UI playtest phases if UI); keep edits inside plan envelope.",
     "fault_probe": "Tests too shallow (survivors) — deepen tests; rerun fault_probe.",
     "exit": "Call gk_verify.exit until directive=pass, then claim_done.",
     "council": "Run council with Hacker refute-first → finalize COUNCIL_PASS.",
@@ -51,7 +51,7 @@ NEXT_ACTION: Dict[str, str] = {
     "skill": "Satisfy skill gate, then retry claim_done.",
     "tool_propose": "Propose 5–10 tools → approve or reject_all → tool_used if approved.",
     "quality": "Raise quality/competitor/ladder evidence, then retry.",
-    "ui_proof": "Submit UI_JOURNEY or SCREENSHOT evidence, then retry.",
+    "ui_proof": "Run app → gk_evidence.visual_step (~10 step_ids) with expected_elements → GREEN critics → retry.",
     "phase_close": "Legal phase path to CLAIM_DONE required before close.",
 }
 
@@ -113,7 +113,7 @@ def classify_from_reason(reason: str, *, gate: Optional[str] = None) -> str:
         return "phase"
     if "rubric" in r:
         return "rubric"
-    if "ui_journey" in r or "screenshot" in r or "ui proof" in r:
+    if "ui_journey" in r or "screenshot" in r or "ui proof" in r or "visual sequence" in r:
         return "ui_proof"
     if "feedback" in r or "handoff" in r:
         return "handoff"
@@ -138,8 +138,16 @@ def build_claim_payload(
     results: Optional[Sequence[Any]] = None,
     graph: Optional[Dict[str, Any]] = None,
     action: Optional[str] = None,
+    detail: bool = False,
+    stage_board: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Structured claim response — status is authoritative."""
+    """Structured claim response — status is authoritative.
+
+    Compact by default (token-cheap). detail=True keeps long mouth/graph.
+    """
+    from godkiller_mcp.compact_io import verbose_enabled
+
+    detail = verbose_enabled(detail)
     if allowed:
         g = "ok"
     elif gate and gate in KNOWN_GATE_TOKENS:
@@ -154,23 +162,71 @@ def build_claim_payload(
         "layer": LAYER.get(g, g),
         "reason": reason,
         "action": action,
-        # Contract: agent proposes; harness decides
-        "agent_role": {
+        "verdict": "DONE" if allowed else "NOT_DONE",
+    }
+    if not allowed:
+        out["next"] = NEXT_ACTION.get(g, "Fix blocking gate, re-prove, retry claim_done.")
+        # Mini board when we only know the blocking gate
+        out["stage_board"] = stage_board or {
+            "passed": [],
+            "failed": [{"gate": g, "detail": reason}],
+            "remaining": [g],
+            "current": g,
+            "score": "blocked",
+            "confirm": f"NOT CONFIRMED — failed stage [{g}]. Clear it, then re-verify/exit.",
+        }
+    else:
+        out["stage_board"] = stage_board or {
+            "passed": ["claim"],
+            "failed": [],
+            "remaining": [],
+            "current": None,
+            "score": "done",
+            "confirm": "CONFIRMED — all required stages clear. Task may report done.",
+        }
+    if detail:
+        out["agent_role"] = {
             "may_propose_done": True,
             "may_decide_done": False,
             "chat_summary_is_not_status": True,
-        },
-    }
-    if not allowed:
-        out["next"] = NEXT_ACTION.get(g, "Fix the blocking gate, re-prove on disk, retry claim_done.")
-        out["verdict"] = "NOT_DONE"
-    else:
-        out["next"] = "Task closed by harness — chat may report done only after this status."
-        out["verdict"] = "DONE"
+            "narrate_from_stage_board": True,
+        }
+        out["honest_mouth"] = (
+            "This JSON is authoritative for claim_done. "
+            "Chat narration cannot override status/gate. "
+            "Narrate progress from stage_board only."
+        )
+        if allowed:
+            out["next"] = "Task closed by harness — chat may report done only after this status."
     if results is not None:
-        out["results"] = [
-            r.model_dump() if hasattr(r, "model_dump") else r for r in results
-        ]
-    if graph is not None:
+        # Compact: keep pass/fail summaries, not full dumps unless detail
+        if detail:
+            out["results"] = [
+                r.model_dump() if hasattr(r, "model_dump") else r for r in results
+            ]
+        else:
+            slim = []
+            for r in results:
+                d = r.model_dump() if hasattr(r, "model_dump") else (r if isinstance(r, dict) else {"value": r})
+                if isinstance(d, dict):
+                    slim.append(
+                        {
+                            k: d[k]
+                            for k in ("id", "name", "passed", "ok", "gate", "summary", "reason")
+                            if k in d
+                        }
+                        or d
+                    )
+                else:
+                    slim.append(d)
+            out["results"] = slim
+    if graph is not None and detail:
         out["graph"] = graph
+    elif graph is not None and not allowed:
+        # One-line blocker only
+        blocked = graph.get("blocked") if isinstance(graph, dict) else None
+        reason_g = graph.get("reason") if isinstance(graph, dict) else None
+        out["blocked"] = blocked if blocked is not None else True
+        if reason_g and reason_g != reason:
+            out["graph_reason"] = reason_g
     return out

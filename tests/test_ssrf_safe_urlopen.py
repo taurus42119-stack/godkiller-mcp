@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import urllib.request
 from unittest.mock import patch
 
 import pytest
@@ -88,6 +90,40 @@ def test_detect_hacking_path_escape():
     assert "escape" in reason.lower() or "workspace" in reason.lower()
 
 
+def test_detect_hacking_ruff_mypy_path_escape(tmp_path):
+    from godkiller_mcp.verify_bundle import detect_hacking
+
+    blocked, reason = detect_hacking("ruff check /etc/passwd", cwd=tmp_path)
+    assert blocked is True
+    assert "escape" in reason.lower() or "workspace" in reason.lower()
+
+    blocked2, reason2 = detect_hacking("mypy ../../secrets", cwd=tmp_path)
+    assert blocked2 is True
+    assert "escape" in reason2.lower() or "workspace" in reason2.lower()
+
+    ok, _ = detect_hacking("ruff check .", cwd=tmp_path)
+    assert ok is False
+
+
+def test_fault_probe_blocks_pytest_outside_workspace(tmp_path):
+    from godkiller_mcp.fault_probe import run_fault_probe
+
+    mod = tmp_path / "calc.py"
+    mod.write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    report = run_fault_probe(
+        workspace=tmp_path,
+        target_file=mod,
+        test_command="python -m pytest /etc/passwd -q",
+        timeout_sec=10,
+        max_mutants=1,
+    )
+    assert report.clean is False
+    assert report.skipped_reason
+    assert "blocked" in (report.skipped_reason or "").lower() or "escape" in (
+        report.skipped_reason or ""
+    ).lower() or "workspace" in (report.skipped_reason or "").lower()
+
+
 def test_soak_blocks_disallowed_command(tmp_path):
     from godkiller_mcp.quality_gates import run_soak
 
@@ -97,3 +133,38 @@ def test_soak_blocks_disallowed_command(tmp_path):
     )
     assert r.passed is False
     assert "allowlist" in r.notes.lower() or "blocked" in r.notes.lower()
+
+
+def test_llm_client_uses_safe_urlopen(monkeypatch):
+    """chat_completion must not call raw urllib.request.urlopen."""
+    import godkiller_mcp.llm_client as lc
+
+    calls = {"safe": 0, "raw": 0}
+
+    class _Resp:
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": '{"vote":"PASS"}'}}]}
+            ).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _safe(*a, **k):
+        calls["safe"] += 1
+        return _Resp()
+
+    def _raw(*a, **k):
+        calls["raw"] += 1
+        raise AssertionError("raw urlopen must not be used")
+
+    monkeypatch.setattr(lc, "safe_urlopen", _safe)
+    monkeypatch.setattr(urllib.request, "urlopen", _raw)
+    cfg = lc.LLMConfig(api_key="sk-test", base_url="https://api.openai.com/v1")
+    out = lc.chat_completion(cfg, "sys", "user")
+    assert "PASS" in out or "vote" in out
+    assert calls["safe"] == 1
+    assert calls["raw"] == 0

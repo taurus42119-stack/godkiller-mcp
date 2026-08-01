@@ -14,7 +14,14 @@ from godkiller_mcp.schema import EvidenceType, TaskKind
 
 
 def _full_plan(goal: str = "ship") -> dict:
-    return {"goal": goal, "steps": {k: f"filled {k}" for k in NINE_STEPS}}
+    steps = {k: f"filled {k}" for k in NINE_STEPS}
+    # Phase headings must be visible in plan text (not bare subsystem H3s).
+    steps["8_test_plan"] = (
+        "### Phase 1 — Implement\n"
+        "### Phase 2 — Verify\n"
+        "filled 8_test_plan"
+    )
+    return {"goal": goal, "steps": steps}
 
 
 def test_fault_probe_kills_weak_equality(tmp_path: Path):

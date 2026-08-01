@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["mcp", "antigravity", "agent", "verification", "policy", "harness"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -34,11 +34,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0,<9",
+    "pytest-asyncio>=0.23.0,<1",
 ]
 scrape = ["beautifulsoup4>=4.12.0,<5"]
 browser = ["playwright>=1.40.0,<2"]
 all = [
     "pytest>=8.0.0,<9",
+    "pytest-asyncio>=0.23.0,<1",
     "beautifulsoup4>=4.12.0,<5",
     "playwright>=1.40.0,<2",
 ]
@@ -56,11 +58,19 @@ Repository = "https://github.com/taurus42119-stack/godkiller-mcp"
 where = ["src"]
 
 [tool.setuptools.package-data]
-godkiller_mcp = ["protocols/*.md", "hooks/*.json", "py.typed"]
+godkiller_mcp = [
+  "protocols/*.md",
+  "hooks/*.json",
+  "py.typed",
+  "bundled_skills/**/*.md",
+  "bundled_agents/**/*.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "benchmarks/gauntlet"]
 pythonpath = ["src", "."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 target-version = "py310"

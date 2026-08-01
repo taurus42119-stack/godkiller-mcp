@@ -7,6 +7,11 @@ description: Bundled /view — adversarial research planning (weaknesses-only).
 
 Research **planning** only. No application code edits.
 
+## [CRITICAL — NOT `view_file`]
+
+Slash `/view` = this adversarial protocol. IDE tool `view_file` ≠ `/view`.
+First tools must be `gk_route` / `activate_mode(view)` / `view_start` — not “I read geometry.js, plan looks OK.”
+
 ## Contract
 
 - Agent proposes; harness seals.
@@ -15,6 +20,7 @@ Research **planning** only. No application code edits.
 
 ## Pipeline (forced)
 
+0. **If confidence < 99%:** `gk_mode.view_propose_study` **immediately** — propose in chat which public repos/files to deep-read (copy-study). Do not silently invent.
 1. `activate_mode({mode:"view", goal, open_kernel_task:true})`
 2. `gk_mode.view_start` — goal + gravity
 3. `view_search` × N (G1≥12 … G4≥30) — each with real `http(s)` URL or `doi:`
@@ -25,6 +31,12 @@ Research **planning** only. No application code edits.
 6. **Alarm:** `view_refute` ≥20–30 findings **attacking the plan** → HOLD | REOPEN | KILL
 7. `view_finalize` — weaknesses-only report ≥200 chars
 8. Optional: `gk_meta.plan_validate` with sealed steps before leaving to code modes
+
+## Example hunt (copy-study)
+
+- Goal: learn file layout / API from a **public reference repo**, then adapt.
+- Allowed: deep-read exemplar files; cite what you will change.
+- Forbidden: paste an entire foreign repo and claim the task done.
 
 ## Forbidden
 

@@ -41,7 +41,7 @@ SKILL_ROUTES: List[tuple] = [
         ".agents/agent/game-developer.md",
     ),
     (
-        ("game", "phaser", "pixi", "godot", "gameplay"),
+        ("game", "phaser", "pixi", "godot", "gameplay", "fps", "webgl"),
         [".agents/skills/game-development/SKILL.md"],
         ".agents/agent/game-developer.md",
     ),
@@ -56,7 +56,49 @@ SKILL_ROUTES: List[tuple] = [
     ),
     (
         ("security", "auth", "owasp", "xss", "sql inject"),
-        [".agents/skills/security-and-hardening/SKILL.md"],
+        [
+            ".agents/skills/security-and-hardening/SKILL.md",
+            ".agents/skills/agent-ops/review-security/SKILL.md",
+        ],
+        None,
+    ),
+    (
+        ("review", "code review", "pr review", "bugbot"),
+        [
+            ".agents/skills/agent-ops/review/SKILL.md",
+            ".agents/skills/agent-ops/review-bugbot/SKILL.md",
+            ".agents/skills/agent-ops/review-security/SKILL.md",
+        ],
+        None,
+    ),
+    (
+        ("pr", "pull request", "ci fail", "merge conflict", "babysit"),
+        [
+            ".agents/skills/agent-ops/babysit/SKILL.md",
+            ".agents/skills/agent-ops/split-to-prs/SKILL.md",
+        ],
+        None,
+    ),
+    (
+        ("automate", "cron", "loop task", "scheduled"),
+        [
+            ".agents/skills/agent-ops/automate/SKILL.md",
+            ".agents/skills/agent-ops/loop/SKILL.md",
+        ],
+        None,
+    ),
+    (
+        ("create skill", "write skill", "skill.md", "agent skill"),
+        [
+            ".agents/skills/agent-ops/create-skill/SKILL.md",
+            ".agents/skills/agent-ops/create-rule/SKILL.md",
+            ".agents/skills/agent-ops/create-hook/SKILL.md",
+        ],
+        None,
+    ),
+    (
+        ("shell", "powershell", "bash script", "terminal command"),
+        [".agents/skills/agent-ops/shell/SKILL.md"],
         None,
     ),
 ]
@@ -138,19 +180,25 @@ class ModeProtocolStore:
         kind: Optional[str] = None,
         slug: Optional[str] = None,
         plan_phase: int = 1,
+        include_protocol: bool = False,
+        verbose: bool = False,
     ) -> Dict[str, Any]:
+        from godkiller_mcp.compact_io import protocol_preview, verbose_enabled
+
         mode = mode.lower().strip().lstrip("/")
         protocol = self.get_protocol(mode)
-        constitution_excerpt = self._constitution_excerpt()
+        fat = verbose_enabled(verbose) or include_protocol
         resolved_kind = kind or MODE_DEFAULT_KIND.get(mode, "feature")
         skill_hints = suggest_skills_for_goal(goal)
 
-        # Progressive: thin shortlist from catalog (descriptions only), not full bodies
         try:
-            from godkiller_mcp.skill_catalog import build_catalog, suggest_from_catalog
+            from godkiller_mcp.skill_catalog import (
+                build_catalog,
+                resolve_skill_roots,
+                suggest_from_catalog,
+            )
 
-            skills_root = self.agents_root / "skills"
-            catalog = build_catalog(skills_root) if skills_root.is_dir() else []
+            catalog = build_catalog(resolve_skill_roots(self.agents_root))
             shortlist_pack = suggest_from_catalog(
                 catalog,
                 goal,
@@ -166,178 +214,116 @@ class ModeProtocolStore:
             }
 
         mandatory = [
-            "SUPREME LAW: applies to EVERY user task (game, software, hardware, web, design, data, other) — domain never lowers the bar.",
-            "You MUST follow the protocol markdown below literally for this turn.",
-            "Do not skip forced search / phase / evidence steps.",
-            "Use GODKILLER tools named in the protocol when available.",
-            "Before claim_done: verify_bundle must exit 0 (Ralph gate).",
-            "Before editing code: blast_radius then check_edit_safe.",
-            "Call record_tool_event on repeated actions; obey REPLAN/ESCALATE.",
-            "Prefer retrieve_lessons_verified over raw retrieve_lessons.",
-            "Always: competitor_scan → compare_delta + ambition_ladder for features; never claim while still_losing.",
-            "Visual/UI/design/hardware-photo surfaces: capture_shot → soak_run → visual_critic GREEN when applicable.",
-            "Non-visual (API/library/CLI): metadata surface=api or require_visual=false — competitor+search still required.",
-            "Placeholders are failures not milestones. Advance ambition_ladder in order (L0→L4).",
-            "Forced search: submit_evidence web_search queries OR marathon_save_progress — skills never waive search.",
-            "Skills do NOT auto-load. Prefer skill_catalog(query=goal, task_id=...) then view_file ≤4 then record_skills_loaded.",
-            "ANTI-OVERCONFIDENCE: FORBIDDEN to skip skill_catalog because you 'already know enough'. Shortlist from activate_mode alone does NOT waive gates.",
-            "POSTURE: pessimistic + win USER goal — assume tools/evidence/self can lie; still deliver what USER asked.",
-            "TOOL DOUBT: any capability gap → tool_propose (5–10 net/registry candidates) immediately; never silent install.",
-            "After propose: tool_approve (pick) OR tool_reject_all (non-hollow why existing tools suffice); if approved → tool_used before claim.",
+            "Gates on disk beat chat. Search before invent. No placeholder-as-done.",
+            "claim_done needs verify_bundle (plus UI visual_step sequence when UI).",
+            "Edits: blast_radius then check_edit_safe. Skills: skill_catalog then <=4 view_file.",
+            "Follow protocol_preview / get_protocol(mode). Prefer compact tool results.",
         ]
         if shortlist_pack.get("shortlist_paths"):
             mandatory.append(
-                "Suggested shortlist (choose ≤4, view_file those): "
-                + ", ".join(shortlist_pack["shortlist_paths"])
-            )
-        if skill_hints["must_view_agent"]:
-            mandatory.append(
-                "MUST view_file persona: " + ", ".join(skill_hints["must_view_agent"])
+                "Shortlist <=4: " + ", ".join(shortlist_pack["shortlist_paths"])
             )
         if mode == "plan":
-            mandatory.append("A plan with zero search_web is INVALID.")
-            mandatory.append("Emit ### Phase N sections for /ultradeep.")
-            mandatory.append(
-                "write_spec(slug, content, search_queries=[...]) — blocked without ≥5 queries for features."
-            )
-        if mode == "ultradeep":
-            mandatory.append("Execute exactly ONE plan Phase this turn, then marathon_save_progress.")
-            mandatory.append("Call marathon_search_gate before leaving research / before first code write.")
-            mandatory.append(
-                "PLAN REFUTE WAKE (HARD): After gk_meta.plan_validate, call ultradeep_plan_refute "
-                "(≥8 attacks on plan steps + ≥5 searches) → HOLD before check_edit_safe."
-            )
-            mandatory.append(
-                "REPAIR WAKE (HARD): If verify_bundle/fault_probe/hollow fails, call "
-                "ultradeep_repair_wake (diagnosis + ≥3 hypotheses) before next edit_safe. "
-                "gk_code.self_heal stays for tool fallback — does not replace repair_wake."
-            )
-            # Additive 200% power — does NOT replace one-phase pacing
             mandatory.extend(
                 [
-                    "PER-FILE LOOP (HARD): For EVERY file you will change: ultradeep_think_file "
-                    "(≥3 hypotheses + deep notes) → ultradeep_plan_file → check_edit_safe(THAT file only) "
-                    "→ edit → verify → ultradeep_advance_file. FORBIDDEN: batch-edit many files in one rush.",
-                    "MAX THINK: Burn tokens inside <think>. Simulate ≥3 architectures + pre-mortem "
-                    "before writing ANY file. Never skip think because 'obvious'.",
-                    "CURSOR AGENT 200%: Use maximal tool swarm every turn — GODKILLER gk_code/gk_scan/"
-                    "gk_browser/gk_evidence/gk_verify + peer MCP jcodemunch + codebase-memory + "
-                    "chrome-devtools when available. Parallel reconnaissance BEFORE writes.",
-                    "Queue targets first: ultradeep_queue_files(paths=[...]) then process current only.",
+                    ">=5 search_web; ### Phase N — Title (not bare module H3s).",
+                    "UI plans: Phase playtest->capture->inspect->recheck; plan_validate.",
+                ]
+            )
+        if mode == "ultradeep":
+            mandatory.extend(
+                [
+                    "ONE Phase this turn + marathon_save. plan_refute HOLD before edit_safe.",
+                    "Per-file: think->plan->edit_safe(one file)->verify->advance. No batch rush.",
+                    "Use needed tools only — not every MCP every turn.",
                 ]
             )
         if mode == "view":
             mandatory.extend(
                 [
-                    "RESEARCH PLAN ONLY — no application code edits in /view.",
-                    "Gravity G1–G4 sets hunt/attack/refute minima (scale of work, not a calendar).",
-                    "Pipeline: view_start → record_search (≥N URLs) → record_attack (cite+stance) "
-                    "→ draft_plan (9-step adversarial) → view_refute_plan (≥20–30 ON THE PLAN) → finalize.",
-                    "Weaknesses-only. Praise / balanced review = Seal fail.",
-                    "One forced refute wake after draft — heavier than ultradeep plan_refute.",
+                    "NOT view_file alone. view_start->search->attack->draft->refute->finalize.",
+                    "No app code edits. Weaknesses-only; praise without HOLD = fail.",
                 ]
             )
         if mode == "ask":
-            mandatory.append("No application code edits.")
+            mandatory.append("No application code edits. Handoff to /plan.")
         if mode == "debug":
-            mandatory.append("No fix before reproduce evidence + hypothesis.")
-            mandatory.append("assert_phase to FIX is blocked until ≥3 search queries recorded.")
             mandatory.extend(
                 [
-                    "SELF-CTF (HARD): Attack THIS workspace only — debug_self_ctf_start → "
-                    "debug_self_ctf_tick / debug_self_ctf_run_until until findings. "
-                    "Forbidden: open-internet / third-party org hunt.",
-                    "Do not stop the tick loop while force_continue=true and no findings yet.",
+                    "No fix before reproduce + hypothesis. >=3 searches before FIX.",
+                    "self_ctf on THIS workspace only when armed.",
                 ]
+            )
+        if mode == "verify":
+            mandatory.append("Empirical proof + claim_done gates only.")
+        if mode in ("ask", "plan", "debug", "ultradeep", "verify", "view"):
+            mandatory.append(
+                "If <99% sure: view_propose_study (exemplar repos) — no silent invention."
             )
 
         next_tools: List[str] = []
         if mode in ("ask", "plan", "debug", "ultradeep", "view"):
-            next_tools.extend(["open_task", "skill_catalog", "record_skills_loaded"])
-        if mode != "ask":
-            next_tools.extend(["tool_propose", "tool_approve", "tool_reject_all", "tool_used"])
+            next_tools.extend(["skill_catalog", "record_skills_loaded"])
+        if mode == "ask":
+            next_tools.extend(["open_task", "submit_evidence"])
         if mode == "plan":
-            next_tools.append("write_spec")
-        if mode == "ultradeep":
             next_tools.extend(
-                [
-                    "swarm_spawn",
-                    "swarm_collect",
-                    "marathon_load_progress or marathon_init",
-                    "marathon_search_gate",
-                    "marathon_save_progress",
-                    "gk_meta.plan_validate",
-                    "ultradeep_plan_refute",
-                    "ultradeep_repair_wake",
-                    "ultradeep_queue_files",
-                    "ultradeep_think_file",
-                    "ultradeep_plan_file",
-                    "ultradeep_file_status",
-                    "ultradeep_advance_file",
-                    "gk_code.map / search / read_full / council",
-                    "gk_scan.security / semgrep",
-                    "gk_browser.navigate / snapshot / screenshot",
-                    "blast_radius",
-                    "check_edit_safe (ONE file)",
-                    "capture_shot",
-                    "visual_critic",
-                    "soak_run",
-                    "set_ambition_ladder",
-                    "competitor_scan",
-                    "compare_delta",
-                    "peer: jcodemunch + codebase-memory + chrome-devtools",
-                ]
+                ["write_spec", "gk_meta.plan_validate", "submit_evidence", "competitor_scan"]
             )
         if mode == "view":
             next_tools.extend(
                 [
+                    "view_propose_study",
                     "view_start",
-                    "view_record_search",
-                    "view_record_attack",
-                    "view_draft_plan",
-                    "view_refute_plan",
+                    "view_search",
+                    "view_attack",
+                    "view_draft",
+                    "view_refute",
                     "view_finalize",
-                    "gk_meta.plan_validate",
-                    "competitor_scan",
-                    "godkiller_deep_scrape",
                 ]
             )
-        if mode == "verify":
-            mandatory.append(
-                "Run verify_bundle; soak_run; visual_critic; competitor_scan+compare_delta if feature; "
-                "write_feedback; then request_claim_done."
-            )
+        if mode == "ultradeep":
             next_tools.extend(
                 [
+                    "ultradeep_plan_refute",
+                    "marathon_search_gate",
+                    "ultradeep_queue_files",
+                    "ultradeep_think_file",
+                    "check_edit_safe",
                     "verify_bundle",
-                    "soak_run",
-                    "visual_critic",
-                    "competitor_scan",
-                    "compare_delta",
-                    "tool_propose",
-                    "tool_approve",
-                    "tool_used",
-                    "write_feedback",
-                    "evaluate_rubric",
-                    "request_claim_done",
+                    "marathon_save_progress",
                 ]
             )
         if mode == "debug":
             next_tools.extend(
                 [
+                    "open_task",
+                    "assert_phase",
+                    "submit_evidence",
                     "debug_self_ctf_start",
-                    "debug_self_ctf_tick",
-                    "debug_self_ctf_run_until",
-                    "swarm_spawn",
                     "blast_radius",
                     "check_edit_safe",
-                    "record_tool_event",
                     "verify_bundle",
-                    "ultradeep_repair_wake",
+                ]
+            )
+        if mode == "verify":
+            next_tools.extend(
+                [
+                    "verify_bundle",
+                    "fault_probe",
+                    "exit_checklist",
+                    "visual_critic",
+                    "request_claim_done",
                 ]
             )
 
-        return {
+        shortlist_thin = [
+            {"path": s.get("path"), "name": s.get("name")}
+            for s in (shortlist_pack.get("shortlist") or [])
+            if isinstance(s, dict)
+        ][:4]
+
+        out: Dict[str, Any] = {
             "mode": mode,
             "goal": goal,
             "kind_suggestion": resolved_kind,
@@ -346,31 +332,37 @@ class ModeProtocolStore:
             "mandatory_rules": mandatory,
             "suggested_next_tools": next_tools,
             "suggested_skills": {
-                **skill_hints,
-                "shortlist": shortlist_pack.get("shortlist") or [],
                 "shortlist_paths": shortlist_pack.get("shortlist_paths") or [],
+                "shortlist": shortlist_thin if not fat else (shortlist_pack.get("shortlist") or []),
                 "max_view_file": shortlist_pack.get("max_view_file") or 4,
-                "how": shortlist_pack.get("rule")
-                or "skill_catalog → pick ≤4 → view_file those only",
+                "must_view_agent": skill_hints.get("must_view_agent") or [],
             },
-            "constitution_excerpt": constitution_excerpt,
-            "protocol_markdown": protocol,
+            "agents_md_path": str(self.agents_md) if self.agents_md.exists() else None,
+            "protocol_preview": protocol_preview(protocol),
+            "protocol_chars": len(protocol),
+            "compact": not fat,
+            "token_hint": (
+                "Compact activate (default). Full protocol: get_protocol or "
+                "activate include_protocol=true. Verbose status: gk_meta.status detail=true. "
+                "Pretty JSON: GODKILLER_JSON_PRETTY=1."
+            ),
             "instruction": (
-                f"MODE ACTIVATED: /{mode}. Obey protocol_markdown exactly. "
-                f"Goal: {goal or '(not set)'}. "
-                + (
-                    "Pick ≤4 from shortlist and view_file: "
-                    + ", ".join(shortlist_pack.get("shortlist_paths") or [])
-                    if shortlist_pack.get("shortlist_paths")
-                    else "Call skill_catalog(query=goal), then view_file ≤4 picks."
-                )
+                f"MODE /{mode} on. Obey protocol_preview (or get_protocol). "
+                f"Goal: {goal or '(not set)'}."
             ),
         }
+        if fat:
+            out["constitution_excerpt"] = self._constitution_excerpt()
+            out["protocol_markdown"] = protocol
+        else:
+            out["protocol_markdown_omitted"] = True
+            out["constitution_excerpt_omitted"] = True
+        return out
 
     def _constitution_excerpt(self) -> str:
         text = self.get_constitution()
-        # Keep activation payload smaller than full AGENTS when huge
         lines = text.strip().splitlines()
-        if len(lines) <= 80:
+        if len(lines) <= 40:
             return text
-        return "\n".join(lines[:80]) + "\n\n…(truncated; call get_constitution for full)…"
+        return "\n".join(lines[:40]) + "\n\n…(truncated; read agents_md_path on disk)…"
+

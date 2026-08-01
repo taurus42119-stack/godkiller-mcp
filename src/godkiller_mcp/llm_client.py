@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import os
 import urllib.error
-import urllib.request
+import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
+
+from godkiller_mcp.ssrf import SafeHTTPError, safe_urlopen
 
 
 ChatFn = Callable[[str, str], str]  # (system, user) -> assistant text
@@ -49,18 +51,23 @@ def chat_completion(config: LLMConfig, system: str, user: str) -> str:
         "response_format": {"type": "json_object"},
     }
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        config.chat_url,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config.api_key}",
-        },
-        method="POST",
-    )
+    host = (urllib.parse.urlparse(config.chat_url).hostname or "").strip().lower()
+    allow = [host] if host else None
     try:
-        with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+        with safe_urlopen(
+            config.chat_url,
+            timeout=float(config.timeout_sec),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            data=data,
+            method="POST",
+            allowed_hosts=allow,
+        ) as resp:
             body = json.loads(resp.read().decode("utf-8"))
+    except SafeHTTPError as e:
+        raise RuntimeError(f"LLM SSRF blocked: {e}") from e
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="ignore")[:500]
         raise RuntimeError(f"LLM HTTP {e.code}: {detail}") from e

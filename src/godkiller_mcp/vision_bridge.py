@@ -18,15 +18,21 @@ except ImportError:
 
 
 def _ocr_text(path: Path) -> tuple[str, str]:
-    """Return (text, engine_name)."""
+    """Return (text, engine_name). Fail-closed: never invent OCR text."""
     try:
+        import shutil
+
         import pytesseract  # type: ignore
-    except ImportError:
-        return "", "none"
-    try:
+
+        t_cmd = shutil.which("tesseract")
+        if not t_cmd:
+            return "", "none"
+        pytesseract.pytesseract.tesseract_cmd = t_cmd
         with Image.open(path) as img:
             text = pytesseract.image_to_string(img) or ""
-        return text, "pytesseract"
+        if text.strip():
+            return text, "pytesseract"
+        return "", "pytesseract_failed"
     except Exception:
         return "", "pytesseract_failed"
 

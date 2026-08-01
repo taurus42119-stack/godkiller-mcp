@@ -24,6 +24,7 @@ def test_blocked_payload_contract():
         reason="verify_bundle evidence missing",
         gate="verify",
         action="block",
+        detail=True,
     )
     assert p["status"] == "blocked"
     assert p["verdict"] == "NOT_DONE"
@@ -31,6 +32,19 @@ def test_blocked_payload_contract():
     assert p["agent_role"]["may_decide_done"] is False
     assert p["agent_role"]["chat_summary_is_not_status"] is True
     assert "verify" in p["next"].lower() or "bundle" in p["next"].lower()
+
+
+def test_blocked_payload_compact_omits_mouth():
+    p = build_claim_payload(
+        allowed=False,
+        reason="verify_bundle evidence missing",
+        gate="verify",
+        action="block",
+    )
+    assert p["status"] == "blocked"
+    assert "agent_role" not in p
+    assert "honest_mouth" not in p
+    assert p["next"]
 
 
 def test_done_payload_contract():
@@ -60,6 +74,7 @@ def test_policy_claim_returns_gate_and_blocked_shape(
         gate=gate,
         results=results,
         action="block",
+        detail=True,
     )
     assert payload["status"] == "blocked"
     assert payload["verdict"] == "NOT_DONE"

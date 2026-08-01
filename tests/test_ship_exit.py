@@ -84,6 +84,12 @@ def test_exit_checklist_rejects_empty_task(tmp_path: Path, monkeypatch: pytest.M
     assert report["ship_mode"] is True
     assert report["blocking"]
     assert report["agent_role"]["may_decide_done"] is False
+    board = report["stage_board"]
+    assert board["remaining"]
+    assert board["current"] == board["remaining"][0]
+    assert "/" in board["score"]
+    assert "CONFIRMED" in board["confirm"] or "FAILED" in board["confirm"]
+    assert board["current"] in board["confirm"] or board["current"] in report["next"]
 
 
 def test_facade_has_exit_checklist():

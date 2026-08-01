@@ -98,8 +98,8 @@ def _pytest_argv_denied(argv: List[str]) -> Tuple[bool, str]:
     return False, ""
 
 
-def _pytest_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bool, str]:
-    """Deny absolute / .. path args that escape work_dir."""
+def _tool_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bool, str]:
+    """Deny absolute / .. path args that escape work_dir (pytest/unittest/ruff/mypy)."""
     lower = [a.lower() for a in argv]
     start = 0
     if lower[:3] in (["python", "-m", "pytest"], ["python3", "-m", "pytest"], ["py", "-m", "pytest"]):
@@ -108,6 +108,19 @@ def _pytest_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bo
         start = 1
     elif lower[:3] in (["python", "-m", "unittest"], ["python3", "-m", "unittest"]):
         start = 3
+    elif lower[:1] == ["ruff"]:
+        start = 1
+        if len(lower) > 1 and lower[1] in (
+            "check",
+            "format",
+            "rule",
+            "linter",
+            "analyze",
+            "clean",
+        ):
+            start = 2
+    elif lower[:1] == ["mypy"]:
+        start = 1
     else:
         return False, ""
     root = work_dir.resolve()
@@ -116,13 +129,17 @@ def _pytest_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bo
         tok = argv[i]
         if tok.startswith("-"):
             # skip flag values that are not paths we care about
-            if tok in ("-k", "-m", "--maxfail", "-n") and i + 1 < len(argv):
+            if tok in ("-k", "-m", "--maxfail", "-n", "--select", "--ignore") and i + 1 < len(
+                argv
+            ):
                 i += 2
                 continue
             i += 1
             continue
         # positional path-like
-        if "/" in tok or "\\" in tok or tok.endswith((".py", ".txt")) or tok.startswith("tests"):
+        if "/" in tok or "\\" in tok or tok.endswith((".py", ".txt", ".toml")) or tok.startswith(
+            ("tests", "src", ".")
+        ):
             p = Path(tok)
             candidate = p if p.is_absolute() else (root / p)
             try:
@@ -130,7 +147,6 @@ def _pytest_paths_outside_workspace(argv: List[str], work_dir: Path) -> Tuple[bo
                 resolved.relative_to(root)
             except (OSError, ValueError):
                 return True, f"verify deny: path escapes workspace: {tok}"
-            # also reject obvious parent escapes in the raw string
             if ".." in Path(tok).parts:
                 try:
                     (root / tok).resolve().relative_to(root)
@@ -166,7 +182,7 @@ def detect_hacking(command: str, *, cwd: str | Path | None = None) -> Tuple[bool
     if denied:
         return True, reason
     if cwd is not None:
-        outside, why = _pytest_paths_outside_workspace(argv, Path(cwd))
+        outside, why = _tool_paths_outside_workspace(argv, Path(cwd))
         if outside:
             return True, why
     return False, ""

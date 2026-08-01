@@ -10,6 +10,7 @@ Reproduce. Attack your own code. Do not touch the open internet.
 4. Then: hypothesis → localize (`blast_radius`) → `check_edit_safe` → fix → `verify_bundle`.
 5. Claim blocked without failing→passing proof.
 6. **Posture:** pessimistic + win USER goal. Capability doubt → `tool_propose` (5–10) → approve/reject_all → `tool_used` if approved. Never silent install.
+7. **UI/runtime (priority #1 for UI):** console + network via `chrome-devtools` / DevTools **before** screenshot theater or `visual_step` loops. Soft for claim_done — hard for good taste when debugging UI.
 
 ## Tools
 

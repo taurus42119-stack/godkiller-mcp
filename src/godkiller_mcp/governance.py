@@ -93,5 +93,6 @@ def require_valid_plan(state) -> tuple[bool, str]:
     return (
         False,
         "Forced gate: write-through-plan — call gk_meta.plan_validate with full 9-step plan "
+        "(UI/web/game must also declare playtest→capture→inspect→recheck phases) "
         "before claim_done / edit_safe.",
     )

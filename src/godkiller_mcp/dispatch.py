@@ -96,7 +96,9 @@ pw_browser = PlaywrightBrowser(artifact_dir=ui_artifacts_dir(STATE_ROOT))
 
 
 def _json(data: Any) -> List[TextContent]:
-    return [TextContent(type="text", text=json.dumps(data, indent=2, default=str))]
+    from godkiller_mcp.compact_io import dumps_payload
+
+    return [TextContent(type="text", text=dumps_payload(data))]
 
 
 async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
@@ -132,6 +134,12 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 "note": "Secret values are never returned by this tool.",
             }
         )
+
+    if name == "gk_honesty_status":
+        from godkiller_mcp.honesty import build_honesty_status
+
+        detail = bool(arguments.get("detail") or arguments.get("verbose"))
+        return _json(build_honesty_status(detail=detail))
 
     if name == "godkiller_exhaustive_read":
         dpath = arguments["dir_path"]
@@ -580,8 +588,18 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             except Exception:
                 pass
         graph = None
+        stage_board = None
         if not allowed:
             graph = workflow.what_blocked_claim_done(state.handle.task_id, reason)
+            # Prefer last exit_checklist board so agent sees ด่านๆ progress
+            for ev in reversed(state.evidence):
+                payload = ev.payload or {}
+                if str(payload.get("source") or "") != "exit_checklist":
+                    continue
+                if isinstance(payload.get("stage_board"), dict):
+                    stage_board = payload["stage_board"]
+                    break
+                break
         return _json(
             build_claim_payload(
                 allowed=allowed,
@@ -590,6 +608,7 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 results=results,
                 graph=graph,
                 action=state.last_policy_action.value if state.last_policy_action else None,
+                stage_board=stage_board,
             )
         )
 
@@ -925,6 +944,8 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
                 {
                     "directive": report["directive"],
                     "blocking": report["blocking"],
+                    "score": (report.get("stage_board") or {}).get("score"),
+                    "current": (report.get("stage_board") or {}).get("current"),
                     "profile": report["profile"],
                 },
                 task_id=state.handle.task_id,
@@ -1192,8 +1213,99 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             arguments["task_id"],
             arguments["path"],
             arguments.get("summary", "UI screenshot evidence"),
+            step_id=arguments.get("step_id") or arguments.get("step"),
+            source=arguments.get("source"),
         )
         return _json(ev.model_dump())
+
+    if name == "visual_step":
+        from godkiller_mcp.visual_sequence_gate import (
+            DEFAULT_STEP_IDS,
+            evaluate_visual_sequence,
+            min_visual_shots,
+            watermark_elements_rejected,
+        )
+
+        task_id = arguments["task_id"]
+        path = arguments["path"]
+        step_id = str(arguments.get("step_id") or arguments.get("step") or "").strip()
+        if not step_id:
+            return _json(
+                {
+                    "ok": False,
+                    "error": "step_id required (e.g. 01_boot … 10_final_frame)",
+                    "suggested_step_ids": list(DEFAULT_STEP_IDS),
+                }
+            )
+        expected = arguments.get("expected_elements") or []
+        if isinstance(expected, str):
+            expected = [expected]
+        expected = [str(x).strip() for x in expected if str(x).strip()]
+        if not expected:
+            return _json(
+                {
+                    "ok": False,
+                    "error": "expected_elements>=1 required so AI visual_critic can inspect the shot",
+                    "step_id": step_id,
+                }
+            )
+        wm_err = watermark_elements_rejected(expected)
+        if wm_err:
+            return _json({"ok": False, "error": wm_err, "step_id": step_id})
+        shot = browser.register_screenshot(
+            task_id,
+            path,
+            arguments.get("summary") or f"visual_step {step_id}",
+            step_id=step_id,
+            source="visual_step",
+        )
+        state = store.get(task_id)
+        kind = arguments.get("kind") or state.handle.kind.value
+        result = run_visual_critic(
+            kind=kind,
+            description=arguments.get("description")
+            or f"Visual QA step {step_id}: inspect running UI/game frame",
+            checklist=arguments.get("checklist"),
+            agent_verdict=arguments.get("agent_verdict"),
+            findings=arguments.get("findings"),
+            screenshot_path=path,
+            expected_elements=expected,
+        )
+        out = result.to_payload()
+        payload = {
+            **result.to_payload(),
+            "source": "visual_critic",
+            "server_authored": True,
+            "step_id": step_id,
+            "screenshot_path": str(Path(path).resolve()) if Path(path).exists() else path,
+        }
+        ev = store.submit_evidence(
+            task_id=task_id,
+            evidence_type=EvidenceType.OTHER if result.verdict.value != "GREEN" else EvidenceType.LOG,
+            summary=f"{result.summary} [step={step_id}]",
+            payload=payload,
+            server_authored=True,
+        )
+        seq = evaluate_visual_sequence(store.get(task_id))
+        loops.record(task_id, "visual_step", signature=f"visual_step:{step_id}:{result.verdict.value}")
+        return _json(
+            {
+                "ok": result.verdict.value == "GREEN",
+                "step_id": step_id,
+                "screenshot_evidence_id": shot.id,
+                "critic_evidence_id": ev.id,
+                "critic": out,
+                "sequence": seq,
+                "min_shots": min_visual_shots(state.handle.metadata or {}),
+                "instruction": seq.get("order"),
+            }
+        )
+
+    if name == "visual_sequence_status":
+        from godkiller_mcp.visual_sequence_gate import evaluate_visual_sequence
+
+        state = store.get(arguments["task_id"])
+        return _json(evaluate_visual_sequence(state))
 
     if name == "register_ui_journey":
         steps = [
@@ -1333,21 +1445,26 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         return _json({"constitution_markdown": modes.get_constitution()})
 
     if name == "skill_catalog":
+        from godkiller_mcp.skill_catalog import resolve_skill_roots
         from godkiller_mcp.skill_gates import build_catalog_evidence_payload
 
-        skills_root = ROOT / ".agents" / "skills"
-        entries = build_catalog(skills_root)
+        roots = resolve_skill_roots(AGENTS_ROOT)
+        entries = build_catalog(roots)
         query = arguments.get("query") or arguments.get("goal") or ""
         limit = int(arguments.get("limit") or 20)
         hits = filter_catalog(entries, query, limit=limit)
         shortlist_paths: List[str] = []
+        ops_n = sum(1 for e in entries if e.get("family") == "agent-ops")
         out: Dict[str, Any] = {
             "total_indexed": len(entries),
+            "agent_ops_indexed": ops_n,
+            "roots": [str(r) for r in roots],
             "returned": len(hits),
             "query": query,
             "skills": hits,
             "rule": (
-                "Catalog is thin (no bodies). view_file at most 2–4 SKILL.md paths you pick, "
+                "Catalog merges project .agents/skills + agent-ops (bundled). "
+                "Thin index only — view_file at most 2–4 SKILL.md paths you pick, "
                 "then record_skills_loaded. FORBIDDEN: skip because you feel confident."
             ),
         }
@@ -1434,6 +1551,12 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
             kind=arguments.get("kind"),
             slug=arguments.get("slug"),
             plan_phase=int(arguments.get("plan_phase") or 1),
+            include_protocol=bool(
+                arguments.get("include_protocol")
+                or arguments.get("full_protocol")
+                or arguments.get("verbose")
+            ),
+            verbose=bool(arguments.get("verbose")),
         )
         opened = None
         marathon_state = None
@@ -1683,29 +1806,47 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
         )
 
     if name == "gk_plan_template":
-        return _json(plan_os.template(arguments.get("goal") or ""))
+        ui_work = arguments.get("ui_work")
+        if ui_work is not None:
+            ui_work = bool(ui_work)
+        return _json(plan_os.template(arguments.get("goal") or "", ui_work=ui_work))
 
     if name == "gk_plan_validate":
         from godkiller_mcp.governance import plan_digest
         from godkiller_mcp.session_ledger import append_ledger
 
         plan = arguments.get("plan") or arguments.get("content") or arguments.get("plan_dict")
-        result = plan_os.validate(plan)
+        ui_work = arguments.get("ui_work")
+        if ui_work is not None:
+            ui_work = bool(ui_work)
+        meta = None
+        task_id = arguments.get("task_id")
+        if task_id:
+            try:
+                meta = dict(store.get(task_id).handle.metadata or {})
+            except Exception:
+                meta = None
+        result = plan_os.validate(plan, ui_work=ui_work, metadata=meta)
         if result.get("valid"):
             result["digest"] = plan_digest(plan)
-        task_id = arguments.get("task_id")
         if task_id:
             patch = {"plan_validation": result}
             if isinstance(plan, dict):
                 patch["plan_dict"] = plan
             if result.get("digest"):
                 patch["plan_digest"] = result["digest"]
+            if result.get("ui_plan"):
+                patch["ui_plan"] = result["ui_plan"]
             store.update_metadata(task_id, patch)
             result["task_id"] = task_id
             try:
                 append_ledger(
                     "plan_validate",
-                    {"valid": result.get("valid"), "digest": result.get("digest")},
+                    {
+                        "valid": result.get("valid"),
+                        "digest": result.get("digest"),
+                        "ui_work": (result.get("ui_plan") or {}).get("ui_work"),
+                    },
                     task_id=task_id,
                 )
             except Exception:

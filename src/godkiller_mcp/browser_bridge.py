@@ -56,22 +56,35 @@ class BrowserEvidenceBridge:
         task_id: str,
         path: str,
         summary: str = "UI screenshot evidence",
+        *,
+        step_id: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> Evidence:
         p = Path(path)
+        extra: Dict[str, Any] = {}
+        if step_id:
+            extra["step_id"] = str(step_id).strip()
+        if source:
+            extra["source"] = str(source).strip()
         if not p.exists():
             # Still record intent but mark missing
             return self.store.submit_evidence(
                 task_id=task_id,
                 evidence_type=EvidenceType.SCREENSHOT,
                 summary=f"{summary} (MISSING FILE: {path})",
-                payload={"exists": False, "path": path},
+                payload={"exists": False, "path": path, **extra},
                 uri=path,
             )
         return self.store.submit_evidence(
             task_id=task_id,
             evidence_type=EvidenceType.SCREENSHOT,
             summary=summary,
-            payload={"exists": True, "size": p.stat().st_size, "path": str(p.resolve())},
+            payload={
+                "exists": True,
+                "size": p.stat().st_size,
+                "path": str(p.resolve()),
+                **extra,
+            },
             uri=str(p.resolve()),
         )
 
@@ -99,14 +112,13 @@ class BrowserEvidenceBridge:
 
     def require_ui_proof_for_feature(self, task_id: str) -> tuple[bool, str]:
         from godkiller_mcp.search_gates import needs_visual_loop
+        from godkiller_mcp.visual_sequence_gate import visual_sequence_claim_gate
 
         state = self.store.get(task_id)
         if not needs_visual_loop(state):
             return True, "UI proof not required (backend/API surface or require_visual=false)."
-        types = state.evidence_types()
-        if EvidenceType.UI_JOURNEY in types or EvidenceType.SCREENSHOT in types:
-            journeys = [e for e in state.evidence if e.type == EvidenceType.UI_JOURNEY]
-            if journeys and not any(e.payload.get("passed") for e in journeys):
-                return False, "UI journey evidence exists but none passed."
-            return True, "UI proof present."
-        return False, "Feature tasks require UI_JOURNEY or SCREENSHOT evidence before claim_done."
+        journeys = [e for e in state.evidence if e.type == EvidenceType.UI_JOURNEY]
+        if journeys and not any((e.payload or {}).get("passed") for e in journeys):
+            # Failed journeys alone do not satisfy proof — sequence gate still applies
+            pass
+        return visual_sequence_claim_gate(state)

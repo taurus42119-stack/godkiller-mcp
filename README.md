@@ -21,10 +21,34 @@ pip install godkiller-mcp
 # (see docs/WRITE_GUARD_HOOKS.md) — without this hook, native Write bypasses MCP
 ```
 
-**Status:** MCP proof kernel — not Enterprise Ready / not OS lock.  
+**Status:** Beta MCP proof kernel — not Enterprise Ready / not OS lock / not Production-Stable.  
+**Honest mouth:** call `gk_meta.status` (`gk_honesty_status`) for disk MCP configs + real facades — trust that JSON over chat memory. Never invent tools/servers/scores.  
+**Internal A/B (honest):** on Isolated/World volume oracles, Bare ≈ WITH pass counts — MCP is not proven to raise pytest score; craft/discipline gains show more on long UI/game work. Do not claim “beats Bare on oracle” from chat.  
+**Skills power-up:** `gk_mode.skill_catalog` merges project `.agents/skills` + **agent-ops** (bundled). Forced routes for review / babysit / automate / create-skill / shell.  
+**Paired `.agents`:** `gk_meta.status` returns `agents_constitution` with `must_read_agents_md` + path to `AGENTS.md` (Supreme Law). Set `GODKILLER_AGENTS_MD` / `GODKILLER_AGENTS_ROOT` so every host points at the same constitution.  
 **Free tier:** this MCP (proof-or-block on GODKILLER tool calls) is free on PyPI/GitHub.  
 **Not free:** 24-hour automation loops / deep host control — for serious interest only (not shipped in this package).  
 **Security reports:** [GitHub Security Advisories](https://github.com/taurus42119-stack/godkiller-mcp/security/advisories/new) (see `SECURITY.md`).
+
+---
+
+## MANDATORY — agent orders (non-negotiable)
+
+If the host has a **`godkiller` MCP server**, you **MUST** use it. Soft “I will plan in chat” is **not** enough.
+
+1. **FIRST tool call** after reading the task: `gk_meta.status` (or honesty/status action).  
+   If this fails, stop and report — do not pretend the kernel is active.
+2. **BEFORE any file edit:** open/advance work via `gk_task` / `gk_phase` (plan → localize → fix).  
+   Native Write/Edit alone = **protocol violation** on WITH arms.
+3. **Search / evidence:** satisfy GODKILLER search gates when the phase requires them. Do not invent “I searched.”
+4. **BEFORE claiming done:** `gk_verify` (bundle / exit checklist) then `gk_phase.claim_done` (or equivalent).  
+   Chat “516 passed” without server `directive` / sealed result = **not done**.
+5. **Disk proof:** workspace **MUST** contain `.godkiller/` after the run.  
+   No `.godkiller/` ⇒ you did **not** use the kernel — do not claim MCP-assisted success.
+6. **Never** invent tool names, scores, or “GREEN” without tool JSON on disk.
+
+README text is still soft without a host PreToolUse hook — but **WITH / A/B agents are ordered to obey this list anyway**.  
+Hard OS lock: wire `godkiller-write-guard` — see `docs/WRITE_GUARD_HOOKS.md`.
 
 ---
 
@@ -147,6 +171,36 @@ python -m benchmarks.score_11 --compare
 ```
 
 Scorecard lands under `$env:GODKILLER_ARENA_ROOT\logs\` after *your* runs — not a fake pre-fill.
+
+### Game arena (Three.js FPS — Field 3)
+
+Separate root from Isolated. Machine score is `score_game` (build / boot / playable / FPS≥60 / adaptive / pixel). Beauty is human eyes via `game/OPEN.md`.
+
+| Arena root | `GODKILLER_GAME_ARENA` / `GODKILLER_GAME_ARENA_ROOT` |
+| Protocol | Desktop `GODKILLER_GAME_ARENA/GAME_AB_PROTOCOL.md` |
+
+**Mega campaign (Isolated 516 + World 1000 + Game):** [`benchmarks/MEGA_AB_PROTOCOL.md`](benchmarks/MEGA_AB_PROTOCOL.md) · `python -m benchmarks.mega_scorecard`
+
+```powershell
+$env:GODKILLER_GAME_ARENA_ROOT="C:\Users\ASUS\Desktop\GODKILLER_GAME_ARENA"
+python -m benchmarks.reset_game_arena
+python -m benchmarks.score_game --arm 3_WITHOUT_MCP
+python -m benchmarks.score_game --arm 2_WITH_MCP
+python -m benchmarks.score_game --compare
+```
+
+Stub ships with `mode: "stub"` so `hard_pass` stays false until the agent builds a real game (`mode` ≠ `stub`).
+
+### World arena (Field 2 — volume ~1000)
+
+```powershell
+$env:GODKILLER_WORLD_ARENA_ROOT="$env:USERPROFILE\Desktop\GODKILLER_WORLD_ARENA"
+python -m benchmarks.world.import_hard_volume --target 1000
+python -m benchmarks.reset_world_arena
+python -m benchmarks.score_world --arm 3_WITHOUT_MCP
+```
+
+Mouth: internal hard volume A/B — **not** an official LiveCodeBench leaderboard claim (see arena `ATTRIBUTION.md`).
 
 ### Engine gauntlet (in-package kernel proof)
 

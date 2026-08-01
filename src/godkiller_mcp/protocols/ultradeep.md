@@ -46,9 +46,10 @@ If `verify_bundle` fails, `fault_probe` has survivors, or `hollow_surface` is un
 
 Streak ≥3 → escalated (council/swarm before more edits).
 
-## Cursor agent 200% tool swarm
-Use maximally: `gk_code`, `gk_scan`, `gk_browser`, `gk_evidence`, `gk_verify`, plus peer MCP
-`jcodemunch`, `codebase-memory`, `chrome-devtools` when available. Parallel recon before writes.
+## Token discipline during edit
+One file per turn. Surgical recon (`map`/`search`/`preview`) for that file — not whole-tree `read_all`.
+Call GODKILLER gates at phase boundaries (start/verify/claim), not `status`/`activate` every tiny edit.
+Peers on demand. **UI:** console+network (`chrome-devtools`) before screenshot/`visual_step` loops. Forbidden: maximal tool swarm every turn.
 
 ## Posture (all modes)
 

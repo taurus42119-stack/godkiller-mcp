@@ -12,12 +12,15 @@ except ImportError:  # pragma: no cover
     from mcp.server.mcpserver import MCPServer as _Server  # type: ignore
 
 from godkiller_mcp.dispatch import handle_tool, router
+from godkiller_mcp.compact_io import dumps_payload
 
 app = _Server(
     name="GODKILLER",
     instructions=(
-        "Antigravity phase/evidence orchestrator (MCP kernel). Prefer gk_phase + gk_meta.plan_validate "
-        "before edits; gk_verify.bundle + probe + exit before claim_done. Ship mode: armor on by default."
+        "GODKILLER=MCP proof kernel (not Enterprise/OS). Compact payloads by default. "
+        "gk_meta.status then read agents_md_path. Modes: gk_mode.activate (preview only; "
+        "get_protocol if needed). Gates on disk beat chat. UI: visual_step sequence. "
+        "plan_validate needs ### Phase N. detail/include_protocol/GODKILLER_VERBOSE=1 for fat dumps."
     ),
 )
 
@@ -45,6 +48,8 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "screenshot": "register_screenshot",
         "journey": "register_ui_journey",
         "inspect_image": "godkiller_inspect_image",
+        "visual_step": "visual_step",
+        "visual_sequence": "visual_sequence_status",
     },
     "gk_verify": {
         "bundle": "verify_bundle",
@@ -133,6 +138,7 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "view_draft": "view_draft_plan",
         "view_refute": "view_refute_plan",
         "view_finalize": "view_finalize",
+        "view_propose_study": "view_propose_study",
         "debug_ctf_start": "debug_self_ctf_start",
         "debug_ctf_tick": "debug_self_ctf_tick",
         "debug_ctf_run_until": "debug_self_ctf_run_until",
@@ -152,6 +158,7 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "secret_keys": "godkiller_secret_keys",
         "plan_validate": "gk_plan_validate",
         "plan_template": "gk_plan_template",
+        "status": "gk_honesty_status",
     },
 }
 
@@ -159,16 +166,16 @@ FACADE_DESC = {
     "gk_route": "Classify intent into /ask|/plan|/debug|/ultradeep|/view|/verify.",
     "gk_task": "Task lifecycle: open, hypothesize, graph, policy, blast_radius, edit_safe, failing_slice.",
     "gk_phase": "Phase machine: assert, claim_done, rubric. Blocks illegal Antigravity phase skips.",
-    "gk_evidence": "Evidence: submit, capture_shot, visual_critic, screenshot, journey, inspect_image.",
-    "gk_verify": "Verification: bundle (pytest/cmds), soak, loop_*, competitor, compare, ladder.",
+    "gk_evidence": "Evidence: submit, capture_shot, visual_critic, visual_step (~10-shot QA), visual_sequence, screenshot, journey, inspect_image.",
+    "gk_verify": "Verification: bundle, exit (stage_board ด่านๆ), soak, probe, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
-    "gk_code": "Code intel: map/search/read; council + swarm (scout/attacker/planner/verifier); pipeline/self_heal.",
+    "gk_code": "Code intel helpers (map/search/read). council/swarm/pipeline/self_heal = best-effort, not magic fix or formal proof.",
     "gk_guard": "Write allowlist brain for host PreToolUse — native Write/Edit cannot bypass when hooked.",
     "gk_scan": "Best-effort regex CWE heuristics (signal, not a pro audit); optional semgrep CLI.",
     "gk_browser": "Browser automation (Playwright when installed): navigate, snapshot, screenshot, click, fill.",
     "gk_mode": "Modes/protocols/skills + ultradeep/view/debug + tool_propose (search≠install) + plan_refute wake.",
     "gk_handoff": "Spec/feedback handoff gates.",
-    "gk_meta": "Secrets key listing + 9-step plan template/validate.",
+    "gk_meta": "Honesty status (disk MCP configs + real facades) + secrets key listing + 9-step plan template/validate.",
 }
 
 
@@ -193,7 +200,7 @@ def _flatten_args(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def _dispatch_facade(facade: str, action: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> str:
     amap = FACADE_ACTIONS[facade]
     if action not in amap:
-        return json.dumps({"error": f"unknown action {action}", "allowed": sorted(amap.keys())}, indent=2)
+        return dumps_payload({"error": f"unknown action {action}", "allowed": sorted(amap.keys())})
     payload = dict(args or {})
     payload.update({k: v for k, v in kwargs.items() if v is not None})
     # Also accept flat kwargs already merged
@@ -215,18 +222,21 @@ async def _dispatch_facade(facade: str, action: str, args: Optional[Dict[str, An
 
 def _register_facades() -> None:
     for facade_name, amap in FACADE_ACTIONS.items():
-        actions = sorted(amap.keys())
-        desc = FACADE_DESC[facade_name] + f" actions={actions}"
+        n = len(amap)
+        desc = (
+            f"{FACADE_DESC[facade_name]} Pass action= and args={{}}. "
+            f"{n} actions; unknown action returns allowed list (saves schema tokens)."
+        )
 
-        def _make(fname: str):
+        def _make(fname: str, description: str):
             async def _tool(action: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> str:
                 return await _dispatch_facade(fname, action, args, **kwargs)
 
             _tool.__name__ = fname
-            _tool.__doc__ = desc
+            _tool.__doc__ = description
             return _tool
 
-        app.add_tool(_make(facade_name), name=facade_name, description=desc)
+        app.add_tool(_make(facade_name, desc), name=facade_name, description=desc)
 
 
 _register_facades()
@@ -256,7 +266,9 @@ def main() -> None:
             file=sys.stderr,
             flush=True,
         )
-    app.run_stdio_async()
+    # FastMCP.run() is sync and awaits run_stdio_async via anyio.
+    # Calling run_stdio_async() bare exits immediately → host "MCP Error"/EOF.
+    app.run(transport="stdio")
 
 
 if __name__ == "__main__":

@@ -322,8 +322,8 @@ def run_fault_probe(
 
     workspace = Path(workspace).resolve()
 
-    # B1: same allowlist as verify_bundle — no free-form shell
-    blocked, why = detect_hacking(test_command)
+    # Same allowlist + workspace path gate as verify_bundle
+    blocked, why = detect_hacking(test_command, cwd=workspace)
     if blocked:
         return FaultProbeReport(
             clean=False,

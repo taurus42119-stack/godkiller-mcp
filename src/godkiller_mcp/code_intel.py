@@ -1312,7 +1312,7 @@ class EpistemicConfidenceGate:
             and has_searched
             and hit_ok
         )
-        return {
+        res: Dict[str, Any] = {
             "engine": "edit_readiness_metrics",
             "file": file_path,
             "metrics": metrics,
@@ -1331,7 +1331,26 @@ class EpistemicConfidenceGate:
             "reasons": reasons,
             "recommendation": "PROCEED" if allowed else "BLOCK_EDIT_FORCE_RECON",
             "honest": "heuristic weights — not Bayesian / not formal verification",
+            "confidence_pct": round(score, 2),
         }
+        from godkiller_mcp.view_propose import build_view_study_proposal, should_propose_view
+
+        res["propose_view_study"] = should_propose_view(score)
+        if res["propose_view_study"]:
+            res["view_study"] = build_view_study_proposal(
+                goal=f"edit readiness for {file_path}",
+                confidence_pct=score,
+                known_gaps=missing or reasons,
+                topics=[
+                    "similar file/module in a public reference repo",
+                    "tests showing expected API for this path",
+                ],
+            )
+            res["order"] = (
+                "Confidence < 99%: IMMEDIATELY propose VIEW study (exemplar repos/files) "
+                "to the user — do not silently invent the design. Call gk_mode.view_propose_study."
+            )
+        return res
 
 
 import concurrent.futures

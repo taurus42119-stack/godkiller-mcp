@@ -167,6 +167,36 @@ def build_exit_checklist(
 
 def _pack(gates: List[Dict[str, Any]], blocking: List[str]) -> Dict[str, Any]:
     passed = len(blocking) == 0
+    cleared = [g["gate"] for g in gates if g.get("ok")]
+    failed = [
+        {"gate": g["gate"], "detail": g.get("detail") or ""}
+        for g in gates
+        if not g.get("ok")
+    ]
+    # Prefer stable order from gates list for remaining
+    remaining = [g["gate"] for g in gates if not g.get("ok")]
+    current = remaining[0] if remaining else None
+    total = len(gates)
+    n_ok = len(cleared)
+    board = {
+        "passed": cleared,
+        "failed": failed,
+        "remaining": remaining,
+        "current": current,
+        "score": f"{n_ok}/{total}",
+        "confirm": (
+            f"CONFIRMED {n_ok}/{total} clear. "
+            + (
+                "ALL STAGES PASS — may claim_done."
+                if passed
+                else (
+                    f"FAILED: {', '.join(remaining)}. "
+                    f"NEXT STAGE: {current}. "
+                    f"LEFT: {' → '.join(remaining)}."
+                )
+            )
+        ),
+    }
     return {
         "status": "ready" if passed else "blocked",
         "directive": "pass" if passed else "reject",
@@ -174,14 +204,19 @@ def _pack(gates: List[Dict[str, Any]], blocking: List[str]) -> Dict[str, Any]:
         "ship_mode": ship_mode(),
         "blocking": blocking,
         "gates": gates,
+        "stage_board": board,
         "agent_role": {
             "may_propose_done": True,
             "may_decide_done": False,
             "chat_summary_is_not_status": True,
+            "narrate_from_stage_board": True,
         },
         "next": (
             "All armor layers green — you may call claim_done."
             if passed
-            else f"Fix blocking gate(s): {', '.join(blocking)} — then re-run exit_checklist."
+            else (
+                f"Clear stage [{current}] first "
+                f"({board['score']} done). Remaining: {' → '.join(remaining)}."
+            )
         ),
     }

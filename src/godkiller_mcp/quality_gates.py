@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from godkiller_mcp.safe_exec import run_command_safely
-from godkiller_mcp.schema import EvidenceType, TaskKind, TaskState
+from godkiller_mcp.schema import TaskKind, TaskState
 
 
 def _utcnow() -> str:
@@ -520,51 +520,15 @@ def quality_claim_gates(
             f"(advance via set_ambition_ladder / next phase).",
         )
 
-    # Visual gates — UI products (incl. accounting dashboards); skip for surface=api/backend
+    # Visual gates — multi-step run→capture→AI-inspect (not one dump shot)
     if needs_visual_loop(state, require_for_feature=require_for_feature):
-        has_shot = EvidenceType.SCREENSHOT in state.evidence_types() or _latest_by_source(
-            state, "capture_shot"
-        )
-        if not has_shot:
-            return False, "Quality gate: capture_shot / SCREENSHOT required before claim."
-
         soak = _latest_by_source(state, "soak_run")
         if not soak or not soak["payload"].get("passed"):
             return False, "Quality gate: soak_run must pass before claim."
 
-        critic = _latest_by_source(state, "visual_critic")
-        if not critic:
-            return False, "Quality gate: visual_critic required before claim."
-        if critic["payload"].get("verdict") == CriticVerdict.RED.value:
-            return (
-                False,
-                "Quality gate: visual_critic RED — fix placeholders or escalate frontier. "
-                + critic["payload"].get("summary", ""),
-            )
-        if critic["payload"].get("verdict") != CriticVerdict.GREEN.value:
-            return False, "Quality gate: visual_critic must be GREEN to claim (not YELLOW)."
-        vision = critic["payload"].get("vision")
-        if not isinstance(vision, dict) or not vision.get("passed"):
-            return (
-                False,
-                "Quality gate: visual_critic GREEN requires VisionBridge pass on a real screenshot "
-                "(text/checklist alone is not enough).",
-            )
-        expected = [
-            str(x).strip()
-            for x in (vision.get("expected_elements") or [])
-            if str(x).strip()
-        ]
-        if not expected:
-            return (
-                False,
-                "Quality gate: visual_critic GREEN requires expected_elements>=1 "
-                "(soft checklist alone is not enough).",
-            )
-        missing = vision.get("elements_missing") or []
-        if missing:
-            return (
-                False,
-                f"Quality gate: visual_critic elements_missing={list(missing)}.",
-            )
+        from godkiller_mcp.visual_sequence_gate import visual_sequence_claim_gate
+
+        ok_seq, reason_seq = visual_sequence_claim_gate(state)
+        if not ok_seq:
+            return False, reason_seq
     return True, "Quality + dissatisfaction gates satisfied."

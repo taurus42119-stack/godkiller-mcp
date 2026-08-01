@@ -19,9 +19,23 @@ def test_nine_step_plan_validation():
     assert incomplete["valid"] is False
     assert len(incomplete["missing_steps"]) == len(NINE_STEPS)
     complete_steps = {k: f"done {k}" for k in NINE_STEPS}
-    complete = pos.validate({"goal": "ship", "steps": complete_steps})
+    # 9-step alone is not enough — need visible ### Phase N
+    no_phases = pos.validate({"goal": "ship CLI tool", "steps": complete_steps})
+    assert no_phases["valid"] is False
+    assert no_phases["phase_headings"]["ok"] is False
+    complete = pos.validate(
+        {
+            "goal": "ship CLI tool",
+            "steps": complete_steps,
+            "phases": [
+                {"name": "### Phase 1 — Implement parser"},
+                {"name": "### Phase 2 — Verify tests"},
+            ],
+        }
+    )
     assert complete["valid"] is True
     assert complete["allowed_to_edit"] is True
+    assert complete["phase_headings"]["phase_count"] >= 2
 
 
 def test_workflow_graph_query():

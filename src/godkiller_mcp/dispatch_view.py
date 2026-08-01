@@ -117,4 +117,38 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
             )
         return _json(out)
 
+    if name == "view_propose_study":
+        from godkiller_mcp.view_propose import build_view_study_proposal
+
+        topics = arguments.get("topics") or arguments.get("topic_list") or []
+        if isinstance(topics, str):
+            topics = [topics]
+        gaps = arguments.get("known_gaps") or arguments.get("gaps") or []
+        if isinstance(gaps, str):
+            gaps = [gaps]
+        conf = arguments.get("confidence_pct")
+        if conf is None:
+            conf = arguments.get("confidence")
+        out = build_view_study_proposal(
+            goal=arguments.get("goal") or arguments.get("target") or "",
+            confidence_pct=conf,
+            topics=topics,
+            known_gaps=gaps,
+        )
+        task_id = arguments.get("task_id")
+        if task_id and out.get("propose_now"):
+            store.update_metadata(
+                task_id,
+                {"view_study_proposal": out, "propose_view_study": True},
+            )
+            store.submit_evidence(
+                task_id,
+                EvidenceType.LOG,
+                "view_propose_study",
+                {**out, "source": "view_propose_study", "server_authored": True},
+                server_authored=True,
+            )
+            out["task_id"] = task_id
+        return _json(out)
+
     return None
