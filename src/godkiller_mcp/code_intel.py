@@ -224,7 +224,15 @@ def blast_radius(symbol: str, workspace_root: str | Path) -> BlastRadiusReport:
         engine = "ripgrep+ast+regex"
 
     report = BlastRadiusReport(symbol=symbol, files=affected_files, dependents=list(affected_files))
-    report.payload_extra = {"engine": engine}  # type: ignore[attr-defined]
+    report.payload_extra = {  # type: ignore[attr-defined]
+        "engine": engine,
+        "regex_fallback_used": bool(used_regex),
+        "warn": (
+            "regex_fallback_used: SyntaxError paths matched by regex — may be false positives"
+            if used_regex
+            else None
+        ),
+    }
     return report
 
 

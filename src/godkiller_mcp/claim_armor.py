@@ -148,20 +148,23 @@ def claim_council_gate(state) -> Tuple[bool, str]:
             "yes",
             "on",
         )
-        if (
-            payload.get("theatre_risk")
-            and str(payload.get("mode") or "").lower() == "host"
-            and profile() == "ship"
-            and not allow_host
-        ):
+        host_theatre = bool(payload.get("theatre_risk")) and str(
+            payload.get("mode") or ""
+        ).lower() == "host"
+        if host_theatre and profile() == "ship" and not allow_host:
             return (
                 False,
                 "council theatre_risk: host-mode seats are IDE-played — not ship armor. "
                 "Use mode=api (LLM key) or set GODKILLER_ALLOW_HOST_COUNCIL=1 for local beta.",
             )
         note = "council COUNCIL_PASS with REJECT-then-approve on record"
-        if payload.get("theatre_risk"):
-            note += " (theatre_risk labeled — host seats)"
+        if host_theatre:
+            # Always loud — even when non-ship accepts the gate (dev warning, not silent pass)
+            note = (
+                "WARNING: host-mode council theatre_risk accepted "
+                f"(profile={profile()}; not independent critique / not ship armor). "
+                + note
+            )
         return True, note
 
     return (

@@ -173,14 +173,18 @@ def decide_from_hook_event(event: Dict[str, Any], *, workspace: Optional[str] = 
     )
     ws = workspace or event.get("cwd") or event.get("workspace") or os.getcwd()
     allow = event.get("allow_paths") or []
-    # Optional on-disk envelope
+    # Optional on-disk envelope — only trust HMAC-sealed write_allow.json
     env_path = Path(ws) / ".godkiller" / "write_allow.json"
     if env_path.exists():
         try:
             data = json.loads(env_path.read_text(encoding="utf-8"))
-            allow = list(allow) + list(data.get("paths") or [])
-            if data.get("workspace"):
-                ws = data["workspace"]
+            if not _verify_write_allow(data, workspace=ws):
+                # Tampered / unsigned — ignore paths (fail closed for allowlist expansion)
+                data = {}
+            else:
+                allow = list(allow) + list(data.get("paths") or [])
+                if data.get("workspace"):
+                    ws = data["workspace"]
         except (OSError, json.JSONDecodeError):
             pass
     require = True
@@ -197,6 +201,52 @@ def decide_from_hook_event(event: Dict[str, Any], *, workspace: Optional[str] = 
     )
 
 
+def _allow_body_for_seal(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "workspace": data.get("workspace"),
+        "task_id": data.get("task_id") or "",
+        "paths": list(data.get("paths") or []),
+    }
+
+
+def _seal_write_allow(payload: Dict[str, Any], *, workspace: str | Path) -> Dict[str, Any]:
+    """Attach HMAC using GODKILLER_SEAL_KEY (same family as evidence seals)."""
+    import hashlib
+    import hmac as hm
+
+    from godkiller_mcp.evidence_integrity import load_or_create_seal_key
+    from godkiller_mcp.runtime_paths import tasks_dir
+
+    body = _allow_body_for_seal(payload)
+    key = load_or_create_seal_key(tasks_dir())
+    material = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    dig = hm.new(key, material, hashlib.sha256).hexdigest()
+    out = dict(body)
+    out["hmac"] = dig
+    out["seal_alg"] = "hmac-sha256"
+    return out
+
+
+def _verify_write_allow(data: Dict[str, Any], *, workspace: str | Path) -> bool:
+    import hashlib
+    import hmac as hm
+
+    raw = str(data.get("hmac") or "").strip()
+    if not raw:
+        return False
+    try:
+        from godkiller_mcp.evidence_integrity import load_or_create_seal_key
+        from godkiller_mcp.runtime_paths import tasks_dir
+
+        key = load_or_create_seal_key(tasks_dir())
+    except Exception:
+        return False
+    body = _allow_body_for_seal(data)
+    material = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    expect = hm.new(key, material, hashlib.sha256).hexdigest()
+    return hm.compare_digest(expect, raw)
+
+
 def persist_allow_paths(workspace: str | Path, paths: Sequence[str], *, task_id: str = "") -> Path:
     ws = Path(workspace).resolve()
     root = ws / ".godkiller"
@@ -207,7 +257,8 @@ def persist_allow_paths(workspace: str | Path, paths: Sequence[str], *, task_id:
         "task_id": task_id,
         "paths": [str(p).replace("\\", "/").lstrip("./") for p in paths if p],
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    sealed = _seal_write_allow(payload, workspace=ws)
+    path.write_text(json.dumps(sealed, indent=2), encoding="utf-8")
     return path
 
 

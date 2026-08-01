@@ -29,6 +29,16 @@ def test_blast_radius_finds_call(tmp_path: Path):
     assert len(rep.files) >= 2
 
 
+def test_blast_radius_regex_fallback_flag(tmp_path: Path):
+    # Broken syntax → regex fallback when token appears
+    (tmp_path / "broken.py").write_text("def foo(\n", encoding="utf-8")
+    with patch("godkiller_mcp.code_intel._find_dev_binary", return_value=None):
+        rep = blast_radius("foo", tmp_path)
+    extra = rep.to_evidence_payload()
+    assert extra.get("regex_fallback_used") is True
+    assert "regex_fallback" in str(extra.get("engine") or "")
+
+
 def test_vision_no_pil_never_claim_grade(tmp_path: Path, monkeypatch):
     import godkiller_mcp.vision_bridge as vb
 

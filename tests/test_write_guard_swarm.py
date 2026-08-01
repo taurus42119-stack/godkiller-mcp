@@ -20,6 +20,12 @@ def test_write_guard_denies_outside_allowlist(tmp_path: Path):
     assert d["permissionDecision"] == "deny"
 
 
+@pytest.fixture(autouse=True)
+def _seal_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GODKILLER_SEAL_KEY", "ab" * 32)
+    monkeypatch.delenv("GODKILLER_PROFILE", raising=False)
+
+
 def test_write_guard_allows_listed_path(tmp_path: Path):
     d = decide_write(path="ok.py", workspace=tmp_path, allow_paths=["ok.py"])
     assert d["allowed"] is True
@@ -136,3 +142,40 @@ def test_facade_has_guard_and_swarm():
 
     assert FACADE_ACTIONS["gk_guard"]["write"] == "write_guard"
     assert FACADE_ACTIONS["gk_code"]["swarm_spawn"] == "swarm_spawn"
+
+
+def test_write_allow_unsigned_ignored(tmp_path: Path):
+    from godkiller_mcp.write_guard import decide_from_hook_event
+
+    root = tmp_path / ".godkiller"
+    root.mkdir(parents=True)
+    (root / "write_allow.json").write_text(
+        json.dumps({"workspace": str(tmp_path), "paths": ["forged.py"]}),
+        encoding="utf-8",
+    )
+    (tmp_path / "forged.py").write_text("x=1\n", encoding="utf-8")
+    d = decide_from_hook_event(
+        {
+            "tool_name": "Write",
+            "tool_input": {"file_path": "forged.py"},
+            "cwd": str(tmp_path),
+        },
+        workspace=str(tmp_path),
+    )
+    assert d["allowed"] is False
+
+
+def test_write_allow_sealed_trusted(tmp_path: Path):
+    from godkiller_mcp.write_guard import decide_from_hook_event, persist_allow_paths
+
+    persist_allow_paths(tmp_path, ["ok.py"])
+    (tmp_path / "ok.py").write_text("x=1\n", encoding="utf-8")
+    d = decide_from_hook_event(
+        {
+            "tool_name": "Write",
+            "tool_input": {"file_path": "ok.py"},
+            "cwd": str(tmp_path),
+        },
+        workspace=str(tmp_path),
+    )
+    assert d["allowed"] is True

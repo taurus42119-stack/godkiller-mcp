@@ -207,6 +207,51 @@ def test_ship_rejects_host_theatre_council(tmp_path: Path, monkeypatch: pytest.M
     assert "theatre_risk" in reason.lower()
 
 
+def test_dev_host_theatre_warns_but_may_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("GODKILLER_PROFILE", raising=False)
+    monkeypatch.delenv("GODKILLER_DEV_RELAX", raising=False)
+    from godkiller_mcp.claim_armor import claim_council_gate
+    from godkiller_mcp.evidence_store import EvidenceStore
+    from godkiller_mcp.schema import EvidenceType, TaskKind
+
+    store = EvidenceStore(persist_dir=tmp_path / "t")
+    state = store.open_task(TaskKind.BUGFIX, "x")
+    store.submit_evidence(
+        state.handle.task_id,
+        EvidenceType.LOG,
+        "council host theatre",
+        {
+            "source": "council_finalize",
+            "server_authored": True,
+            "mode": "host",
+            "theatre_risk": True,
+            "verdict": "COUNCIL_PASS",
+            "consensus_reached": True,
+            "hacker": {"vote": "APPROVE", "critique": "ok after fix", "must_fix": []},
+            "coder": {"vote": "APPROVE", "critique": "ok", "must_fix": []},
+            "optimizer": {"vote": "APPROVE", "critique": "ok", "must_fix": []},
+            "transcript": [
+                {
+                    "round": 1,
+                    "opinions": {
+                        "hacker": {
+                            "vote": "REJECT",
+                            "critique": "Missing auth on write path and no tests for escape.",
+                            "must_fix": ["add auth", "add test"],
+                            "severity": 8,
+                        }
+                    },
+                }
+            ],
+        },
+        server_authored=True,
+    )
+    ok, reason = claim_council_gate(store.get(state.handle.task_id))
+    assert ok is True, reason
+    assert reason.startswith("WARNING:")
+    assert "theatre_risk" in reason.lower()
+
+
 def test_confidence_ignores_client_search_hits(tmp_path: Path):
     from godkiller_mcp.code_intel import EpistemicConfidenceGate
 

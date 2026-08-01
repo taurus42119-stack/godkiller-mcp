@@ -59,6 +59,18 @@ def test_workspace_lock_serializes(tmp_path: Path):
     assert seen == [1, 2]
 
 
+def test_clear_stale_lock_meta_dead_pid(tmp_path: Path):
+    from godkiller_mcp.file_lock import _clear_stale_lock, _meta_path
+
+    lock = tmp_path / ".godkiller" / "probe.lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text("", encoding="utf-8")
+    meta = _meta_path(lock)
+    meta.write_text('{"pid": 99999999, "ts": 1}', encoding="utf-8")
+    assert _clear_stale_lock(lock, max_age_sec=1.0) is True
+    assert not meta.exists()
+
+
 def test_engines_package_exports():
     from godkiller_mcp import engines
     from godkiller_mcp.code_intel import HyperSearchEngine, RepoMapGenerator, SecurityScanEngine
