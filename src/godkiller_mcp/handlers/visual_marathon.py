@@ -69,8 +69,13 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     )
 
     arguments = arguments or {}
+    from godkiller_mcp.path_sandbox import path_gate_error
+
     if name == "capture_shot":
         path = arguments["path"]
+        bad = path_gate_error(path)
+        if bad:
+            return _json(bad)
         summary = arguments.get("summary") or "capture_shot evidence"
         p = Path(path)
         vision_result = vision.analyze_screenshot(p)
@@ -96,6 +101,11 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(ev.model_dump())
 
     if name == "visual_critic":
+        shot = arguments.get("screenshot_path") or arguments.get("path")
+        if shot:
+            bad = path_gate_error(shot)
+            if bad:
+                return _json(bad)
         state = store.get(arguments["task_id"])
         kind = arguments.get("kind") or state.handle.kind.value
         result = run_visual_critic(
@@ -104,7 +114,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             checklist=arguments.get("checklist"),
             agent_verdict=arguments.get("agent_verdict"),
             findings=arguments.get("findings"),
-            screenshot_path=arguments.get("screenshot_path") or arguments.get("path"),
+            screenshot_path=shot,
             expected_elements=arguments.get("expected_elements"),
         )
         out = result.to_payload()
@@ -240,6 +250,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(payload)
 
     if name == "register_screenshot":
+        bad = path_gate_error(arguments["path"])
+        if bad:
+            return _json(bad)
         ev = browser.register_screenshot(
             arguments["task_id"],
             arguments["path"],

@@ -94,7 +94,11 @@ class BrowserEvidenceBridge:
         journey: JourneyResult,
     ) -> Evidence:
         # Persist journey JSON artifact
-        out = self.artifact_dir / f"{task_id}_{journey.name.replace(' ', '_')}.json"
+        from godkiller_mcp.path_sandbox import normalize_artifact_name
+
+        safe_name = normalize_artifact_name(journey.name.replace(" ", "_"))
+        out = (self.artifact_dir / f"{task_id}_{safe_name}.json").resolve()
+        out.relative_to(Path(self.artifact_dir).resolve())
         out.write_text(json.dumps(journey.to_payload(), indent=2), encoding="utf-8")
 
         # Register screenshots referenced by journey

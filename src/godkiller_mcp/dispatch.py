@@ -188,6 +188,11 @@ async def _handle_tool_body(name: str, arguments: Dict[str, Any]) -> List[TextCo
         return _json(decision.__dict__)
 
     if name == "godkiller_inspect_image":
+        from godkiller_mcp.path_sandbox import path_gate_error
+
+        bad = path_gate_error(arguments["path"])
+        if bad:
+            return _json(bad)
         result = vision.analyze_screenshot(
             arguments["path"],
             expected_elements=arguments.get("expected_elements"),

@@ -69,8 +69,13 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     )
 
     arguments = arguments or {}
+    from godkiller_mcp.path_sandbox import path_gate_error, workspace_root
+
     if name == "godkiller_exhaustive_read":
         dpath = arguments["dir_path"]
+        bad = path_gate_error(dpath)
+        if bad:
+            return _json(bad)
         mfiles = arguments.get("max_files", ExhaustiveReaderEngine.DEFAULT_MAX_FILES)
         # Default: capped per-file chars (raise explicitly for full dumps).
         max_chars = arguments.get(
@@ -87,6 +92,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         sdesc = arguments["description"]
         sinst = arguments["instructions"]
         wroot = arguments.get("workspace_root", ".")
+        bad = path_gate_error(wroot)
+        if bad:
+            return _json(bad)
         engine = AutoSkillifyEngine()
         res = engine.skillify(sname, sdesc, sinst, workspace_root=wroot)
         return _json(res)
@@ -173,6 +181,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "godkiller_confidence_check":
         fpath = arguments["file_path"]
+        bad = path_gate_error(fpath)
+        if bad:
+            return _json(bad)
         ksyms = arguments.get("known_symbols", [])
         hsearched = arguments.get("has_searched", False)
         hit_count = arguments.get("search_hit_count")
@@ -200,6 +211,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "godkiller_auto_fix":
         fpath = arguments["file_path"]
+        bad = path_gate_error(fpath)
+        if bad:
+            return _json(bad)
         pat = arguments["pattern"]
         repl = arguments["replacement"]
         prev_only = arguments.get("preview_only", True)
@@ -216,6 +230,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "godkiller_ast_grep":
         pat = arguments["pattern"]
         spath = arguments.get("search_path", ".")
+        bad = path_gate_error(spath if spath != "." else workspace_root())
+        if bad:
+            return _json(bad)
         lang = arguments.get("lang", "python")
         mresults = arguments.get("max_results", 50)
         engine = AstGrepEngine()
@@ -224,6 +241,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "godkiller_security_scan":
         tpath = arguments.get("target_path", ".")
+        bad = path_gate_error(tpath if tpath != "." else workspace_root())
+        if bad:
+            return _json(bad)
         sthreshold = arguments.get("severity_threshold", "medium")
         engine = SecurityScanEngine()
         res = engine.scan(target_path=tpath if tpath != "." else ROOT, severity_threshold=sthreshold)
@@ -231,6 +251,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "godkiller_repo_map":
         wroot = arguments.get("workspace_root", ".")
+        bad = path_gate_error(wroot if wroot != "." else workspace_root())
+        if bad:
+            return _json(bad)
         mtokens = arguments.get("max_tokens", 1000)
         generator = RepoMapGenerator(wroot if wroot != "." else ROOT)
         map_text = await asyncio.to_thread(generator.get_repo_map, max_tokens=mtokens)
@@ -239,6 +262,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "godkiller_hyper_search":
         pat = arguments["pattern"]
         spath = arguments.get("search_path", ".")
+        bad = path_gate_error(spath if spath != "." else workspace_root())
+        if bad:
+            return _json(bad)
         mresults = arguments.get("max_results", 100)
         searcher = HyperSearchEngine()
         res = searcher.search(pat, search_path=spath if spath != "." else ROOT, max_results=mresults)
@@ -247,6 +273,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "godkiller_fast_find":
         npat = arguments["name_pattern"]
         spath = arguments.get("search_path", ".")
+        bad = path_gate_error(spath if spath != "." else workspace_root())
+        if bad:
+            return _json(bad)
         mresults = arguments.get("max_results", 100)
         finder = FastFindEngine()
         res = finder.find(npat, search_path=spath if spath != "." else ROOT, max_results=mresults)
@@ -254,6 +283,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "godkiller_context_preview":
         fpath = arguments["file_path"]
+        bad = path_gate_error(fpath)
+        if bad:
+            return _json(bad)
         sline = arguments.get("start_line", 1)
         eline = arguments.get("end_line", 100)
         previewer = ContextPreviewEngine()

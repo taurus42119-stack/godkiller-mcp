@@ -27,6 +27,12 @@ call GODKILLER tools. It does **not** replace:
 - IDE native Write without a PreToolUse hook (`docs/WRITE_GUARD_HOOKS.md`)
 - Enterprise SSO, DLP, or managed device policy
 
+**Intentional workspace process execution:** `verify_bundle` and `fault_probe` may run
+allowlisted commands (e.g. pytest) inside the workspace via `safe_exec` (`shell=False`).
+That is not remote RCE by design, but it **is** local code execution of the project under
+test — treat untrusted workspaces accordingly. `fault_probe` still mutates files in-place
+before restore (temp-only mutation is a known follow-up).
+
 Ship posture (required for hardened deployments):
 
 ```text

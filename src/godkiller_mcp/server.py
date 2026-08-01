@@ -170,7 +170,7 @@ FACADE_DESC = {
     "gk_verify": "Verification: bundle, exit (stage_board progress), soak, probe, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
     "gk_code": "Code intel helpers (map/search/read). council/swarm/pipeline/self_heal = best-effort, not magic fix or formal proof.",
-    "gk_guard": "Write allowlist brain for host PreToolUse — native Write/Edit cannot bypass when hooked.",
+    "gk_guard": "Write allowlist policy brain for host PreToolUse — only blocks native Write/Edit when the host actually wires the hook.",
     "gk_scan": "Best-effort regex CWE heuristics (signal, not a pro audit); optional semgrep CLI.",
     "gk_browser": "Browser automation (Playwright when installed): navigate, snapshot, screenshot, click, fill.",
     "gk_mode": "Modes/protocols/skills + ultradeep/view/debug + tool_propose (search≠install) + plan_refute wake.",

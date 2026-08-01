@@ -8,29 +8,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-import re
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from godkiller_mcp.path_sandbox import normalize_slug as normalize_marathon_slug
 from godkiller_mcp.schema import Phase, TaskKind, new_id
 
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-
-
-def normalize_marathon_slug(slug: str) -> str:
-    """Single-segment slug only — reject .. / \\ and absolute escapes."""
-    raw = str(slug).strip()
-    if not raw or any(ch in raw for ch in ("..", "/", "\\", ":", "\0")):
-        raise ValueError(f"illegal marathon slug: {slug!r}")
-    if not _SLUG_RE.fullmatch(raw):
-        raise ValueError(f"illegal marathon slug: {slug!r}")
-    return raw
 
 
 class MarathonState(BaseModel):

@@ -6,17 +6,28 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from godkiller_mcp.path_sandbox import normalize_slug
+
 
 class SpecFeedbackStore:
     def __init__(self, handoff_dir: str | Path):
         self.handoff_dir = Path(handoff_dir)
         self.handoff_dir.mkdir(parents=True, exist_ok=True)
 
+    def _safe_slug(self, slug: str) -> str:
+        return normalize_slug(slug)
+
     def _spec_path(self, slug: str) -> Path:
-        return self.handoff_dir / f"{slug}_spec.json"
+        safe = self._safe_slug(slug)
+        path = (self.handoff_dir / f"{safe}_spec.json").resolve()
+        path.relative_to(self.handoff_dir.resolve())
+        return path
 
     def _feedback_path(self, slug: str) -> Path:
-        return self.handoff_dir / f"{slug}_feedback.json"
+        safe = self._safe_slug(slug)
+        path = (self.handoff_dir / f"{safe}_feedback.json").resolve()
+        path.relative_to(self.handoff_dir.resolve())
+        return path
 
     def require_spec(self, slug: str) -> Tuple[bool, str]:
         path = self._spec_path(slug)
@@ -32,8 +43,9 @@ class SpecFeedbackStore:
         search_queries: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         queries = search_queries or []
+        safe = self._safe_slug(slug)
         data = {
-            "slug": slug,
+            "slug": safe,
             "spec_md": spec_md,
             "goal": goal,
             "search": {
@@ -42,7 +54,7 @@ class SpecFeedbackStore:
             },
             "search_queries": queries,
         }
-        self._spec_path(slug).write_text(json.dumps(data, indent=2), encoding="utf-8")
+        self._spec_path(safe).write_text(json.dumps(data, indent=2), encoding="utf-8")
         return data
 
     def read_search_queries(self, slug: str) -> List[str]:
@@ -58,13 +70,14 @@ class SpecFeedbackStore:
     def write_feedback(
         self, slug: str, feedback_md: str, score: float = 1.0, passed: bool = True
     ) -> Dict[str, Any]:
+        safe = self._safe_slug(slug)
         data = {
-            "slug": slug,
+            "slug": safe,
             "feedback_md": feedback_md,
             "score": score,
             "passed": passed,
         }
-        self._feedback_path(slug).write_text(json.dumps(data, indent=2), encoding="utf-8")
+        self._feedback_path(safe).write_text(json.dumps(data, indent=2), encoding="utf-8")
         return data
 
     def require_passing_feedback(self, slug: str) -> Tuple[bool, str]:

@@ -49,7 +49,7 @@ If the host has a **`godkiller` MCP server**, you **MUST** use it. Soft “I wil
 6. **Never** invent tool names, scores, or “GREEN” without tool JSON on disk.
 
 README text is still soft without a host PreToolUse hook — but **WITH / A/B agents are ordered to obey this list anyway**.  
-Hard OS lock: wire `godkiller-write-guard` — see `docs/WRITE_GUARD_HOOKS.md`.
+Hard host PreToolUse lock (if the IDE calls it): wire `godkiller-write-guard` — see `docs/WRITE_GUARD_HOOKS.md`. Not an OS MAC / kernel lockdown.
 
 ---
 
