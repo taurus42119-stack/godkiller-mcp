@@ -119,11 +119,8 @@ def decide_write(
             )
         ok = False
         for a in allowed:
+            # Exact path or directory prefix only — never basename-only (evil/config.py vs config.py)
             if rel == a or rel.startswith(a.rstrip("/") + "/"):
-                ok = True
-                break
-            # allow matching by basename when allow entry is basename-only
-            if "/" not in a and (rel.endswith("/" + a) or rel == a):
                 ok = True
                 break
         if not ok:

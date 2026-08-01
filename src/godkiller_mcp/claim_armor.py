@@ -5,6 +5,7 @@ Anti-hype: chat praise is not status. These gates force machine proof.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Tuple
 
 from godkiller_mcp.ship_mode import env_disables, relax_enabled
@@ -112,6 +113,8 @@ def claim_council_gate(state) -> Tuple[bool, str]:
     if env_disables("GODKILLER_COUNCIL"):
         return True, "council disabled (relax only)"
 
+    from godkiller_mcp.ship_mode import profile
+
     for ev in reversed(list(getattr(state, "evidences", []) or [])):
         payload = ev.payload or {}
         if payload.get("source") != "council_finalize":
@@ -138,7 +141,28 @@ def claim_council_gate(state) -> Tuple[bool, str]:
                 "council refute-first failed: need substantial Hacker REJECT "
                 "(critique≥24 non-hollow + must_fix + severity≥5) before COUNCIL_PASS",
             )
-        return True, "council COUNCIL_PASS with REJECT-then-approve on record"
+        # Host multi-seat = theatre_risk; PROFILE=ship rejects unless explicitly allowed
+        allow_host = os.environ.get("GODKILLER_ALLOW_HOST_COUNCIL", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if (
+            payload.get("theatre_risk")
+            and str(payload.get("mode") or "").lower() == "host"
+            and profile() == "ship"
+            and not allow_host
+        ):
+            return (
+                False,
+                "council theatre_risk: host-mode seats are IDE-played — not ship armor. "
+                "Use mode=api (LLM key) or set GODKILLER_ALLOW_HOST_COUNCIL=1 for local beta.",
+            )
+        note = "council COUNCIL_PASS with REJECT-then-approve on record"
+        if payload.get("theatre_risk"):
+            note += " (theatre_risk labeled — host seats)"
+        return True, note
 
     return (
         False,

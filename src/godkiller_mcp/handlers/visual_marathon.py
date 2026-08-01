@@ -272,6 +272,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
         task_id = arguments["task_id"]
         path = arguments["path"]
+        bad = path_gate_error(path)
+        if bad:
+            return _json(bad)
         step_id = str(arguments.get("step_id") or arguments.get("step") or "").strip()
         if not step_id:
             return _json(

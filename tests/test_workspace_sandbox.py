@@ -85,10 +85,21 @@ async def test_capture_shot_blocks_outside(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_inspect_image_blocks_outside(tmp_path: Path):
-    outside = tmp_path.parent / "img_out.txt"
-    outside.write_text("x", encoding="utf-8")
-    out = await handle_tool("godkiller_inspect_image", {"path": str(outside)})
+async def test_visual_step_blocks_outside(tmp_path: Path):
+    outside = tmp_path.parent / "gk_visual_escape.png"
+    outside.write_bytes(b"\x89PNG\r\n\x1a\n")
+    opened = json.loads(
+        (await handle_tool("open_task", {"kind": "feature", "goal": "viz"}))[0].text
+    )
+    out = await handle_tool(
+        "visual_step",
+        {
+            "task_id": opened["task_id"],
+            "path": str(outside),
+            "step_id": "01_boot",
+            "expected_elements": ["OK"],
+        },
+    )
     payload = json.loads(out[0].text)
     assert payload.get("error") == "path_outside_workspace"
 

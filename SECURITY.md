@@ -34,6 +34,12 @@ test — treat untrusted workspaces accordingly. `fault_probe` mutates via backu
 `.godkiller/probe_backup` + unclean marker; SIGKILL can still leave mutants until the next
 probe/claim restore pass.
 
+**Sandbox / theatre notes (Beta):** MCP path tools (including `visual_step`) use
+`path_gate_error` against cwd/workspace. `write_guard` allowlists are exact/prefix only
+(no basename-only match). Agent-supplied competitor URLs are advisory, not claim-armor,
+unless `require_attested_competitor=1`. Host-mode council is labeled `theatre_risk` and
+does not count as ship armor unless `GODKILLER_ALLOW_HOST_COUNCIL=1`.
+
 Ship posture (required for hardened deployments):
 
 ```text
@@ -43,6 +49,20 @@ GODKILLER_SEAL_REQUIRE_ENV=1
 ```
 
 See `docs/SEAL_KEY.md`, `docs/HOST_VS_MCP.md`, and `PUBLISH.md`.
+
+Generate a seal key:
+
+```text
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+After a crashed `fault_probe`, restore mutants with:
+
+```text
+godkiller-restore --workspace .
+godkiller-restore --check
+```
+
 
 ## Supply chain
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
@@ -248,6 +249,12 @@ def main() -> None:
     from godkiller_mcp.ship_mode import profile, relax_enabled
 
     print("Starting GODKILLER MCP Server (facade surface)...", file=sys.stderr, flush=True)
+    try:
+        from godkiller_mcp.fault_probe import warn_if_probe_unclean
+
+        warn_if_probe_unclean(Path.cwd())
+    except Exception:
+        pass
     if relax_enabled():
         print(
             "WARNING: GODKILLER_DEV_RELAX active — armor gates soft/disarmed "

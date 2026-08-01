@@ -122,7 +122,9 @@ def load_or_create_seal_key(persist_dir: Path) -> bytes:
         raise RuntimeError(
             "GODKILLER_SEAL_KEY is unset under ship/require-env posture — "
             "set a host env secret (see docs/SEAL_KEY.md). "
-            "Workspace .seal_key is not used in ship mode."
+            "Workspace .seal_key is not used in ship mode. "
+            'Generate one: python -c "import secrets; print(secrets.token_hex(32))" '
+            "then export GODKILLER_SEAL_KEY=<that 64-hex value>."
         )
 
     if allow_legacy and path.exists():
@@ -146,6 +148,7 @@ def load_or_create_seal_key(persist_dir: Path) -> bytes:
     raise RuntimeError(
         "GODKILLER_SEAL_KEY is unset and workspace .seal_key will not be auto-created. "
         "Export GODKILLER_SEAL_KEY=<64 hex chars> (see docs/SEAL_KEY.md). "
+        'Generate one: python -c "import secrets; print(secrets.token_hex(32))". '
         "Off-ship only: GODKILLER_ALLOW_LEGACY_SEAL=1 to read an existing .seal_key."
     )
 

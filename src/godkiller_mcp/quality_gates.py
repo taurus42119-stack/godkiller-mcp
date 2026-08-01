@@ -501,25 +501,33 @@ def quality_claim_gates(
     if not needs:
         return True, "Quality loop not required for this kind."
 
-    # Dissatisfaction loop — ALL features (accounting, ERP, games, SaaS)
+    # Competitor/compare are agent_supplied theatre by default — not claim-armor.
+    # Opt-in attested mode: metadata require_attested_competitor=1
     if require_competitor_loop:
+        want_armor = bool(meta.get("require_attested_competitor"))
         scan = _latest_by_source(state, "competitor_scan")
-        if not scan or not scan["payload"].get("passed"):
-            return (
-                False,
-                "Quality gate: competitor_scan required (web/social references) before claim "
-                "(same bar for SaaS/accounting/games — beat named competitors).",
-            )
         delta = _latest_by_source(state, "compare_delta")
-        if not delta:
-            return False, "Quality gate: compare_delta required after competitor_scan."
-        if delta["payload"].get("still_losing"):
-            return (
-                False,
-                "Dissatisfaction gate: still losing vs competitors — continue ladder, do not claim.",
-            )
-        if not delta["payload"].get("passed"):
-            return False, "Quality gate: compare_delta did not pass."
+        if want_armor:
+            if not scan or not scan["payload"].get("claim_armor"):
+                return (
+                    False,
+                    "Quality gate: attested competitor_scan required "
+                    "(require_attested_competitor=1; agent URL lists are not armor).",
+                )
+            if not delta or not delta["payload"].get("claim_armor"):
+                return False, "Quality gate: attested compare_delta required."
+            if delta["payload"].get("still_losing"):
+                return (
+                    False,
+                    "Dissatisfaction gate: still losing vs competitors — continue ladder, do not claim.",
+                )
+        else:
+            # Advisory only: honor explicit still_losing; ignore agent-supplied wins.
+            if delta and delta["payload"].get("still_losing"):
+                return (
+                    False,
+                    "Dissatisfaction gate: compare_delta still_losing=true — continue ladder, do not claim.",
+                )
 
     # Ladder floor
     level = meta.get("ambition_ladder") or "L0_core"

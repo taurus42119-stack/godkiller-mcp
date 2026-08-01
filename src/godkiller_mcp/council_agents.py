@@ -380,6 +380,11 @@ class CouncilDebateEngine:
         result = {
             "engine": "host_multi_agent_council",
             "mode": "host",
+            "theatre_risk": True,
+            "honest": (
+                "Host council = IDE model plays 3 seats; HMAC seals disk evidence only — "
+                "does not prove independent critique. Prefer mode=api for armor under ship."
+            ),
             "session_id": session_id,
             "rounds": len(session.transcript),
             "static_evidence": session.evidence,
@@ -453,6 +458,7 @@ class CouncilDebateEngine:
         return {
             "engine": "llm_multi_agent_council",
             "mode": "api",
+            "theatre_risk": False,
             "llm_configured": True,
             "model": getattr(cfg, "model", "injected_chat_fn") if cfg else "injected_chat_fn",
             "rounds": len(transcript),

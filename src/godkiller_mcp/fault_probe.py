@@ -25,11 +25,10 @@ def _probe_dirs(workspace: Path) -> Tuple[Path, Path]:
     return backup, unclean
 
 
-def restore_probe_backups(workspace: Path | str) -> Dict[str, Any]:
-    """Restore any leftover mutant files from .godkiller/probe_backup (crash recovery)."""
+def _restore_probe_backups_unlocked(ws: Path) -> Dict[str, Any]:
+    """Caller must hold ``probe.lock`` (or accept races)."""
     from godkiller_mcp.evidence_store import atomic_write_text
 
-    ws = Path(workspace).resolve()
     backup_root, unclean = _probe_dirs(ws)
     restored: List[str] = []
     errors: List[str] = []
@@ -48,7 +47,6 @@ def restore_probe_backups(workspace: Path | str) -> Dict[str, Any]:
                         pass
         except Exception as exc:
             errors.append(str(exc))
-    # Also restore any orphan .bak files
     for bak in backup_root.glob("*.bak"):
         rel = bak.name[: -len(".bak")].replace("__", "/")
         target = ws / rel
@@ -63,11 +61,44 @@ def restore_probe_backups(workspace: Path | str) -> Dict[str, Any]:
             unclean.unlink()
         except OSError:
             pass
-    return {"restored": restored, "errors": errors, "clean": not unclean.exists() or bool(restored)}
+    return {
+        "restored": restored,
+        "errors": errors,
+        "clean": not unclean.exists() or bool(restored),
+    }
+
+
+def restore_probe_backups(workspace: Path | str) -> Dict[str, Any]:
+    """Restore any leftover mutant files from .godkiller/probe_backup (crash recovery)."""
+    from godkiller_mcp.file_lock import workspace_lock
+
+    ws = Path(workspace).resolve()
+    with workspace_lock(ws, name="probe.lock"):
+        return _restore_probe_backups_unlocked(ws)
 
 
 def probe_unclean(workspace: Path | str) -> bool:
     return (Path(workspace) / ".godkiller" / "probe_unclean.json").exists()
+
+
+def warn_if_probe_unclean(workspace: Path | str, *, stream=None) -> bool:
+    """Print a visible crash leftover warning. Returns True if unclean marker present."""
+    import sys
+
+    ws = Path(workspace).resolve()
+    if not probe_unclean(ws):
+        return False
+    out = stream if stream is not None else sys.stderr
+    msg = (
+        f"WARNING: fault_probe unclean marker at {ws / '.godkiller' / 'probe_unclean.json'} — "
+        "workspace may still contain mutants from a prior SIGKILL/crash. "
+        "Run: godkiller-restore --workspace .   (or claim_done will attempt restore)"
+    )
+    try:
+        print(msg, file=out, flush=True)
+    except OSError:
+        pass
+    return True
 
 
 @dataclass
@@ -438,69 +469,72 @@ def run_fault_probe(
     budget = max_mutants
 
     from godkiller_mcp.evidence_store import atomic_write_text
+    from godkiller_mcp.file_lock import workspace_lock
 
-    # Crash recovery from prior unclean probe
-    restore_probe_backups(workspace)
-    if probe_unclean(workspace):
-        return FaultProbeReport(
-            clean=False,
-            skipped_reason="probe_unclean leftover — restore failed; fix files under .godkiller/probe_backup",
-            targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
-            test_command=test_command,
-            material_hash=mat["material_hash"],
-            scope=scope,
-            complete=bool(mat.get("complete", True)),
-            summary="fault_probe BLOCKED: unclean workspace after prior crash",
-        )
+    with workspace_lock(workspace, name="probe.lock", timeout_sec=max(60.0, timeout_sec * 3)):
+        # Crash recovery from prior unclean probe
+        warn_if_probe_unclean(workspace)
+        _restore_probe_backups_unlocked(Path(workspace).resolve())
+        if probe_unclean(workspace):
+            return FaultProbeReport(
+                clean=False,
+                skipped_reason="probe_unclean leftover — restore failed; fix files under .godkiller/probe_backup",
+                targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
+                test_command=test_command,
+                material_hash=mat["material_hash"],
+                scope=scope,
+                complete=bool(mat.get("complete", True)),
+                summary="fault_probe BLOCKED: unclean workspace after prior crash",
+            )
 
-    backup_root, unclean_path = _probe_dirs(workspace)
+        backup_root, unclean_path = _probe_dirs(workspace)
 
-    for fpath in files:
-        if tried >= budget:
-            break
-        if not _is_under_workspace(fpath, workspace):
-            continue
-        try:
-            original = fpath.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        mutants = _generate_mutants(original, max_per_file=max_per_file)
-        for kind, detail, mutated in mutants:
+        for fpath in files:
             if tried >= budget:
                 break
-            tried += 1
-            rel = str(fpath.relative_to(workspace)).replace("\\", "/")
-            bak = backup_root / f"{rel.replace('/', '__')}.bak"
-            atomic_write_text(bak, original)
-            atomic_write_text(
-                unclean_path,
-                json.dumps({"files": [rel], "bak": str(bak)}, indent=2),
-            )
+            if not _is_under_workspace(fpath, workspace):
+                continue
             try:
-                atomic_write_text(fpath, mutated)
-                proc = run_command_safely(
-                    test_command, cwd=workspace, timeout_sec=timeout_sec
+                original = fpath.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            mutants = _generate_mutants(original, max_per_file=max_per_file)
+            for kind, detail, mutated in mutants:
+                if tried >= budget:
+                    break
+                tried += 1
+                rel = str(fpath.relative_to(workspace)).replace("\\", "/")
+                bak = backup_root / f"{rel.replace('/', '__')}.bak"
+                atomic_write_text(bak, original)
+                atomic_write_text(
+                    unclean_path,
+                    json.dumps({"files": [rel], "bak": str(bak)}, indent=2),
                 )
-                entry = {
-                    "file": rel,
-                    "kind": kind,
-                    "detail": detail,
-                    "exit_code": proc.returncode,
-                    "digest": hashlib.sha256(mutated.encode()).hexdigest()[:16],
-                }
-                if proc.returncode == 0:
-                    survivors.append(entry)
-                else:
-                    killed += 1
-            finally:
                 try:
-                    atomic_write_text(fpath, bak.read_text(encoding="utf-8"))
-                    bak.unlink(missing_ok=True)
-                    if unclean_path.exists():
-                        unclean_path.unlink()
-                except Exception:
-                    # Leave unclean marker + bak for next restore_probe_backups
-                    pass
+                    atomic_write_text(fpath, mutated)
+                    proc = run_command_safely(
+                        test_command, cwd=workspace, timeout_sec=timeout_sec
+                    )
+                    entry = {
+                        "file": rel,
+                        "kind": kind,
+                        "detail": detail,
+                        "exit_code": proc.returncode,
+                        "digest": hashlib.sha256(mutated.encode()).hexdigest()[:16],
+                    }
+                    if proc.returncode == 0:
+                        survivors.append(entry)
+                    else:
+                        killed += 1
+                finally:
+                    try:
+                        atomic_write_text(fpath, bak.read_text(encoding="utf-8"))
+                        bak.unlink(missing_ok=True)
+                        if unclean_path.exists():
+                            unclean_path.unlink()
+                    except Exception:
+                        # Leave unclean marker + bak for next restore_probe_backups
+                        pass
 
     clean = tried > 0 and len(survivors) == 0
     if tried == 0:

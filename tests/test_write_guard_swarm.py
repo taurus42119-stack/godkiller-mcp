@@ -25,9 +25,25 @@ def test_write_guard_allows_listed_path(tmp_path: Path):
     assert d["allowed"] is True
 
 
-def test_write_guard_denies_outside_workspace(tmp_path: Path):
-    d = decide_write(path="C:/Windows/notepad.exe", workspace=tmp_path, allow_paths=["a.py"])
+def test_write_guard_denies_basename_only_trap(tmp_path: Path):
+    """allow_paths=['config.py'] must NOT allow evil/config.py"""
+    (tmp_path / "evil").mkdir()
+    (tmp_path / "evil" / "config.py").write_text("x=1\n", encoding="utf-8")
+    d = decide_write(
+        path="evil/config.py",
+        workspace=tmp_path,
+        allow_paths=["config.py"],
+    )
     assert d["allowed"] is False
+    assert d["permissionDecision"] == "deny"
+
+
+def test_write_guard_allows_exact_and_prefix(tmp_path: Path):
+    (tmp_path / "pkg").mkdir()
+    d = decide_write(path="pkg/a.py", workspace=tmp_path, allow_paths=["pkg"])
+    assert d["allowed"] is True
+    d2 = decide_write(path="pkg/a.py", workspace=tmp_path, allow_paths=["pkg/a.py"])
+    assert d2["allowed"] is True
 
 
 def test_write_guard_cli_exit_2_on_deny(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
