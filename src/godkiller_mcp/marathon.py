@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -17,6 +18,19 @@ from godkiller_mcp.schema import Phase, TaskKind, new_id
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def normalize_marathon_slug(slug: str) -> str:
+    """Single-segment slug only — reject .. / \\ and absolute escapes."""
+    raw = str(slug).strip()
+    if not raw or any(ch in raw for ch in ("..", "/", "\\", ":", "\0")):
+        raise ValueError(f"illegal marathon slug: {slug!r}")
+    if not _SLUG_RE.fullmatch(raw):
+        raise ValueError(f"illegal marathon slug: {slug!r}")
+    return raw
 
 
 class MarathonState(BaseModel):
@@ -45,7 +59,14 @@ class MarathonRelay:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _dir(self, slug: str) -> Path:
-        d = self.root / slug
+        safe = normalize_marathon_slug(slug)
+        d = self.root / safe
+        # Ensure resolved path stays under root (defense in depth)
+        resolved = d.resolve()
+        try:
+            resolved.relative_to(self.root.resolve())
+        except ValueError as exc:
+            raise ValueError(f"illegal marathon slug: {slug!r}") from exc
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -63,6 +84,7 @@ class MarathonRelay:
         plan_path: Optional[str] = None,
         task_id: Optional[str] = None,
     ) -> MarathonState:
+        slug = normalize_marathon_slug(slug)
         kind_e = TaskKind(kind) if isinstance(kind, str) else kind
         state = MarathonState(
             slug=slug,
@@ -77,6 +99,7 @@ class MarathonRelay:
         return state
 
     def load(self, slug: str) -> MarathonState:
+        slug = normalize_marathon_slug(slug)
         path = self.state_path(slug)
         if not path.exists():
             raise FileNotFoundError(f"No marathon state for slug={slug}")

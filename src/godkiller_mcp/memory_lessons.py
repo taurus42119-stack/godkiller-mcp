@@ -202,6 +202,26 @@ class LessonMemory:
             "injected": injected,
         }
 
+    def export_evidence_payload(self, lessons: List[Lesson]) -> Dict[str, Any]:
+        """Serialize retrieved lessons for evidence attach / agent JSON."""
+        return {
+            "count": len(lessons),
+            "lessons": [
+                {
+                    "id": l.id,
+                    "project_id": l.project_id,
+                    "task_id": l.task_id,
+                    "content": l.content,
+                    "tags": l.tags,
+                    "evidence_ids": l.evidence_ids,
+                    "task_passed": l.task_passed,
+                    "tier": l.tier,
+                    "verified": l.verified,
+                }
+                for l in lessons
+            ],
+        }
+
     def close(self) -> None:
         if self.conn:
             self.conn.close()

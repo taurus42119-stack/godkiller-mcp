@@ -32,11 +32,13 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         require_blast_before_edit,
     )
     from godkiller_mcp.dispatch import (
+        ROOT,
         STORE_DIR,
         STATE_ROOT,
         _json,
         browser,
         handoff,
+        handle_tool,
         lessons,
         loops,
         marathon,

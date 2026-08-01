@@ -31,6 +31,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         get_failing_slice,
         require_blast_before_edit,
     )
+    from godkiller_mcp.browser_bridge import JourneyResult, JourneyStep
     from godkiller_mcp.dispatch import (
         STORE_DIR,
         STATE_ROOT,
@@ -49,6 +50,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         workflow,
         pw_browser,
     )
+    from godkiller_mcp.memory_lessons import MemoryTier
     from godkiller_mcp import ultradeep_engine as ude
     from godkiller_mcp.policy import rubric_for_kind
     from godkiller_mcp.quality_gates import (
@@ -226,7 +228,6 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             project_id=arguments["project_id"],
             query=arguments["query"],
             limit=int(arguments.get("limit") or 5),
-            tier=arguments.get("tier"),
         )
         if arguments.get("attach") and arguments.get("task_id"):
             ev = store.submit_evidence(
@@ -358,6 +359,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(ev.model_dump())
 
     if name == "ingest_lesson":
+        raw_tier = arguments.get("tier") or MemoryTier.SEMANTIC
+        tier = raw_tier.value if isinstance(raw_tier, MemoryTier) else str(raw_tier)
         lesson = lessons.ingest_lesson(
             project_id=arguments["project_id"],
             task_id=arguments["task_id"],
@@ -365,7 +368,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             tags=arguments.get("tags"),
             evidence_ids=arguments.get("evidence_ids"),
             task_passed=bool(arguments["task_passed"]),
-            tier=arguments.get("tier") or MemoryTier.SEMANTIC,
+            tier=tier,
         )
         if lesson is None:
             return _json({"stored": False, "reason": "Rejected: task_passed must be true."})

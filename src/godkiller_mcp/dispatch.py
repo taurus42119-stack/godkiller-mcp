@@ -131,13 +131,36 @@ def _json(data: Any) -> List[TextContent]:
 
 
 async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    """Public entry — classify KeyError into typed JSON (missing_arg / unknown_task / internal)."""
+    """Public entry — classify KeyError; soft-fail NameError/TypeError as typed JSON."""
     try:
         return await _handle_tool_body(name, arguments or {})
     except KeyError as exc:
         from godkiller_mcp.governance import key_error_payload
 
         return _json(key_error_payload(exc))
+    except NameError as exc:
+        return _json(
+            {
+                "error": "internal_name_error",
+                "detail": str(exc),
+                "hint": "handler peel bug — report tool name",
+                "tool": name,
+            }
+        )
+    except TypeError as exc:
+        return _json(
+            {
+                "error": "type_error",
+                "detail": str(exc),
+                "hint": "check argument types for this action",
+                "tool": name,
+            }
+        )
+    except ValueError as exc:
+        # e.g. illegal marathon slug — agent-visible, not a crash
+        return _json({"error": "invalid_value", "detail": str(exc), "tool": name})
+    except PermissionError as exc:
+        return _json({"error": "permission_denied", "detail": str(exc), "tool": name})
 
 
 async def _handle_tool_body(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
@@ -328,8 +351,25 @@ async def _handle_tool_body(name: str, arguments: Dict[str, Any]) -> List[TextCo
         return _json(result)
 
     if name == "gk_code_read_full":
-        path = Path(arguments["path"])
-        if not path.exists():
+        from godkiller_mcp.code_intel import check_edit_safe
+
+        raw_path = arguments.get("path")
+        if not raw_path:
+            return _json({"ok": False, "error": "missing_arg", "fields": ["path"]})
+        workspace = Path.cwd()
+        gate = check_edit_safe([str(raw_path)], workspace)
+        if not (gate.payload or {}).get("safe"):
+            return _json(
+                {
+                    "ok": False,
+                    "error": "path_outside_workspace",
+                    "reasons": (gate.payload or {}).get("reasons") or [],
+                    "workspace": str(workspace.resolve()),
+                }
+            )
+        resolved = (gate.payload or {}).get("resolved") or []
+        path = Path(resolved[0]) if resolved else Path(raw_path)
+        if not path.is_file():
             return _json({"ok": False, "error": f"missing file: {path}"})
 
         def _read() -> tuple[str, int]:
