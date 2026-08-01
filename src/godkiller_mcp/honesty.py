@@ -183,6 +183,8 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
         return {
             "ok": True,
             "product": "godkiller-mcp",
+            "posture": "beta_proof_kernel",
+            "not": ["enterprise_ready", "multi_tenant", "os_lock", "sso_siem_mesh"],
             "compact": True,
             "agents_md": agents_full.get("agents_md_path"),
             "agents_ok": bool(agents_full.get("exists")),
@@ -192,7 +194,8 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
             "host_mcp": host,
             "write_guard": guard,
             "mouth": (
-                "disk>chat; no invent names/scores; detail=true for full maps; "
+                "Beta proof-kernel (local MCP); disk>chat; no invent names/scores; "
+                "not multi-tenant/SSO/SIEM; detail=true for full maps; "
                 + (
                     "write-guard WARN — native Write bypasses MCP"
                     if guard.get("severity") == "warn"
@@ -205,6 +208,8 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
         "ok": True,
         "product": "godkiller-mcp",
         "role": "MCP proof kernel",
+        "posture": "beta_proof_kernel",
+        "not": ["enterprise_ready", "multi_tenant", "os_lock", "sso_siem_mesh"],
         "compact": False,
         "honesty_rules": honesty_rules(detail=True),
         "agents_constitution": agents_full,
@@ -219,6 +224,7 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
         "truth": (
             "Host MCP inventory = config files. This process = facades only. "
             "Chat that disagrees is wrong. "
-            "Without PreToolUse → write-guard, native Write bypasses MCP."
+            "Without PreToolUse → write-guard, native Write bypasses MCP. "
+            "Local single-process MCP — not multi-tenant SaaS."
         ),
     }

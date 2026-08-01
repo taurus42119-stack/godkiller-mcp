@@ -3,8 +3,33 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set
+
+
+def atomic_write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None:
+    """Write via same-dir temp + os.replace so a crash mid-write keeps the prior file."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding=encoding, newline="\n") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 from godkiller_mcp.schema import (
     Evidence,
@@ -220,7 +245,7 @@ class EvidenceStore:
         if not self.persist_dir:
             return
         path = self.persist_dir / f"{state.handle.task_id}.json"
-        path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+        atomic_write_text(path, state.model_dump_json(indent=2))
 
     def _load(self, task_id: str) -> Optional[TaskState]:
         if not self.persist_dir:

@@ -79,6 +79,15 @@ def require_task_for_privileged(tool_name: str, arguments: Dict[str, Any]) -> Op
     )
 
 
+def missing_arg_error(arguments: Optional[Dict[str, Any]], *keys: str) -> Optional[Dict[str, Any]]:
+    """Return a JSON-safe error payload if any required key is absent or None."""
+    args = arguments or {}
+    missing = [k for k in keys if k not in args or args[k] is None]
+    if not missing:
+        return None
+    return {"error": "missing_arg", "fields": missing}
+
+
 def require_valid_plan(state) -> tuple[bool, str]:
     if not plan_always_required():
         return True, "plan_lock off"

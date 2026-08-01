@@ -131,6 +131,17 @@ def _json(data: Any) -> List[TextContent]:
 
 
 async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Public entry — convert raw KeyError (missing arg) into JSON for the agent."""
+    try:
+        return await _handle_tool_body(name, arguments or {})
+    except KeyError as exc:
+        field = exc.args[0] if exc.args else "unknown"
+        if not isinstance(field, str):
+            field = str(field)
+        return _json({"error": "missing_arg", "fields": [field]})
+
+
+async def _handle_tool_body(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     from godkiller_mcp.governance import require_task_for_privileged
     from godkiller_mcp.handlers import REGISTRY, ensure_registered
 

@@ -21,8 +21,9 @@ pip install godkiller-mcp
 # (see docs/WRITE_GUARD_HOOKS.md) — without this hook, native Write bypasses MCP
 ```
 
-**Status:** Beta MCP proof kernel — not Enterprise Ready / not OS lock / not Production-Stable.  
+**Status:** Beta MCP proof kernel — not Enterprise Ready / not OS lock / not Production-Stable / not multi-tenant SaaS (no SSO, SIEM, or 100k shared-backend claims).  
 **Honest mouth:** call `gk_meta.status` (`gk_honesty_status`) for disk MCP configs + real facades — trust that JSON over chat memory. Never invent tools/servers/scores.  
+**Host boundary:** native IDE Write/Edit bypass MCP unless PreToolUse → `godkiller-write-guard` is wired (`docs/WRITE_GUARD_HOOKS.md`). Without that hook, treat Write as unrestricted.  
 **Internal A/B (honest):** on Isolated/World volume oracles, Bare ≈ WITH pass counts — MCP is not proven to raise pytest score; craft/discipline gains show more on long UI/game work. Do not claim “beats Bare on oracle” from chat.  
 **Skills power-up:** `gk_mode.skill_catalog` merges project `.agents/skills` + **agent-ops** (bundled). Forced routes for review / babysit / automate / create-skill / shell.  
 **Paired `.agents`:** `gk_meta.status` returns `agents_constitution` with `must_read_agents_md` + path to `AGENTS.md` (Supreme Law). Set `GODKILLER_AGENTS_MD` / `GODKILLER_AGENTS_ROOT` so every host points at the same constitution.  

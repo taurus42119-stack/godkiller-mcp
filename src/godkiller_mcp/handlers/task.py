@@ -30,7 +30,12 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     from pathlib import Path
 
     arguments = arguments or {}
+    from godkiller_mcp.governance import missing_arg_error
+
     if name == "open_task":
+        bad = missing_arg_error(arguments, "kind", "goal")
+        if bad:
+            return _json(bad)
         state = store.open_task(
             kind=arguments["kind"],
             goal=arguments["goal"],
@@ -54,6 +59,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "propose_hypothesis":
         from godkiller_mcp.search_gates import assert_phase_search_gate
 
+        bad = missing_arg_error(arguments, "task_id", "claim")
+        if bad:
+            return _json(bad)
         hyp = store.propose_hypothesis(
             task_id=arguments["task_id"],
             claim=arguments["claim"],
@@ -87,6 +95,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         from godkiller_mcp.search_gates import assert_phase_search_gate
         from godkiller_mcp.skill_gates import assert_phase_skill_gate
 
+        bad = missing_arg_error(arguments, "task_id", "phase")
+        if bad:
+            return _json(bad)
         cur = store.get(arguments["task_id"])
         ok_s, reason_s = assert_phase_search_gate(cur, arguments["phase"])
         if not ok_s:
@@ -137,6 +148,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "submit_evidence":
         from godkiller_mcp.search_gates import normalize_web_search_payload
 
+        bad = missing_arg_error(arguments, "task_id", "type", "summary")
+        if bad:
+            return _json(bad)
         payload = arguments.get("payload") or {}
         if isinstance(payload, dict):
             payload = normalize_web_search_payload(payload)
@@ -181,6 +195,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
         from godkiller_mcp.claim_verdict import build_claim_payload
 
+        bad = missing_arg_error(arguments, "task_id")
+        if bad:
+            return _json(bad)
         state = store.get(arguments["task_id"])
         if state.closed:
             return _json(

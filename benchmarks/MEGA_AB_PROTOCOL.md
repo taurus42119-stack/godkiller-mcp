@@ -105,3 +105,19 @@ python -m benchmarks.mega_scorecard
 - Isolated: ปิด OPEN เดิมด้วย compare ที่อ่านได้
 
 **SWE-Live Track B:** รันคู่ขนานได้ถ้า docker พร้อม — ไม่บล็อกปิดรอบ Field1/3/TrackA แต่ห้ามเอายอด TrackA ไปพูดแทน SWE
+
+## Proof-Kernel Next — Slice D receipt (2026-08-01)
+
+Goal: prove **arm-local** `GODKILLER_HOME` + shared `GODKILLER_SEAL_KEY` lights **dims 5–11** (fail-closed sealed path). Not a claim that an agent marathon just beat Bare.
+
+```powershell
+$env:GODKILLER_SEAL_KEY = "<64 hex shared with scorer>"
+$env:GODKILLER_ISOLATED_ARENA = "$env:USERPROFILE\Desktop\GODKILLER_ISOLATED_ARENA"
+# optional: $env:GODKILLER_ARENA_ARM = "...\2_WITH_MCP" before sync_mcp_with.ps1
+python scripts/mint_arm_process_dims.py   # sealed task under 2_WITH_MCP/.godkiller/tasks
+python -m benchmarks.score_11 --arm 2_WITH_MCP
+```
+
+**Observed (this machine, after mint):** `logs/score_2_WITH_MCP.json` — dims **5–11 all 100** with `sealed_sources` including `verify_bundle`, `council_finalize`, `fault_probe`, `exit_checklist`, `visual_critic`. Oracle dims 1–4 were already green on that arm from prior work; mint only proves process-signal plumbing.
+
+**Honest gap:** full campaign still needs a live WITH agent session that *earns* those seals via tools (not only `mint_arm_process_dims.py`). Unit proof: `tests/test_process_dims_arm.py`.

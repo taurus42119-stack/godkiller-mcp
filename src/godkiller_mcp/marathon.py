@@ -160,8 +160,10 @@ class MarathonRelay:
         )
 
     def _write(self, state: MarathonState) -> None:
-        self.state_path(state.slug).write_text(state.model_dump_json(indent=2), encoding="utf-8")
-        self.progress_path(state.slug).write_text(self._progress_md(state), encoding="utf-8")
+        from godkiller_mcp.evidence_store import atomic_write_text
+
+        atomic_write_text(self.state_path(state.slug), state.model_dump_json(indent=2))
+        atomic_write_text(self.progress_path(state.slug), self._progress_md(state))
 
     def _progress_md(self, state: MarathonState) -> str:
         searches = [f"- {q}" for q in state.search_queries] or ["- (none yet — GATE WILL BLOCK)"]
