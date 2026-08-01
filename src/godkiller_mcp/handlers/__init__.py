@@ -10,9 +10,34 @@ from typing import Any, Awaitable, Callable, Dict
 
 Handler = Callable[[str, Dict[str, Any]], Awaitable[Any]]
 
-# Populated lazily by dispatch to avoid import cycles during migration.
+# Populated by ensure_registered() — avoid import cycles during module load.
 REGISTRY: Dict[str, Handler] = {}
+
+_registered = False
 
 
 def register(name: str, handler: Handler) -> None:
     REGISTRY[name] = handler
+
+
+def ensure_registered() -> None:
+    """Idempotent: load peeled handler modules into REGISTRY."""
+    global _registered
+    if _registered:
+        return
+    from godkiller_mcp.handlers import (
+        code_intel_tools,
+        edit_safe,
+        modes_ultradeep,
+        task,
+        verify,
+        visual_marathon,
+    )
+
+    task.register()
+    edit_safe.register()
+    verify.register()
+    code_intel_tools.register()
+    modes_ultradeep.register()
+    visual_marathon.register()
+    _registered = True

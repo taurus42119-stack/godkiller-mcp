@@ -882,6 +882,7 @@ class AutoFixEngine:
         pattern: str,
         replacement: str,
         preview_only: bool = True,
+        workspace_root: str | Path | None = None,
     ) -> Dict[str, Any]:
         from godkiller_mcp.ship_mode import relax_enabled
 
@@ -894,6 +895,17 @@ class AutoFixEngine:
         pfile = Path(file_path)
         if not pfile.exists():
             return {"error": f"File not found: {file_path}"}
+
+        ws = Path(workspace_root) if workspace_root else pfile.resolve().parent
+        gate = check_edit_safe([str(pfile)], ws)
+        if not gate.payload.get("safe"):
+            return {
+                "error": "check_edit_safe blocked write",
+                "edit_safe": gate.payload,
+                "engine": "regex_autofix",
+                "preview_only": True,
+                "replacements_made": 0,
+            }
 
         try:
             content = pfile.read_text(encoding="utf-8", errors="ignore")
@@ -922,6 +934,7 @@ class AutoFixEngine:
                 "replacement": replacement,
                 "replacements_made": count,
                 "preview_only": preview_only,
+                "edit_safe": gate.payload,
                 "diff": "\n".join(diff_lines) if diff_lines else "No matches found to replace.",
             }
             if forced_preview:
@@ -1478,9 +1491,20 @@ class AutoSkillifyEngine:
         instructions: str,
         workspace_root: str = ".",
     ) -> Dict[str, Any]:
-        skill_dir = Path(workspace_root) / ".agents" / "skills" / skill_name
-        skill_dir.mkdir(parents=True, exist_ok=True)
+        root = Path(workspace_root).resolve()
+        skill_dir = root / ".agents" / "skills" / skill_name
         skill_file = skill_dir / "SKILL.md"
+        gate = check_edit_safe([str(skill_file)], root)
+        if not gate.payload.get("safe"):
+            return {
+                "engine": "auto_skillify_engine",
+                "skill_name": skill_name,
+                "status": "blocked",
+                "error": "check_edit_safe blocked write",
+                "edit_safe": gate.payload,
+            }
+
+        skill_dir.mkdir(parents=True, exist_ok=True)
 
         content = f"""---
 name: {skill_name}
@@ -1501,6 +1525,7 @@ description: {description}
             "skill_name": skill_name,
             "file": str(skill_file),
             "status": "created",
+            "edit_safe": gate.payload,
         }
 
 

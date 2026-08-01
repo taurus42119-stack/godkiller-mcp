@@ -65,6 +65,16 @@ $env:GODKILLER_SKILLS_ROOTS = $skillsRootsEnv
 $env:GODKILLER_PROFILE = "ship"
 $env:GODKILLER_WORKSPACE = $workspace
 
+# P1: arena WITH arm — persist sealed tasks where score_11 looks
+if ($env:GODKILLER_ARENA_ARM) {
+  $armGod = Join-Path $env:GODKILLER_ARENA_ARM ".godkiller"
+  New-Item -ItemType Directory -Force -Path $armGod | Out-Null
+  $env:GODKILLER_HOME = $armGod
+  Write-Host "GODKILLER_HOME -> $armGod (arena arm for score_11 dims 5-11)"
+} elseif (Test-Path (Join-Path $workspace ".godkiller")) {
+  $env:GODKILLER_HOME = (Join-Path $workspace ".godkiller")
+}
+
 & $py $writer
 if ($LASTEXITCODE -ne 0) { throw "writer failed" }
 

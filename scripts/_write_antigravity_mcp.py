@@ -70,6 +70,11 @@ cfg = {
                 "GODKILLER_WRITE_GUARD_WIRED": os.environ.get(
                     "GODKILLER_WRITE_GUARD_WIRED", "1"
                 ),
+                **(
+                    {"GODKILLER_HOME": os.environ["GODKILLER_HOME"]}
+                    if os.environ.get("GODKILLER_HOME", "").strip()
+                    else {}
+                ),
             },
         },
     }

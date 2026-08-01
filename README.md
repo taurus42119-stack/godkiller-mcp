@@ -108,7 +108,8 @@ Static `gk_scan.security` is an **AST/heuristic signal** (optional Snyk/Bandit i
 Council must record a Hacker `REJECT` before `COUNCIL_PASS` (nits-only = theatre).
 
 **Seal key:** require host `GODKILLER_SEAL_KEY` (see [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)); no silent `.seal_key` mint.  
-**Write enforce:** only with host PreToolUse — demo in [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md).
+**Write enforce:** only with host PreToolUse — demo in [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md).  
+**Arena WITH (dims 5–11):** set `GODKILLER_ARENA_ARM=…/2_WITH_MCP` before `scripts/sync_mcp_with.ps1` so `GODKILLER_HOME` lands on the arm; use the same `GODKILLER_SEAL_KEY` for agent + `python -m benchmarks.score_11` (see `benchmarks/MEGA_AB_PROTOCOL.md`).
 
 Preflight: `gk_verify.exit` → `exit_checklist` (`directive: pass|reject`).  
 Host last word: `python -m godkiller_mcp.prove`.

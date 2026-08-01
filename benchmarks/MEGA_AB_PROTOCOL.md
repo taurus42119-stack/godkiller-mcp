@@ -35,6 +35,8 @@ flowchart TB
 1. **Bare ก่อนทั้งสามสนาม** แล้วค่อย WITH — หรือ Bare ทั้งก้อนจบก่อนเปิด godkiller (ห้ามสลับ MCP กลางสนาม)
 2. Bare MCP = 3 ตัว (`chrome-devtools`, `jcodemunch-mcp`, `codebase-memory-mcp`) · **ไม่มี godkiller**
 3. WITH = 3 + `godkiller` ชี้ `python -m godkiller_mcp.server` ในแพ็กเกจจริง · เรียก `gk_meta.status` ก่อนอ้าง tool
+3b. **Process dims (5–11):** ตั้ง `GODKILLER_ARENA_ARM=<...>/2_WITH_MCP` ก่อน `sync_mcp_with.ps1` เพื่อให้ `GODKILLER_HOME` ชี้ไปที่ `2_WITH_MCP/.godkiller` — scorer อ่านแค่ sealed `task_*.json` ใต้แขน ไม่ใช่ `~/.godkiller` ของเครื่อง · export **`GODKILLER_SEAL_KEY` ชุดเดียว** ตอนรัน agent และตอน `python -m benchmarks.score_11`
+3c. เชนบังคับบน disk: `open_task` → exhaustive (`server_authored`) → `blast_radius` + `check_edit_safe` → `verify_bundle` → `council_finalize` → `fault_probe`/`hollow`/`write_guard` → `visual_critic` → claim/exit — ห้ามอ้างชนะ process จาก `proof.json` / chat
 4. Prompt / งบโมเดล / เวลา wall ต่อสนาม **เท่ากัน** สองแขน
 5. ห้ามเปิด `hidden_oracle/` ตอนแข่ง
 6. ห้าม claim “ชนะโลก / SWE score / ชนะ Opus” จากแชทอย่างเดียว
