@@ -43,18 +43,20 @@ def main() -> int:
     state = store.open_task(kind="feature", goal="proof-kernel-next process dims mint")
     tid = state.handle.task_id
 
+    MINT = {"provenance": "mint_fixture", "minted": True}
+
     store.submit_evidence(
         tid,
         EvidenceType.BLAST_RADIUS,
         "blast",
-        {"server_authored": True, "symbol": "app"},
+        {"server_authored": True, "symbol": "app", **MINT},
         server_authored=True,
     )
     store.submit_evidence(
         tid,
         EvidenceType.EDIT_SAFE,
         "edit",
-        {"server_authored": True, "paths": ["app.py"]},
+        {"server_authored": True, "paths": ["app.py"], **MINT},
         server_authored=True,
     )
     store.submit_evidence(
@@ -65,6 +67,7 @@ def main() -> int:
             "server_authored": True,
             "engine": "exhaustive_reader_engine",
             "full_content": True,
+            **MINT,
         },
         server_authored=True,
     )
@@ -81,6 +84,7 @@ def main() -> int:
                 "source": src,
                 "server_authored": True,
                 "passed": True,
+                **MINT,
                 **(
                     {
                         "verdict": "GREEN",
@@ -94,11 +98,20 @@ def main() -> int:
         )
         store.submit_evidence(tid, EvidenceType.LOG, src, payload, server_authored=True)
 
-    store.update_metadata(tid, {"chosen_design": "A", "plan_os": True})
+    store.update_metadata(
+        tid,
+        {
+            "chosen_design": "A",
+            "plan_os": True,
+            "provenance": "mint_fixture",
+            "minted": True,
+        },
+    )
     store.assert_phase(tid, Phase.REPRODUCE)
     store.mark_closed(tid)
 
-    print(f"minted task_id={tid}")
+    print(f"minted task_id={tid} provenance=mint_fixture")
+    print("NOTE: score_11 excludes mint_fixture from earned dims 5-11")
     print(f"tasks_dir={tasks}")
     print(f"files={list(tasks.glob('*.json'))}")
     return 0

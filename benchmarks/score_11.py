@@ -312,6 +312,10 @@ def _empty_sealed_signals(*, reason: str) -> dict:
         "seal_reason": reason,
         "sealed_sources": [],
         "task_files": 0,
+        "minted_task_files": 0,
+        "minted_sealed_sources": [],
+        "minted_process_lit": False,
+        "minted_signals": {},
     }
 
 
@@ -379,12 +383,30 @@ def _iter_task_jsons(arm_dir: Path) -> List[Path]:
     return out
 
 
+def _task_is_mint_fixture(data: dict) -> bool:
+    """True when task was produced by scripts/mint_arm_process_dims (plumbing, not agent-earned)."""
+    handle = data.get("handle") or {}
+    meta = handle.get("metadata") or {}
+    if isinstance(meta, dict):
+        if meta.get("provenance") == "mint_fixture" or meta.get("minted") is True:
+            return True
+    for ev in data.get("evidences") or []:
+        if not isinstance(ev, dict):
+            continue
+        payload = ev.get("payload") if isinstance(ev.get("payload"), dict) else {}
+        if payload.get("provenance") == "mint_fixture" or payload.get("minted") is True:
+            return True
+    return False
+
+
 def sealed_artifact_signals(arm_dir: Path) -> dict:
     """
     Dims 5–11 evidence from HMAC-verified armor rows (+ server-only blast/edit).
 
     Fail-closed: no seal key / no tasks → all False.
     Keyword haystacks and lone .png files do not score.
+    Tasks marked provenance=mint_fixture do NOT count toward earned process dims;
+    they are reported under minted_* keys only.
     """
     from godkiller_mcp.evidence_integrity import ARMOR_SOURCES, verify_seal
 
@@ -397,6 +419,7 @@ def sealed_artifact_signals(arm_dir: Path) -> dict:
         return _empty_sealed_signals(reason="no_task_json")
 
     sealed_sources: set[str] = set()
+    minted_sources: set[str] = set()
     has_blast = False
     has_edit = False
     exhaustive = False
@@ -404,6 +427,12 @@ def sealed_artifact_signals(arm_dir: Path) -> dict:
     open_task = False
     claim_done = False
     server_authored_any = False
+    minted_task_files = 0
+    minted_blast = False
+    minted_edit = False
+    minted_exhaustive = False
+    minted_plan = False
+    minted_claim = False
 
     for path in task_files:
         try:
@@ -414,21 +443,33 @@ def sealed_artifact_signals(arm_dir: Path) -> dict:
         tid = str(handle.get("task_id") or "")
         if not tid:
             continue
-        open_task = True
-        hist = data.get("phase_history") or []
-        if len(hist) >= 2:
+
+        is_mint = _task_is_mint_fixture(data)
+        if is_mint:
+            minted_task_files += 1
+
+        if not is_mint:
             open_task = True
-        phase = str(handle.get("phase") or "").lower()
-        if phase in ("claim_done", "closed"):
-            claim_done = True
-        meta = handle.get("metadata") or {}
-        if isinstance(meta, dict):
-            meta_blob = json.dumps(meta, ensure_ascii=False).lower()
-            if "chosen_design" in meta_blob or "plan_os" in meta_blob:
-                plan_os = True
-            if "exhaustive" in meta_blob or "full_content" in meta_blob:
-                # metadata alone is weak — require server_authored evidence below too
-                pass
+            hist = data.get("phase_history") or []
+            if len(hist) >= 2:
+                open_task = True
+            phase = str(handle.get("phase") or "").lower()
+            if phase in ("claim_done", "closed"):
+                claim_done = True
+            meta = handle.get("metadata") or {}
+            if isinstance(meta, dict):
+                meta_blob = json.dumps(meta, ensure_ascii=False).lower()
+                if "chosen_design" in meta_blob or "plan_os" in meta_blob:
+                    plan_os = True
+        else:
+            meta = handle.get("metadata") or {}
+            if isinstance(meta, dict):
+                meta_blob = json.dumps(meta, ensure_ascii=False).lower()
+                if "chosen_design" in meta_blob or "plan_os" in meta_blob:
+                    minted_plan = True
+            phase = str(handle.get("phase") or "").lower()
+            if phase in ("claim_done", "closed"):
+                minted_claim = True
 
         for ev in data.get("evidences") or []:
             if not isinstance(ev, dict):
@@ -437,30 +478,40 @@ def sealed_artifact_signals(arm_dir: Path) -> dict:
             et = str(ev.get("type") or "").lower()
             src = str(payload.get("source") or "")
             authored = bool(payload.get("server_authored"))
+            row_mint = is_mint or payload.get("provenance") == "mint_fixture" or payload.get("minted") is True
 
-            if authored:
+            if authored and not row_mint:
                 server_authored_any = True
 
             if et == "blast_radius" and authored:
-                has_blast = True
+                if row_mint:
+                    minted_blast = True
+                else:
+                    has_blast = True
             if et == "edit_safe" and authored:
-                has_edit = True
+                if row_mint:
+                    minted_edit = True
+                else:
+                    has_edit = True
 
             if src in ARMOR_SOURCES:
                 if verify_seal(tid, payload, secret):
-                    sealed_sources.add(src)
+                    if row_mint:
+                        minted_sources.add(src)
+                    else:
+                        sealed_sources.add(src)
                 continue
 
-            # Non-armor server rows (e.g. exhaustive reader attach) — require authored
             if authored and (
                 payload.get("full_content") is True
                 or payload.get("engine") == "exhaustive_reader_engine"
                 or "exhaustive" in str(payload.get("engine") or "").lower()
             ):
-                exhaustive = True
+                if row_mint:
+                    minted_exhaustive = True
+                else:
+                    exhaustive = True
 
-    # Exhaustive also from sealed scout/swarm payloads with full_content
-    # (already counted via sealed_sources path only if source in ARMOR — scout may be swarm_collect)
     marathon = False
     for root in (arm_dir / ".godkiller", arm_dir / "session_evidence"):
         if not root.is_dir():
@@ -473,17 +524,29 @@ def sealed_artifact_signals(arm_dir: Path) -> dict:
         if marathon:
             break
 
-    # sealed verify/exit imply claim path pressure
     if "exit_checklist" in sealed_sources:
         claim_done = True
+    if "exit_checklist" in minted_sources:
+        minted_claim = True
 
     security = bool(
         sealed_sources & {"fault_probe", "hollow_surface", "write_guard"}
     )
+    minted_security = bool(
+        minted_sources & {"fault_probe", "hollow_surface", "write_guard"}
+    )
+    minted_process_lit = bool(
+        minted_exhaustive
+        or minted_blast
+        or minted_edit
+        or minted_sources
+        or minted_plan
+        or minted_claim
+    )
 
     return {
         "exhaustive_read": exhaustive,
-        "open_task": open_task or len(task_files) > 0,
+        "open_task": open_task or (len(task_files) - minted_task_files) > 0,
         "plan_os": plan_os,
         "blast_radius": has_blast,
         "edit_safe": has_edit,
@@ -493,13 +556,27 @@ def sealed_artifact_signals(arm_dir: Path) -> dict:
         "council": "council_finalize" in sealed_sources,
         "security": security,
         "visual_critic": "visual_critic" in sealed_sources,
-        "screenshot_count": 0,  # alone never scores dim 11
+        "screenshot_count": 0,
         "marathon": marathon,
         "hay_chars": 0,
         "sealed": True,
         "seal_reason": "ok",
         "sealed_sources": sorted(sealed_sources),
         "task_files": len(task_files),
+        "minted_task_files": minted_task_files,
+        "minted_sealed_sources": sorted(minted_sources),
+        "minted_process_lit": minted_process_lit,
+        "minted_signals": {
+            "exhaustive_read": minted_exhaustive,
+            "blast_radius": minted_blast,
+            "edit_safe": minted_edit,
+            "verify_bundle": "verify_bundle" in minted_sources,
+            "claim_done": minted_claim,
+            "council": "council_finalize" in minted_sources,
+            "security": minted_security,
+            "visual_critic": "visual_critic" in minted_sources,
+            "plan_os": minted_plan,
+        },
     }
 
 
@@ -558,6 +635,10 @@ def score_dimensions(oracle: dict, delta: dict, signals: dict) -> Tuple[Dict[str
         "delta": delta,
         "signals": signals,
         "integrity_gate": d3 == 100.0,
+        "process_dims_source": "earned",
+        "minted_task_files": int(signals.get("minted_task_files") or 0),
+        "minted_process_lit": bool(signals.get("minted_process_lit")),
+        "minted_signals": signals.get("minted_signals") or {},
     }
     return dims, {"overall_score": overall, "evidence": evidence}
 
@@ -579,6 +660,21 @@ def score_arm(arena_root: Path, arm: str) -> dict:
         dims[k] == 100.0 for k in ("5_reconnaissance_read", "8_verify_claim_gate", "9_council_review")
     ):
         suspicious.append("bare_arm_has_mcp_only_artifacts_check_contamination")
+    if int(signals.get("minted_task_files") or 0) > 0:
+        suspicious.append("mint_fixture_tasks_present_excluded_from_process_dims")
+    if signals.get("minted_process_lit") and not any(
+        signals.get(k)
+        for k in (
+            "exhaustive_read",
+            "blast_radius",
+            "edit_safe",
+            "verify_bundle",
+            "council",
+            "security",
+            "visual_critic",
+        )
+    ):
+        suspicious.append("process_dims_only_from_mint_fixture_not_earned")
 
     return {
         "arm": arm,

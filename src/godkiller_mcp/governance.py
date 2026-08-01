@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from typing import Any, Dict, Optional, Set
 
 
@@ -80,12 +81,40 @@ def require_task_for_privileged(tool_name: str, arguments: Dict[str, Any]) -> Op
 
 
 def missing_arg_error(arguments: Optional[Dict[str, Any]], *keys: str) -> Optional[Dict[str, Any]]:
-    """Return a JSON-safe error payload if any required key is absent or None."""
+    """Return a JSON-safe error payload if any required key is absent, None, or blank."""
     args = arguments or {}
-    missing = [k for k in keys if k not in args or args[k] is None]
+
+    def _blank(val: Any) -> bool:
+        if val is None:
+            return True
+        if isinstance(val, str) and not val.strip():
+            return True
+        return False
+
+    missing = [k for k in keys if k not in args or _blank(args[k])]
     if not missing:
         return None
     return {"error": "missing_arg", "fields": missing}
+
+
+_FIELD_NAME = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def key_error_payload(exc: KeyError) -> Dict[str, Any]:
+    """Classify KeyError into missing_arg / unknown_task / internal_key_error."""
+    raw = exc.args[0] if exc.args else "unknown"
+    if not isinstance(raw, str):
+        raw = str(raw)
+    if raw.startswith("Unknown task handle:"):
+        tid = raw.split(":", 1)[-1].strip()
+        return {
+            "error": "unknown_task",
+            "task_id": tid,
+            "hint": "open_task first",
+        }
+    if _FIELD_NAME.match(raw):
+        return {"error": "missing_arg", "fields": [raw]}
+    return {"error": "internal_key_error", "detail": raw}
 
 
 def require_valid_plan(state) -> tuple[bool, str]:

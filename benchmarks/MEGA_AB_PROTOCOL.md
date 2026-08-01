@@ -118,6 +118,6 @@ python scripts/mint_arm_process_dims.py   # sealed task under 2_WITH_MCP/.godkil
 python -m benchmarks.score_11 --arm 2_WITH_MCP
 ```
 
-**Observed (this machine, after mint):** `logs/score_2_WITH_MCP.json` — dims **5–11 all 100** with `sealed_sources` including `verify_bundle`, `council_finalize`, `fault_probe`, `exit_checklist`, `visual_critic`. Oracle dims 1–4 were already green on that arm from prior work; mint only proves process-signal plumbing.
+**Observed (this machine, after mint):** `logs/score_2_WITH_MCP.json` — plumbing mint can light **minted_*** signals; **earned dims 5–11 ignore `provenance=mint_fixture`**. Score flags `mint_fixture_tasks_present_excluded_from_process_dims` when mint tasks exist.
 
-**Honest gap:** full campaign still needs a live WITH agent session that *earns* those seals via tools (not only `mint_arm_process_dims.py`). Unit proof: `tests/test_process_dims_arm.py`.
+**Honest gap:** full campaign still needs a live WITH agent session that *earns* seals via tools (not only `mint_arm_process_dims.py`). Unit proof: `tests/test_process_dims_arm.py` (earned) + `tests/test_mint_fixture_scoring.py` (excluded).
