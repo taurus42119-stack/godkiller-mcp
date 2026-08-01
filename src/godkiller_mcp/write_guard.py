@@ -214,6 +214,85 @@ def persist_allow_paths(workspace: str | Path, paths: Sequence[str], *, task_id:
     return path
 
 
+def _host_marker_path() -> Path:
+    return Path.home() / ".godkiller" / "write_guard_host.json"
+
+
+def mark_write_guard_wired(*, source: str = "install") -> Path:
+    """Record that sync/install dropped hook artifacts (not OS enforcement proof)."""
+    path = _host_marker_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "wired_hint": True,
+        "source": source,
+        "command": "godkiller-write-guard --stdin",
+        "honest": "Marker means hook files were installed or env set — not that the IDE enforces.",
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def write_guard_host_status() -> Dict[str, Any]:
+    """Light fail-loud probe for gk_meta.status — warn only, never kill the server."""
+    env_on = os.environ.get("GODKILLER_WRITE_GUARD_WIRED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    marker = _host_marker_path()
+    marker_ok = False
+    if marker.is_file():
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            marker_ok = bool(data.get("wired_hint"))
+        except (OSError, json.JSONDecodeError):
+            marker_ok = False
+
+    home = Path.home()
+    hook_hits: list[str] = []
+    scan_paths = [
+        home / ".cursor" / "hooks" / "pretooluse_write_guard.json",
+        home / ".claude" / "settings.json",
+        Path.cwd() / ".cursor" / "hooks" / "pretooluse_write_guard.json",
+        Path.cwd() / ".claude" / "settings.json",
+        Path.cwd() / ".godkiller" / "pretooluse_write_guard.json",
+    ]
+    needles = ("write_guard", "godkiller-write-guard", "pretooluse_write_guard")
+    for p in scan_paths:
+        if not p.is_file():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if any(n in text for n in needles):
+            hook_hits.append(str(p))
+
+    wired = env_on or marker_ok or bool(hook_hits)
+    if wired:
+        return {
+            "severity": "ok",
+            "wired_hint": True,
+            "env": env_on,
+            "marker": marker_ok,
+            "hook_files_n": len(hook_hits),
+            "msg": "write-guard hook hint present — confirm host PreToolUse calls it",
+        }
+    return {
+        "severity": "warn",
+        "wired_hint": False,
+        "env": False,
+        "marker": False,
+        "hook_files_n": 0,
+        "msg": (
+            "FAIL-LOUD: no write-guard heartbeat — native Write bypasses MCP. "
+            "Run: godkiller-write-guard install --target cursor && wire PreToolUse. "
+            "Or set GODKILLER_WRITE_GUARD_WIRED=1 after wiring."
+        ),
+    }
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI for host hooks: install-hint / install / stdin decide."""
     import argparse
@@ -303,11 +382,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             return 1
         shutil.copy2(pkg_hook, dest)
+        marker = mark_write_guard_wired(source=f"install:{args.target}")
         print(
             json.dumps(
                 {
                     "ok": True,
                     "copied": str(dest),
+                    "marker": str(marker),
                     "next": (
                         "Wire host PreToolUse to: godkiller-write-guard --stdin. "
                         "Copying JSON is not enforcement proof."

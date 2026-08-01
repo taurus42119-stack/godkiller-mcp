@@ -164,12 +164,20 @@ def _host_mcp_summary(present: List[Dict[str, Any]], *, detail: bool) -> Dict[st
 
 def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
     from godkiller_mcp.agents_constitution import constitution_status
+    from godkiller_mcp.write_guard import write_guard_host_status
 
     detail = verbose_enabled(detail)
     configs = [_read_server_names(p, detail=detail) for p in mcp_config_candidates()]
     present = [c for c in configs if c.get("exists")]
     host = _host_mcp_summary(present, detail=detail)
     agents_full = constitution_status()
+    guard = write_guard_host_status()
+    if not detail:
+        guard = {
+            "severity": guard.get("severity"),
+            "wired_hint": guard.get("wired_hint"),
+            "msg": guard.get("msg"),
+        }
 
     if not detail:
         return {
@@ -182,7 +190,15 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
             "runtime": runtime_flags(detail=False),
             "facades": facade_inventory(detail=False),
             "host_mcp": host,
-            "mouth": "disk>chat; no invent names/scores; detail=true for full maps",
+            "write_guard": guard,
+            "mouth": (
+                "disk>chat; no invent names/scores; detail=true for full maps; "
+                + (
+                    "write-guard WARN — native Write bypasses MCP"
+                    if guard.get("severity") == "warn"
+                    else "write-guard hint ok"
+                )
+            ),
         }
 
     return {
@@ -198,9 +214,11 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
         "host_mcp_configs": configs,
         "configs_agree_on_server_names": host.get("agree"),
         "godkiller_listed_in_any_config": host.get("godkiller"),
+        "write_guard": guard,
         "token_hint": "detail=true payload. Default status is ultra-compact.",
         "truth": (
             "Host MCP inventory = config files. This process = facades only. "
-            "Chat that disagrees is wrong."
+            "Chat that disagrees is wrong. "
+            "Without PreToolUse → write-guard, native Write bypasses MCP."
         ),
     }

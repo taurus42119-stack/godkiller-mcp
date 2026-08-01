@@ -5,7 +5,7 @@ description: Bundled fallback when project .agents/workflows/ultradeep.md is mis
 
 # Trigger Command: /ultradeep
 
-Supreme Orchestrator + Marathon one-phase pacing + **per-file Think→Plan→Edit** (additive).
+Marathon one-phase pacing + **per-file Think→Plan→Edit** (additive). Hard gates stay on.
 
 ## World kernel
 1. `activate_mode({mode:"ultradeep", goal, open_kernel_task:true, slug})`
@@ -48,6 +48,7 @@ Streak ≥3 → escalated (council/swarm before more edits).
 
 ## Token discipline during edit
 One file per turn. Surgical recon (`map`/`search`/`preview`) for that file — not whole-tree `read_all`.
+`read_all` defaults are capped; raise max_files / max_chars_per_file only when needed.
 Call GODKILLER gates at phase boundaries (start/verify/claim), not `status`/`activate` every tiny edit.
 Peers on demand. **UI:** console+network (`chrome-devtools`) before screenshot/`visual_step` loops. Forbidden: maximal tool swarm every turn.
 

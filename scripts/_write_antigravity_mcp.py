@@ -67,6 +67,9 @@ cfg = {
                 "GODKILLER_SKILLS_ROOTS": skills,
                 "GODKILLER_AGENTS_MD": str(AGENTS_MD),
                 "GODKILLER_AGENTS_ROOT": str(AGENTS_ROOT),
+                "GODKILLER_WRITE_GUARD_WIRED": os.environ.get(
+                    "GODKILLER_WRITE_GUARD_WIRED", "1"
+                ),
             },
         },
     }
@@ -99,6 +102,31 @@ for p in paths:
 skills_path = home / ".gemini" / "config" / "skills.json"
 skills_path.write_text(json.dumps(skills_json, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 print("wrote", skills_path)
+
+# Drop write-guard hook artifacts + heartbeat marker for gk_meta.status
+try:
+    from godkiller_mcp.write_guard import mark_write_guard_wired
+    import subprocess
+
+    for target in ("godkiller", "cursor"):
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "godkiller_mcp.write_guard",
+                "install",
+                "--target",
+                target,
+                "--workspace",
+                str(WORKSPACE),
+                "--force",
+            ],
+            check=False,
+        )
+    mark_write_guard_wired(source="sync:_write_antigravity_mcp")
+    print("write_guard hook artifacts + ~/.godkiller/write_guard_host.json")
+except Exception as exc:
+    print("write_guard install skipped:", exc)
 
 from godkiller_mcp.honesty import _read_server_names, mcp_config_candidates
 from godkiller_mcp.skill_catalog import build_catalog, resolve_skill_roots

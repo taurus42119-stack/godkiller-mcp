@@ -143,9 +143,11 @@ async def handle_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]
 
     if name == "godkiller_exhaustive_read":
         dpath = arguments["dir_path"]
-        mfiles = arguments.get("max_files", 200)
-        # Default: full file contents. Truncate only if caller sets max_chars_per_file.
-        max_chars = arguments.get("max_chars_per_file", None)
+        mfiles = arguments.get("max_files", ExhaustiveReaderEngine.DEFAULT_MAX_FILES)
+        # Default: capped per-file chars (raise explicitly for full dumps).
+        max_chars = arguments.get(
+            "max_chars_per_file", ExhaustiveReaderEngine.DEFAULT_MAX_CHARS_PER_FILE
+        )
         engine = ExhaustiveReaderEngine()
         res = await asyncio.to_thread(
             engine.read_all, dpath, max_files=mfiles, max_chars_per_file=max_chars

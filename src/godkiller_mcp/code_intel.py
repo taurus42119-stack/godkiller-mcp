@@ -1360,12 +1360,14 @@ import os as _os
 class ExhaustiveReaderEngine:
     """Full-file directory reader with byte budget (fail-visible when exceeded)."""
 
-    DEFAULT_MAX_TOTAL_BYTES = 32_000_000
+    DEFAULT_MAX_TOTAL_BYTES = 2_000_000
+    DEFAULT_MAX_FILES = 48
+    DEFAULT_MAX_CHARS_PER_FILE = 6_000
 
     def read_all(
         self,
         dir_path: str,
-        max_files: int = 200,
+        max_files: int = 48,
         max_chars_per_file: Optional[int] = None,
         max_total_bytes: Optional[int] = None,
         max_workers: Optional[int] = None,
@@ -1375,6 +1377,7 @@ class ExhaustiveReaderEngine:
             return {"error": f"Directory path does not exist: {dir_path}"}
 
         budget = int(max_total_bytes if max_total_bytes is not None else self.DEFAULT_MAX_TOTAL_BYTES)
+        # None = no per-file char cap (tests / explicit full dumps). MCP dispatch sets a default.
         workers_env = _os.environ.get("GODKILLER_EXHAUSTIVE_WORKERS", "").strip()
         workers = int(max_workers if max_workers is not None else (workers_env or 10))
         workers = max(1, min(workers, 32))

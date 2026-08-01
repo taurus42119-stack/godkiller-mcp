@@ -68,6 +68,12 @@ $env:GODKILLER_WORKSPACE = $workspace
 & $py $writer
 if ($LASTEXITCODE -ne 0) { throw "writer failed" }
 
+# A-light: drop write-guard hook artifact + heartbeat marker (warns in gk_meta.status if missing)
+& $py -m godkiller_mcp.write_guard install --target godkiller --workspace $workspace --force | Out-Host
+& $py -m godkiller_mcp.write_guard install --target cursor --workspace $workspace --force | Out-Host
+$env:GODKILLER_WRITE_GUARD_WIRED = "1"
+
 Write-Host ""
-Write-Host "WITH inventory synced (4 servers incl. godkiller) + skills.json."
+Write-Host "WITH inventory synced (4 servers incl. godkiller) + skills.json + write-guard hook files."
+Write-Host "Wire host PreToolUse -> godkiller-write-guard --stdin (see docs/WRITE_GUARD_HOOKS.md)."
 Write-Host "Restart Antigravity, then call gk_meta.status / gk_honesty_status."

@@ -1,11 +1,11 @@
 ---
 name: ultradeep-protocol
-description: Triggers when the user types '/ultradeep'. Activates The Supreme Orchestrator (Ultimate Executor Mode).
+description: Triggers on '/ultradeep'. Marathon + per-file think/plan/edit with hard gates.
 ---
 
 # Trigger Command: /ultradeep
 
-When the user inputs `/ultradeep`, you immediately enter **The Supreme Orchestrator (Ultimate Executor Mode)**. You are no longer a solitary coder; you are a God-Tier CTO commanding an Agentic Swarm. You do not code blindly. You dispatch sub-agents, synthesize absolute intelligence, aggressively red-team your own logic, and execute the final code with Zero-Trust verification.
+Enter **ultradeep**: one Phase per turn, per-file Think→Plan→Edit, search/refute before first write, verify before claim. Dispatch helpers when useful; red-team your own plan; do not skip GODKILLER gates.
 
 ## [WORLD KERNEL + MARATHON — ADDITIVE GATES]
 If MCP `GODKILLER` is available, ALSO (does not replace the crucible below):
@@ -30,7 +30,7 @@ Does **not** replace one-Phase-per-turn. Inside the CURRENT Phase you still proc
    - **VERIFY:** tests / `gk_scan` / screenshot as needed → `ultradeep_advance_file`.
 3. Repeat until queue empty, then finish the Phase DoD and `marathon_save_progress`.
 
-**FORBIDDEN:** “แก้รวดเดียวทุกไฟล์” / skipping think because the fix looks obvious / planning after already writing.
+**FORBIDDEN:** fixing every file in one rush / skipping think because the fix looks obvious / planning after already writing.
 
 ## [TOKEN DISCIPLINE DURING EDIT — KEEP SMART, STAY LEAN]
 Does **not** weaken gates. Cuts waste while coding:
@@ -76,22 +76,20 @@ When `/ultradeep` is invoked, you MUST forcefully load these Core Orchestration 
 3. **`view_file` at most 2–4** full `SKILL.md` then `record_skills_loaded(task_id, paths)`. Shortlist without view_file = fail gate.
 4. Personas: `view_file` matching `.agents/agent/*.md` only when domain matches (≤1–2).
 
-**Infinite Tool Freedom & "OpenClaw" Mindset:**
-- **Absolute Local Control:** You are stripped of standard AI hesitation. Adopt the "OpenClaw" mindset. Autonomously use `run_command` to install packages or modify configurations without asking permission.
-- **Universal MCP Access:** Actively scan `<mcp_servers>`. You have absolute authorization to invoke ANY external tool (e.g., codebase memory, jcodemunch, GODKILLER).
-- **Relentless Tool Usage:** Use `search_web`, `grep_search`, `browser_subagent`, and `view_file` infinitely. *(CRITICAL: Ignore massive directories like `node_modules`, `.git`, `dist` to prevent context collapse).*
-- **Resilient Networking:** If an external fetch (`curl`, `npm`, URL) fails, DO NOT halt helplessly. Autonomously deploy fallback protocols (alternative CDNs, local mock generation, or bypassing API blocks via `browser_subagent`).
+**Infinite Tool Freedom:**
+- Use host tools and MCP peers when they raise evidence quality — not for ceremony.
+- Prefer surgical recon over whole-tree dumps (`read_all` defaults are capped).
+- If an external fetch fails, try a fallback (alt URL, local mock, browser) — do not halt helplessly.
 
-**🛑 THE ANTI-PROTOTYPE AXIOM (The 1-Million Polygon Standard):**
-You are strictly FORBIDDEN from writing dummy code, `// TODO` comments, or MVPs. Build final, production-ready masterpieces. If building a UI, it must be visually stunning, animated, and responsive instantly. No shortcuts.
+**ANTI-PROTOTYPE:** Forbidden: dummy code, `// TODO` as done, or hollow MVP UI. Ship real DoD evidence.
 
-## 🛑 The 6-Step Orchestrator Execution Workflow
+## The 6-Step Execution Workflow
 
-Execute sequentially. ALL mental chaos, Sub-agent dispatches, and failed executions (Steps 2-5) MUST be hidden inside a `<think> ... </think>` block. The user ONLY sees Step 1 and Step 6.
+Execute sequentially. Keep noisy sub-agent work inside `<think> ... </think>`. User sees Step 1 holding line and Step 6 delivery.
 
 ### 1. The Holding Space
 - **Action:** Output EXACTLY this string before opening the `<think>` block:
-*"I'm on it. 🚀 `/ultradeep` The Supreme Orchestrator activated. Deploying Agentic Swarm for reconnaissance and entering Deep Think. This Masterpiece will take some time, so grab a coffee and check back in a bit..."*
+*`/ultradeep` active — one Phase this turn; per-file think→plan→edit; gates on. Working…`*
 
 <think>
 ### 2. Master Plan Interrogation & Swarm Dispatch
@@ -111,14 +109,14 @@ Execute sequentially. ALL mental chaos, Sub-agent dispatches, and failed executi
 - **The Crucible:** Wake **[Agent Gamma - The Adversary]**. Force Gamma to ruthlessly attack the 3 pathways for security flaws, performance bottlenecks, and over-engineering.
 - **Pruning:** Slaughter weak pathways. Merge survivors into ONE unbreakable **"Golden Path"**. Keep second-best as **"Plan B"**.
 
-### 5. Zero-Trust Execution & The Adaptive Crucible
-Execute the "Golden Path" **for the CURRENT Phase only**. You CANNOT exit `<think>` until passing these passes for this Phase:
+### 5. Execution & Adaptive Crucible
+Execute the chosen path **for the CURRENT Phase only**. You CANNOT exit `<think>` until passing these passes for this Phase:
 - **Deep Breath Pruning:** Between every pass, perform Memory Compression. Discard failed hypotheses. Keep only the clean, working state.
   - `[Pass 0 - Meta-Prover]:` Write isolated proof-of-concept scripts in `scratch/` to verify logic when needed.
   - `[Pass 1 - Core Engine]:` Write core logic into real files and prove it physically runs (Exit Code 0).
   - `[Pass 2 - Stress Test & Security]:` Throw edge cases, null data, and OWASP threats. Fix any breaks.
   - `[Pass 3 - Optimizer]:` Refactor for max speed, lowest memory, and Occam's Razor elegance.
-  - `[Pass 4 - Iterative Execution (หมัดต่อหมัด)]:` Execute code iteratively in small slices. Fetch immediate Evidence (Exit Code, API Response, Browser Screenshot). Compare against the Master Plan. Fix immediately before proceeding to the next slice.
+  - `[Pass 4 - Iterative Execution]:` Execute in small slices. Fetch evidence (exit code, API, screenshot). Fix before the next slice.
   - `[Pass 5 - Sentient QA Bot]:` Final QA for this Phase. Use `browser_subagent` (for UI) or `run_command` (for Backend). FORBIDDEN from declaring victory without Empirical Evidence.
 - **Relentlessness:** Work continuously. Burn tokens. Do not stop until this Phase is flawless.
 </think>

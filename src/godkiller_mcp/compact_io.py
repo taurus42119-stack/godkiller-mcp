@@ -40,7 +40,7 @@ def dumps_payload(data: Any) -> str:
     return json.dumps(data, separators=(",", ":"), default=str)
 
 
-def protocol_preview(text: str, *, max_lines: int = 28, max_chars: int = 2500) -> str:
+def protocol_preview(text: str, *, max_lines: int = 18, max_chars: int = 1600) -> str:
     lines = (text or "").strip().splitlines()
     chunk = "\n".join(lines[:max_lines])
     if len(lines) > max_lines:
