@@ -14,8 +14,13 @@ class IntentClassification:
     requires_search: bool
     requires_spec: bool
     requires_pytest: bool
-    confidence: float
+    route_weight: float
     description: str
+
+    @property
+    def confidence(self) -> float:
+        """Deprecated alias — fixed heuristic weight, not measured confidence."""
+        return self.route_weight
 
 
 class EpistemicRouter:
@@ -27,7 +32,8 @@ class EpistemicRouter:
         "/debug": (r"^\s*/debug\b|fix bug|root cause|traceback|error log|failing test", "DEBUGGING", True, True, True, "Systematic Root-Cause Debugging Protocol"),
         "/ultradeep": (r"^\s*/ultradeep\b|marathon|supreme|orchestrate|phase", "ULTRADEEP", True, True, True, "Ultradeep marathon + per-file think/plan/edit protocol"),
         "/view": (r"^\s*/view\b|lit review|literature review|adversarial review|critique paper|research critique", "VIEW", True, True, False, "Adversarial Research Planning Protocol"),
-        "/verify": (r"^\s*/verify\b|rubric|claim done|empirical proof|pytest check", "VERIFICATION", False, False, True, "Empirical Pytest Proof Protocol")
+        "/verify": (r"^\s*/verify\b|rubric|claim done|empirical proof|pytest check", "VERIFICATION", False, False, True, "Empirical Pytest Proof Protocol"),
+        "/jury": (r"^\s*/jury\b|ship review|ตรวจเข้ม|go-no-go|beta audit|harsh review", "JURY", True, True, True, "Harsh Beta ship jury (evidence A–E; cold path)"),
     }
 
     def route_intent(self, prompt: str) -> IntentClassification:
@@ -42,7 +48,7 @@ class EpistemicRouter:
                     requires_search=req_search,
                     requires_spec=req_spec,
                     requires_pytest=req_test,
-                    confidence=0.95,
+                    route_weight=0.95,
                     description=desc
                 )
 
@@ -54,7 +60,7 @@ class EpistemicRouter:
                 requires_search=True,
                 requires_spec=True,
                 requires_pytest=True,
-                confidence=0.80,
+                route_weight=0.80,
                 description="Implicit Debugging Intent Detected"
             )
 
@@ -64,6 +70,6 @@ class EpistemicRouter:
             requires_search=True,
             requires_spec=True,
             requires_pytest=False,
-            confidence=0.70,
+            route_weight=0.70,
             description="Implicit Planning & Blueprint Intent Detected"
         )

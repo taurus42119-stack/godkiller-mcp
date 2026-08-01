@@ -185,7 +185,9 @@ async def _handle_tool_body(name: str, arguments: Dict[str, Any]) -> List[TextCo
 
     if name == "godkiller_route_intent":
         decision = router.route_intent(arguments["prompt"])
-        return _json(decision.__dict__)
+        payload = dict(decision.__dict__)
+        payload["honest"] = "route_weight is a fixed heuristic, not measured confidence"
+        return _json(payload)
 
     if name == "godkiller_inspect_image":
         from godkiller_mcp.path_sandbox import path_gate_error

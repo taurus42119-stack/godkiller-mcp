@@ -32,7 +32,6 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         require_blast_before_edit,
     )
     from godkiller_mcp.dispatch import (
-        ROOT,
         STORE_DIR,
         STATE_ROOT,
         _json,
@@ -70,6 +69,10 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     arguments = arguments or {}
     from godkiller_mcp.path_sandbox import path_gate_error, workspace_root
+
+    def _ws_or(raw: str) -> str:
+        """Default '.' must be the IDE cwd/workspace — never the installed package tree."""
+        return str(workspace_root()) if str(raw).strip() in ("", ".") else str(raw)
 
     if name == "godkiller_exhaustive_read":
         dpath = arguments["dir_path"]
@@ -230,55 +233,60 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     if name == "godkiller_ast_grep":
         pat = arguments["pattern"]
         spath = arguments.get("search_path", ".")
-        bad = path_gate_error(spath if spath != "." else workspace_root())
+        target = _ws_or(spath)
+        bad = path_gate_error(target)
         if bad:
             return _json(bad)
         lang = arguments.get("lang", "python")
         mresults = arguments.get("max_results", 50)
         engine = AstGrepEngine()
-        res = engine.search(pat, search_path=spath if spath != "." else ROOT, lang=lang, max_results=mresults)
+        res = engine.search(pat, search_path=target, lang=lang, max_results=mresults)
         return _json(res)
 
     if name == "godkiller_security_scan":
         tpath = arguments.get("target_path", ".")
-        bad = path_gate_error(tpath if tpath != "." else workspace_root())
+        target = _ws_or(tpath)
+        bad = path_gate_error(target)
         if bad:
             return _json(bad)
         sthreshold = arguments.get("severity_threshold", "medium")
         engine = SecurityScanEngine()
-        res = engine.scan(target_path=tpath if tpath != "." else ROOT, severity_threshold=sthreshold)
+        res = engine.scan(target_path=target, severity_threshold=sthreshold)
         return _json(res)
 
     if name == "godkiller_repo_map":
         wroot = arguments.get("workspace_root", ".")
-        bad = path_gate_error(wroot if wroot != "." else workspace_root())
+        target = _ws_or(wroot)
+        bad = path_gate_error(target)
         if bad:
             return _json(bad)
         mtokens = arguments.get("max_tokens", 1000)
-        generator = RepoMapGenerator(wroot if wroot != "." else ROOT)
+        generator = RepoMapGenerator(target)
         map_text = await asyncio.to_thread(generator.get_repo_map, max_tokens=mtokens)
         return [TextContent(type="text", text=map_text)]
 
     if name == "godkiller_hyper_search":
         pat = arguments["pattern"]
         spath = arguments.get("search_path", ".")
-        bad = path_gate_error(spath if spath != "." else workspace_root())
+        target = _ws_or(spath)
+        bad = path_gate_error(target)
         if bad:
             return _json(bad)
         mresults = arguments.get("max_results", 100)
         searcher = HyperSearchEngine()
-        res = searcher.search(pat, search_path=spath if spath != "." else ROOT, max_results=mresults)
+        res = searcher.search(pat, search_path=target, max_results=mresults)
         return _json(res)
 
     if name == "godkiller_fast_find":
         npat = arguments["name_pattern"]
         spath = arguments.get("search_path", ".")
-        bad = path_gate_error(spath if spath != "." else workspace_root())
+        target = _ws_or(spath)
+        bad = path_gate_error(target)
         if bad:
             return _json(bad)
         mresults = arguments.get("max_results", 100)
         finder = FastFindEngine()
-        res = finder.find(npat, search_path=spath if spath != "." else ROOT, max_results=mresults)
+        res = finder.find(npat, search_path=target, max_results=mresults)
         return _json(res)
 
     if name == "godkiller_context_preview":

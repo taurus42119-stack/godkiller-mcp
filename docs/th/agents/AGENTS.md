@@ -20,6 +20,7 @@
 7. **Deep-read** — path ที่ชี้ = อ่านครบ (`godkiller_exhaustive_read` / `view_file`) ห้าม skim.
 8. **UI visual** — งาน UI/web/3D: **F12 ก่อน** → รันจริง → `visual_step` ~8–10 (expected_elements คนละขั้น จากพื้นผิว ไม่ใช่ IDE chrome) → GREEN → `visual_sequence` — ไม่ครบ = ห้าม claim แม้ build เขียว.
 9. **VIEW <99%** — มั่นใจไม่ถึง 99% → `view_propose_study` / `/view` ทันที (copy-study โครง ไม่ก๊อปทั้งก้อนมาเคลม).
+10. **Evidence habit (ตลอด)** — ก่อนบอก แก้แล้ว/ปลอดภัย/เสร็จ/ดี: อ้าง path หรือผลรัน; บอกทางปลอมได้อีกอย่างน้อย 1; ชม ≤1 ท่อน. บาร์ผิดผลิตภัณฑ์ (SSO/SIEM/100k SaaS) = นอกคะแนน ไม่ใช่ fail. ฟอร์มลูกขุนเต็ม = โหลด `workflows/jury.md` เฉพาะตอน audit/ship — ห้ามวาง A–E ทุกเทิร์น.
 
 Skill/persona = สูตรช่าง — **ห้ามยกเว้น Rule 0**.
 
@@ -28,6 +29,7 @@ Skill/persona = สูตรช่าง — **ห้ามยกเว้น Ru
 ## 1. Commands
 
 `/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → โปรโตคอลเต็มใน `workflows/<mode>.md`.  
+`/jury` (ship/audit) → `workflows/jury.md` — รีวิวเข้มแบบมีหลักฐาน; cold path (โทเคนแพง ไม่ใช่ทุกเทิร์น).  
 Pipeline: ask → plan → view? → ultradeep Phase N… → verify.  
 **`/view` ≠ `view_file`** — ต้อง `gk_route` + `activate_mode(view)`.
 

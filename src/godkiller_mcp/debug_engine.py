@@ -1,7 +1,7 @@
-""" /debug Self-CTF — adversarial loop against THIS workspace only.
+""" /debug Self-CTF — adversarial *signal* loop against THIS workspace only.
 
+Not a real debugger: rounds run SecurityScanEngine + token search heuristics.
 Never targets the open internet. No org/domain hunting.
-Server-driven rounds: scan + search until findings or max_rounds.
 """
 
 from __future__ import annotations

@@ -85,6 +85,46 @@ async def test_capture_shot_blocks_outside(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_default_dot_searches_cwd_not_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """P0: '.' must resolve to IDE cwd/workspace, never installed package ROOT."""
+    from godkiller_mcp.runtime_paths import package_root
+
+    marker = "MARKER_ONLY_IN_USER_WS_XYZ"
+    (tmp_path / "user_ws_marker.py").write_text(f"{marker} = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert Path.cwd().resolve() == tmp_path.resolve()
+    assert package_root().resolve() != tmp_path.resolve()
+
+    out = await handle_tool(
+        "godkiller_hyper_search",
+        {"pattern": marker, "search_path": ".", "max_results": 20},
+    )
+    payload = json.loads(out[0].text)
+    assert payload.get("error") != "path_outside_workspace", payload
+    blob = json.dumps(payload)
+    assert marker in blob
+    # Must not pretend the package tree was the workspace
+    pkg = str(package_root().resolve()).replace("\\", "/").lower()
+    matches = payload.get("matches") or []
+    for m in matches:
+        f = str((m.get("file") if isinstance(m, dict) else m) or "").replace("\\", "/").lower()
+        if f:
+            assert pkg not in f or str(tmp_path.resolve()).replace("\\", "/").lower() in f
+
+
+@pytest.mark.asyncio
+async def test_default_dot_repo_map_uses_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from godkiller_mcp.runtime_paths import package_root
+
+    (tmp_path / "only_in_user_ws.py").write_text("def only_in_user_ws():\n    return 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    out = await handle_tool("godkiller_repo_map", {"workspace_root": ".", "max_tokens": 500})
+    text = out[0].text
+    assert "only_in_user_ws" in text
+    assert str(package_root().resolve()) not in text or "only_in_user_ws" in text
+
+
+@pytest.mark.asyncio
 async def test_visual_step_blocks_outside(tmp_path: Path):
     outside = tmp_path.parent / "gk_visual_escape.png"
     outside.write_bytes(b"\x89PNG\r\n\x1a\n")

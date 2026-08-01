@@ -11,6 +11,9 @@ def resolve_state_root(workspace: str | Path | None = None) -> Path:
     Prefer GODKILLER_HOME, else <workspace>/.godkiller, else ~/.godkiller.
     Never write under site-packages / the installed package path.
     Never dump lessons.db into a random cwd when no workspace is set.
+
+    Multi-process: use a distinct GODKILLER_HOME (or workspace) per process —
+    only fault_probe holds an advisory file lock; task/evidence persist does not.
     """
     env = os.environ.get("GODKILLER_HOME", "").strip()
     if env:

@@ -22,6 +22,7 @@ Thai locale (optional, not the wheel default): see `docs/th/agents/` in the repo
 7. **Deep-read** — when a path is named, read it fully (`godkiller_exhaustive_read` / `view_file`); no skimming.
 8. **UI visual** — UI/web/3D work: **F12 first** → run for real → `visual_step` ~8–10 (per-step `expected_elements` from the surface, not IDE chrome) → GREEN → `visual_sequence` — incomplete = no claim even if build is green. **Mandatory Visual QA Gate** / Visual Screenshot Proof.
 9. **VIEW <99%** — if confidence &lt; 99% → `view_propose_study` / `/view` immediately (copy-study structure; do not paste a whole repo as “done”).
+10. **Evidence habit (always-on)** — before calling anything fixed/safe/done/good: cite code path or run result; name one way it could still be fake; praise ≤1 clause. Wrong product bar (SSO/SIEM/100k SaaS) = out of score, not a fail. Full ship jury form = cold load `workflows/jury.md` only when auditing/shipping — do not paste A–E every turn.
 
 Skills/personas are craft recipes — **never waive Rule 0**.
 
@@ -30,6 +31,7 @@ Skills/personas are craft recipes — **never waive Rule 0**.
 ## 1. Commands
 
 `/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → full protocols in `workflows/<mode>.md`.  
+`/jury` (ship/audit) → `workflows/jury.md` — harsh evidence review; cold path (token-heavy; not every turn).  
 Pipeline: ask → plan → view? → ultradeep Phase N… → verify.  
 **`/view` ≠ `view_file`** — requires `gk_route` + `activate_mode(view)`.
 

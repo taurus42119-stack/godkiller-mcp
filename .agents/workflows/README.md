@@ -4,7 +4,7 @@
 
 | Layer | Path | Job |
 |---|---|---|
-| **Workflows** | `.agents/workflows/` | Mode intelligence: `/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` — universal gates |
+| **Workflows** | `.agents/workflows/` | Mode intelligence: `/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` + cold `/jury` — universal gates |
 | **Skills** | `.agents/skills/` | Domain how-to only (load 2–6/turn) — e.g. `game-ready-3d-pipeline` — never replaces search |
 | **Agent** | `.agents/agent/` | Persona when domain matches (game-dev, etc.) |
 | **Plugins** | `.agents/plugins/` | Bundled install packs only |

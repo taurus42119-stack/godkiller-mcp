@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
+
+@dataclass
 class Tag:
     name: str
     kind: str  # "class", "def", "import"

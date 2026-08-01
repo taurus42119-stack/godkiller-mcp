@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-MODES = ("ask", "plan", "debug", "ultradeep", "verify", "view")
+MODES = ("ask", "plan", "debug", "ultradeep", "verify", "view", "jury")
 
 MODE_TO_FILE = {
     "ask": "ask.md",
@@ -19,6 +19,7 @@ MODE_TO_FILE = {
     "ultradeep": "ultradeep.md",
     "verify": "verify.md",
     "view": "view.md",
+    "jury": "jury.md",
 }
 
 MODE_DEFAULT_KIND = {
@@ -28,6 +29,7 @@ MODE_DEFAULT_KIND = {
     "ultradeep": "feature",
     "verify": "feature",
     "view": "feature",
+    "jury": "feature",
 }
 
 # Keyword → skill paths Anti MUST view_file (not optional). Max ~4 per match set.
@@ -256,6 +258,14 @@ class ModeProtocolStore:
             )
         if mode == "verify":
             mandatory.append("Empirical proof + claim_done gates only.")
+        if mode == "jury":
+            mandatory.extend(
+                [
+                    "Follow workflows/jury.md A–E; no comfort scores; cite code/run only.",
+                    "Score Beta MCP bar only — Enterprise columns are N/A (wrong product).",
+                    "Verdict must be exactly 3 lines: GO|CONDITIONAL GO|HOLD · P0 · deferrable debt.",
+                ]
+            )
         if mode in ("ask", "plan", "debug", "ultradeep", "verify", "view"):
             mandatory.append(
                 "If <99% sure: view_propose_study (exemplar repos) — no silent invention."
@@ -264,6 +274,15 @@ class ModeProtocolStore:
         next_tools: List[str] = []
         if mode in ("ask", "plan", "debug", "ultradeep", "view"):
             next_tools.extend(["skill_catalog", "record_skills_loaded"])
+        if mode == "jury":
+            next_tools.extend(
+                [
+                    "gk_meta.status",
+                    "gk_honesty_status",
+                    "godkiller_hyper_search",
+                    "verify_bundle",
+                ]
+            )
         if mode == "ask":
             next_tools.extend(["open_task", "submit_evidence"])
         if mode == "plan":
