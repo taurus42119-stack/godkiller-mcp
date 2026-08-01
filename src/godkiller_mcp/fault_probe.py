@@ -8,12 +8,66 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from godkiller_mcp.safe_exec import run_command_safely
+
+
+def _probe_dirs(workspace: Path) -> Tuple[Path, Path]:
+    root = Path(workspace) / ".godkiller"
+    backup = root / "probe_backup"
+    unclean = root / "probe_unclean.json"
+    backup.mkdir(parents=True, exist_ok=True)
+    return backup, unclean
+
+
+def restore_probe_backups(workspace: Path | str) -> Dict[str, Any]:
+    """Restore any leftover mutant files from .godkiller/probe_backup (crash recovery)."""
+    from godkiller_mcp.evidence_store import atomic_write_text
+
+    ws = Path(workspace).resolve()
+    backup_root, unclean = _probe_dirs(ws)
+    restored: List[str] = []
+    errors: List[str] = []
+    if unclean.exists():
+        try:
+            meta = json.loads(unclean.read_text(encoding="utf-8"))
+            for rel in meta.get("files") or []:
+                bak = backup_root / f"{str(rel).replace('/', '__').replace(chr(92), '__')}.bak"
+                target = ws / rel
+                if bak.is_file():
+                    atomic_write_text(target, bak.read_text(encoding="utf-8"))
+                    restored.append(str(rel))
+                    try:
+                        bak.unlink()
+                    except OSError:
+                        pass
+        except Exception as exc:
+            errors.append(str(exc))
+    # Also restore any orphan .bak files
+    for bak in backup_root.glob("*.bak"):
+        rel = bak.name[: -len(".bak")].replace("__", "/")
+        target = ws / rel
+        try:
+            atomic_write_text(target, bak.read_text(encoding="utf-8"))
+            restored.append(rel)
+            bak.unlink(missing_ok=True)
+        except Exception as exc:
+            errors.append(f"{rel}:{exc}")
+    if unclean.exists() and not errors:
+        try:
+            unclean.unlink()
+        except OSError:
+            pass
+    return {"restored": restored, "errors": errors, "clean": not unclean.exists() or bool(restored)}
+
+
+def probe_unclean(workspace: Path | str) -> bool:
+    return (Path(workspace) / ".godkiller" / "probe_unclean.json").exists()
 
 
 @dataclass
@@ -383,6 +437,24 @@ def run_fault_probe(
     tried = 0
     budget = max_mutants
 
+    from godkiller_mcp.evidence_store import atomic_write_text
+
+    # Crash recovery from prior unclean probe
+    restore_probe_backups(workspace)
+    if probe_unclean(workspace):
+        return FaultProbeReport(
+            clean=False,
+            skipped_reason="probe_unclean leftover — restore failed; fix files under .godkiller/probe_backup",
+            targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
+            test_command=test_command,
+            material_hash=mat["material_hash"],
+            scope=scope,
+            complete=bool(mat.get("complete", True)),
+            summary="fault_probe BLOCKED: unclean workspace after prior crash",
+        )
+
+    backup_root, unclean_path = _probe_dirs(workspace)
+
     for fpath in files:
         if tried >= budget:
             break
@@ -397,13 +469,20 @@ def run_fault_probe(
             if tried >= budget:
                 break
             tried += 1
+            rel = str(fpath.relative_to(workspace)).replace("\\", "/")
+            bak = backup_root / f"{rel.replace('/', '__')}.bak"
+            atomic_write_text(bak, original)
+            atomic_write_text(
+                unclean_path,
+                json.dumps({"files": [rel], "bak": str(bak)}, indent=2),
+            )
             try:
-                fpath.write_text(mutated, encoding="utf-8")
+                atomic_write_text(fpath, mutated)
                 proc = run_command_safely(
                     test_command, cwd=workspace, timeout_sec=timeout_sec
                 )
                 entry = {
-                    "file": str(fpath.relative_to(workspace)).replace("\\", "/"),
+                    "file": rel,
                     "kind": kind,
                     "detail": detail,
                     "exit_code": proc.returncode,
@@ -414,7 +493,14 @@ def run_fault_probe(
                 else:
                     killed += 1
             finally:
-                fpath.write_text(original, encoding="utf-8")
+                try:
+                    atomic_write_text(fpath, bak.read_text(encoding="utf-8"))
+                    bak.unlink(missing_ok=True)
+                    if unclean_path.exists():
+                        unclean_path.unlink()
+                except Exception:
+                    # Leave unclean marker + bak for next restore_probe_backups
+                    pass
 
     clean = tried > 0 and len(survivors) == 0
     if tried == 0:
@@ -458,6 +544,17 @@ def claim_fault_probe_gate(state, *, workspace: Optional[str] = None) -> Tuple[b
     if env_disables("GODKILLER_FAULT_PROBE"):
         return True, "fault_probe disabled (relax only)"
 
+    ws = Path(workspace) if workspace else Path.cwd()
+    if probe_unclean(ws):
+        info = restore_probe_backups(ws)
+        if probe_unclean(ws):
+            return (
+                False,
+                "fault_probe UNCLEAN — prior probe crash left mutants; "
+                f"restored={info.get('restored')} errors={info.get('errors')} "
+                "— fix .godkiller/probe_backup then re-run fault_probe",
+            )
+
     from godkiller_mcp.freshness import hash_workspace_code
     from godkiller_mcp.hollow_surface import paths_touched_in_state
 
@@ -473,7 +570,6 @@ def claim_fault_probe_gate(state, *, workspace: Optional[str] = None) -> Tuple[b
             )
         return True, "fault_probe: no python edit paths"
 
-    ws = workspace or Path.cwd()
     for ev in getattr(state, "evidences", []) or []:
         payload = ev.payload or {}
         if (

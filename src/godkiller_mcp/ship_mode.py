@@ -44,6 +44,9 @@ def env_disables(name: str, *, default_on: str = "1") -> bool:
 
 
 def profile_label() -> str:
-    if profile() == "ship":
+    p = profile()
+    if p == "ship":
         return "ship"
-    return "relax" if relax_enabled() else "ship"
+    if relax_enabled():
+        return "relax"
+    return "default"

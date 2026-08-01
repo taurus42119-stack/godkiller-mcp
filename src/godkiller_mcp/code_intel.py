@@ -1344,7 +1344,7 @@ class EpistemicConfidenceGate:
             "reasons": reasons,
             "recommendation": "PROCEED" if allowed else "BLOCK_EDIT_FORCE_RECON",
             "honest": "heuristic weights — not Bayesian / not formal verification",
-            "confidence_pct": round(score, 2),
+            "readiness_score": round(score, 2),
         }
         from godkiller_mcp.view_propose import build_view_study_proposal, should_propose_view
 

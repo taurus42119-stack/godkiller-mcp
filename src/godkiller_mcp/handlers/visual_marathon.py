@@ -179,9 +179,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             ev = store.submit_evidence(
                 task_id=arguments["task_id"],
                 evidence_type=EvidenceType.OTHER,
-                summary=f"competitor_scan n={len(result.competitors)} urls={result._valid_urls}",
-                payload={**result.to_payload(), "server_authored": True},
-                server_authored=True,
+                summary=f"competitor_scan n={len(result.competitors)} urls={result._valid_urls} (agent_supplied)",
+                payload=out,
+                server_authored=False,
             )
             out["evidence_id"] = ev.id
         return _json(out)
@@ -199,12 +199,12 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 task_id=arguments["task_id"],
                 evidence_type=EvidenceType.OTHER,
                 summary=(
-                    "compare_delta PASS"
+                    "compare_delta ceremony PASS (unattested)"
                     if result.passed
                     else "compare_delta still losing — continue ladder"
                 ),
-                payload={**result.to_payload(), "server_authored": True},
-                server_authored=True,
+                payload=out,
+                server_authored=False,
             )
             out["evidence_id"] = ev.id
         if result.still_losing:

@@ -109,9 +109,15 @@ class CompetitorScanResult:
         return self._valid_urls >= self.min_required and len(self.queries) >= 1
 
     def to_payload(self) -> Dict[str, Any]:
+        ceremony = self._valid_urls >= self.min_required and len(self.queries) >= 1
         return {
             "source": "competitor_scan",
-            "passed": self.passed,
+            "passed": ceremony,  # form filled — NOT attested market proof
+            "ceremony_complete": ceremony,
+            "claim_armor": False,
+            "agent_supplied": True,
+            "attested": False,
+            "honest": "agent-supplied URL list — not fetched; not claim-armor",
             "queries": self.queries,
             "competitors": self.competitors,
             "min_required": self.min_required,
@@ -140,6 +146,10 @@ class CompareDeltaResult:
             "axes": self.axes,
             "notes": self.notes,
             "best_competitor": self.best_competitor,
+            "claim_armor": False,
+            "agent_supplied": True,
+            "attested": False,
+            "honest": "agent-supplied axis floats — not measured; not claim-armor",
             "at": _utcnow(),
         }
 
