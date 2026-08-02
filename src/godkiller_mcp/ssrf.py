@@ -14,7 +14,7 @@ import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
 _BLOCKED_HOST_FRAGMENTS = (
     "localhost",
@@ -131,8 +131,8 @@ def resolve_public_ips(host: str, port: int) -> Tuple[bool, str, List[str]]:
             continue
         if _is_blocked_ip(ip):
             return False, f"SSRF DENY: {h} resolves to blocked IP {ip}", []
-        if ip_s not in seen:
-            seen.append(ip_s)
+        if str(ip_s) not in seen:
+            seen.append(str(ip_s))
     if not seen:
         return False, f"SSRF DENY: could not parse addresses for {h}", []
     return True, f"ok resolved={seen[:3]}", seen
@@ -216,7 +216,7 @@ class _PinnedResponse:
     def __enter__(self) -> "_PinnedResponse":
         return self
 
-    def __exit__(self, *args: Any) -> bool:
+    def __exit__(self, *args: Any) -> Literal[False]:
         self.close()
         return False
 
