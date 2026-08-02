@@ -33,13 +33,6 @@ jobs:
           src/godkiller_mcp/safe_exec.py
           src/godkiller_mcp/ship_mode.py
           src/godkiller_mcp/verify_bundle.py
-      - name: Test
-        env:
-          GODKILLER_DOI_RESOLVE: "0"
-          GODKILLER_SEAL_QUIET: "1"
-          GODKILLER_QUOTE_BIND: "0"
-          GODKILLER_SWARM_AUTO: "0"
-        run: pytest -q
       - name: Ship seal must fail without env
         env:
           GODKILLER_PROFILE: ship

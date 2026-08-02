@@ -212,27 +212,20 @@ Skills: `gk_mode.skill_catalog` — load **≤4** JIT skills per task. Dumping 2
 ## Arena / A/B (optional — maintainer machines)
 
 Internal Isolated/World volume oracles: **Bare ≈ WITH** on pass counts is an honest baseline.  
-Craft/discipline gains show more on long UI / game / marathon work.  
-Demos above are one session pair — not a universal scorecard.
-
-Engine + package proof: `pytest -q` (CI collects **~610** tests; count drifts as suites grow).
+Craft/discipline gains show more on long UI / game / marathon work.
 
 ---
 
-## Repo layout (Beta tree)
+## Repo layout
 
-**Ship these (GitHub tag + Desktop แจก):**
-
-| Path | Why |
+| Path | Role |
 | --- | --- |
 | `src/godkiller_mcp/` | Product |
-| `tests/` | Regression peel |
-| `docs/` | Contracts linked from README/SECURITY (`HOST_VS_MCP` · `WRITE_GUARD_HOOKS` · `SEAL_KEY`) |
-| `.github/` | CI / publish / scorecard |
-| `.agents/` | Host constitution (`gk_meta.status` → `agents_md`) |
+| `docs/` | Contracts (`HOST_VS_MCP` · `WRITE_GUARD_HOOKS` · `SEAL_KEY`) |
+| `.github/` | CI / publish |
 | `pyproject.toml` · `MANIFEST.in` · `README.md` · `LICENSE` · `SECURITY.md` · `CHANGELOG.md` · `.gitignore` | Package |
 
-**Never ship:** `.godkiller/` (runtime envelopes — machine paths + HMAC) · `*.egg-info/` · `__pycache__/` · `.venv/` · local `.env` / seal files.
+Excluded from public tree: `tests/` · `.agents/` · `.godkiller/` · `*.egg-info/` · `__pycache__/` · `.venv/`
 
 ---
 

@@ -48,8 +48,10 @@ evil/
 **/dist_review/
 **/evil/
 
-# Maintainer-only (not Beta ship surface)
+# Maintainer-only (not public GitHub surface)
 .cursor/
+.agents/
+tests/
 benchmarks/
 scripts/
 PUBLISH.md
