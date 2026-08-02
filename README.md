@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  Built for <strong>Google Antigravity</strong> · also Cursor / Claude Desktop<br/>
+  Built for <strong>Google Antigravity</strong> · works on other MCP hosts too<br/>
   Plan → gate → verify on disk → <code>claim_done</code>
 </p>
 
@@ -138,9 +138,9 @@ We do **not** ship a hostile filesystem lock inside MCP. Full lock is **your** P
 
 ---
 
-## New empty project (recommended)
+## Recommended
 
-Install **GODKILLER MCP once** on the host (Antigravity / Cursor). For each new repo:
+Install **GODKILLER MCP once** on your MCP host (for example, an agent IDE that loads MCP servers). For each new repo:
 
 1. Copy the constitution into the project:
    ```bash
@@ -155,11 +155,11 @@ Install **GODKILLER MCP once** on the host (Antigravity / Cursor). For each new 
 
 That is enough for **gated MCP workflow**: **`.agents/AGENTS.md` + host MCP**.
 
-### Full lock (optional — Antigravity)
+### Full lock (optional)
 
-To stop native Write bypass (the DESKTOPLOVER-class hole):
+To stop native Write bypass when the host allows free file edits:
 
-1. Copy [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json) into your Antigravity PreToolUse hooks (merge, don’t wipe other hooks).
+1. Copy [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json) into your host PreToolUse hooks (merge, don’t wipe other hooks).
 2. Prove deny/allow with `godkiller-write-guard --stdin` (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
 3. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
 
@@ -167,7 +167,7 @@ Optional craft packs (`workflows/`, `skills/`) can come later.
 
 ---
 
-## Try this in Antigravity
+## Try this
 
 After MCP is live:
 

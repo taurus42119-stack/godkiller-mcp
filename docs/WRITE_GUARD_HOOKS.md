@@ -33,9 +33,9 @@ Paths land in `.godkiller/write_allow.json` under the workspace / `GODKILLER_HOM
 
 ---
 
-## Claude Code
+## Example: nested settings hooks
 
-`~/.claude/settings.json` or project `.claude/settings.json`:
+Some hosts use `~/.…/settings.json` or a project settings file:
 
 ```json
 {
@@ -56,13 +56,13 @@ Paths land in `.godkiller/write_allow.json` under the workspace / `GODKILLER_HOM
 }
 ```
 
-Exit **2** = deny (Claude Code blocks the tool).
+Exit **2** = deny (host should block the tool).
 
 ---
 
-## Cursor
+## Example: flat hooks JSON
 
-Project or user hooks (see Cursor Hooks docs). Minimal shape also ships as:
+Some hosts use a project or user `hooks.json`. Minimal shape also ships as:
 
 [`src/godkiller_mcp/hooks/pretooluse_write_guard.json`](../src/godkiller_mcp/hooks/pretooluse_write_guard.json)
 
@@ -70,11 +70,11 @@ Point PreToolUse at `godkiller-write-guard --stdin`.
 
 ---
 
-## Antigravity (recommended full lock)
+## Example: Antigravity-style PreToolUse (recommended full lock)
 
 ### Why this is separate from MCP
 
-Antigravity can Write via native tools without calling GODKILLER.  
+Many agent IDEs can Write via native tools without calling GODKILLER.  
 `.agents/AGENTS.md` is soft law. Only a **host hook** closes that hole.
 
 We intentionally keep MCP non-hostile: **you** turn the lock on.
@@ -107,9 +107,9 @@ Or paste:
 }
 ```
 
-### 2) Merge into Antigravity hooks config
+### 2) Merge into the host hooks config
 
-Exact filename/UI varies by Antigravity build. Goal:
+Exact filename/UI varies by host. Goal:
 
 - Event: **PreToolUse** (before Write/Edit)
 - Matcher: `Write|Edit` (and NotebookEdit if present)
@@ -118,7 +118,7 @@ Exact filename/UI varies by Antigravity build. Goal:
 
 If the IDE uses a single hooks file, **merge** the `PreToolUse` entry — do not wipe unrelated hooks.
 
-Restart / reload Antigravity after saving.
+Reload the host after saving.
 
 ### 3) Prove the hook (required before ship claims)
 
