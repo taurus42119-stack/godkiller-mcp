@@ -81,6 +81,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
 
         paths = arguments.get("paths") or []
         task_id = arguments.get("task_id") or ""
+        phase = str(arguments.get("phase") or arguments.get("phase_id") or "").strip()
         try:
             auth = workspace_root()
         except WorkspaceRootError as exc:
@@ -105,20 +106,71 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
                 clean_paths.append(str(rel).replace("\\", "/"))
             except Exception:
                 clean_paths.append(str(p).replace("\\", "/").lstrip("./"))
+        try:
+            path = persist_allow_paths(
+                auth,
+                clean_paths,
+                task_id=task_id,
+                phase=phase or "turn",
+                force=bool(arguments.get("force", False)),
+                source="set_paths",
+            )
+        except ValueError as exc:
+            return _json(
+                {
+                    "ok": False,
+                    "error": "write_turn_locked",
+                    "detail": str(exc),
+                    "hint": "Call gk_guard.end_turn after this Phase, then set_paths for the next Phase only.",
+                }
+            )
         if task_id:
-            store.update_metadata(task_id, {"write_allow_paths": list(clean_paths)})
+            store.update_metadata(
+                task_id,
+                {"write_allow_paths": list(clean_paths), "write_phase": phase or "turn"},
+            )
             if arguments.get("require_swarm"):
                 store.update_metadata(task_id, {"require_swarm": True})
-        path = persist_allow_paths(auth, clean_paths, task_id=task_id)
         return _json(
             {
                 "ok": True,
                 "path": str(path),
                 "paths": list(clean_paths),
+                "phase": phase or "turn",
                 "workspace": str(auth),
-                "hint": "Point host PreToolUse hook at: python -m godkiller_mcp.write_guard --stdin",
+                "hint": (
+                    "Host PreToolUse → godkiller-write-guard. "
+                    "One path set per turn (ship default max 1). "
+                    "After this Phase: gk_guard.end_turn then stop the host turn."
+                ),
             }
         )
+
+    if name == "write_guard_end_turn":
+        from pathlib import Path
+
+        from godkiller_mcp.path_sandbox import WorkspaceRootError, workspace_root
+        from godkiller_mcp.write_guard import end_write_turn
+
+        task_id = arguments.get("task_id") or ""
+        try:
+            auth = workspace_root()
+        except WorkspaceRootError as exc:
+            return _json({"ok": False, "error": "workspace_root_unpinned", "detail": str(exc)})
+        raw_ws = arguments.get("workspace")
+        if raw_ws and Path(str(raw_ws)).expanduser().resolve() != auth.resolve():
+            return _json(
+                {
+                    "ok": False,
+                    "error": "workspace_root_rebinding_refused",
+                    "detail": "write_guard_end_turn workspace must match pin",
+                    "workspace": str(auth),
+                }
+            )
+        out = end_write_turn(auth, task_id=task_id)
+        if task_id:
+            store.update_metadata(task_id, {"write_allow_paths": [], "write_turn_open": False})
+        return _json(out)
 
     if name == "swarm_spawn":
         from godkiller_mcp.swarm import spawn_swarm
@@ -145,6 +197,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
                 arguments.get("workspace") or ".",
                 out["write_allow_paths"],
                 task_id=task_id or "",
+                force=True,
+                source="swarm",
             )
             if task_id:
                 store.update_metadata(task_id, {"write_allow_paths": out["write_allow_paths"]})
@@ -191,6 +245,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
                 arguments["workspace"],
                 out["write_allow_paths"],
                 task_id=task_id or "",
+                force=True,
+                source="swarm",
             )
         if task_id and out.get("write_allow_paths"):
             store.update_metadata(task_id, {"write_allow_paths": out["write_allow_paths"]})

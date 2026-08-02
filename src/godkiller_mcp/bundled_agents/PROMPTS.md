@@ -28,9 +28,11 @@ Do not build features yet.
 ```text
 /plan
 Build: <describe what you want>
-After the plan is accepted, run /ultradeep Phase 1.
-Before editing files, call gk_guard.set_paths for paths in that Phase.
-Finish with /verify then claim_done — do not declare done from chat alone.
+After the plan is accepted, run /ultradeep Phase 1 ONLY.
+Before edits: gk_guard.set_paths for Phase 1 files only (ship default: 1 path).
+Do not touch Phase 2/3 in this turn.
+When Phase 1 is done: gk_guard.end_turn, then stop / schedule wake.
+Finish later Phases the same way. /verify then claim_done — never declare done from chat alone.
 ```
 
 ---

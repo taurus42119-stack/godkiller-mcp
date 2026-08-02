@@ -104,6 +104,7 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
     "gk_guard": {
         "write": "write_guard",
         "set_paths": "write_guard_set_paths",
+        "end_turn": "write_guard_end_turn",
     },
     "gk_scan": {
         "security": "godkiller_security_scan",
@@ -171,7 +172,12 @@ FACADE_DESC = {
     "gk_verify": "Verification: bundle, exit (short stage_board), soak, probe, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
     "gk_code": "Code intel helpers (map/search/read). council/swarm/pipeline/self_heal = best-effort, not magic fix or formal proof.",
-    "gk_guard": "Write allowlist policy brain for host PreToolUse — only blocks native Write/Edit when the host actually wires the hook.",
+    "gk_guard": (
+        "Write allowlist for host PreToolUse. "
+        "set_paths arms ONE turn (ship default max 1 path); end_turn clears it. "
+        "Ultradeep syncs current file only — never the whole queue. "
+        "Blocks native Write only when the host hook is wired."
+    ),
     "gk_scan": "Best-effort regex CWE heuristics (signal, not a pro audit); optional semgrep CLI.",
     "gk_browser": (
         "Playwright fallback ONLY when chrome-devtools is NOT on the host. "

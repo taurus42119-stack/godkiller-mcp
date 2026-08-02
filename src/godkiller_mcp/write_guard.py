@@ -47,31 +47,29 @@ def extract_paths_from_plan_text(text: str) -> List[str]:
 
 
 def collect_allow_paths(state=None, *, explicit: Optional[Sequence[str]] = None) -> List[str]:
+    """Collect allow paths for MCP write_guard checks.
+
+    When ultradeep_file_gate is enabled, ONLY the current file may be allowed —
+    never the full queue (that previously let agents native-Write every Phase file
+    in one turn).
+    """
     out: List[str] = []
     if explicit:
-        out.extend(str(p).replace("\\", "/") for p in explicit if p)
+        out.extend(str(p).replace("\\", "/").lstrip("./") for p in explicit if p)
     if state is not None:
         meta = state.handle.metadata or {}
-        for key in ("write_allow_paths", "allowed_write_paths"):
-            raw = meta.get(key) or []
-            if isinstance(raw, str):
-                raw = [raw]
-            out.extend(str(p).replace("\\", "/") for p in raw if p)
-        plan = meta.get("plan_dict") or {}
-        if isinstance(plan, dict):
-            steps = plan.get("steps") or plan
-            blob = " ".join(str(v) for v in steps.values()) if isinstance(steps, dict) else str(plan)
-            out.extend(extract_paths_from_plan_text(blob))
         gate = meta.get("ultradeep_file_gate") or {}
-        for entry in gate.get("files") or gate.get("queue") or []:
-            if isinstance(entry, dict) and entry.get("path"):
-                out.append(str(entry["path"]).replace("\\", "/"))
-            elif isinstance(entry, str):
-                out.append(entry.replace("\\", "/"))
-        cur = gate.get("current") or gate.get("current_path")
-        if cur:
-            out.append(str(cur).replace("\\", "/"))
-    # dedupe
+        if isinstance(gate, dict) and gate.get("enabled"):
+            # Hard: current file only, and only once think→plan reached edit/verify.
+            out.extend(ultradeep_active_write_paths(gate))
+        else:
+            for key in ("write_allow_paths", "allowed_write_paths"):
+                raw = meta.get(key) or []
+                if isinstance(raw, str):
+                    raw = [raw]
+                out.extend(str(p).replace("\\", "/").lstrip("./") for p in raw if p)
+            # Do NOT harvest every path-looking token from plan text into the
+            # native-write allowlist — that widened the jail across all Phases.
     seen = set()
     uniq = []
     for p in out:
@@ -80,6 +78,88 @@ def collect_allow_paths(state=None, *, explicit: Optional[Sequence[str]] = None)
             seen.add(p)
             uniq.append(p)
     return uniq
+
+
+def ultradeep_active_write_paths(gate: Dict[str, Any]) -> List[str]:
+    """Paths native Write may touch under an armed ultradeep gate (0 or 1 file)."""
+    if not isinstance(gate, dict) or not gate.get("enabled"):
+        return []
+    cur = gate.get("current") or gate.get("current_path")
+    if not cur:
+        return []
+    path = str(cur).replace("\\", "/").lstrip("./")
+    entry = (gate.get("files") or {}).get(path) or {}
+    stage = str(entry.get("stage") or "")
+    # Deny native writes during think/plan — force ritual before bytes.
+    if stage not in ("edit", "verify"):
+        return []
+    return [path]
+
+
+def max_write_paths() -> int:
+    """Ship posture defaults to 1 path per turn; override via GODKILLER_WRITE_MAX_PATHS."""
+    raw = os.environ.get("GODKILLER_WRITE_MAX_PATHS", "").strip()
+    if raw.isdigit():
+        return max(1, int(raw))
+    try:
+        from godkiller_mcp.ship_mode import ship_mode
+
+        return 1 if ship_mode() else 8
+    except Exception:
+        return 1
+
+
+def _write_allow_path(workspace: str | Path) -> Path:
+    ws = Path(workspace).resolve()
+    root = ws / ".godkiller"
+    root.mkdir(parents=True, exist_ok=True)
+    return root / "write_allow.json"
+
+
+def load_write_allow(workspace: str | Path) -> Dict[str, Any]:
+    path = _write_allow_path(workspace)
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    if not _verify_write_allow(data, workspace=workspace):
+        return {}
+    return data
+
+
+def ultradeep_sync_write_allow(
+    workspace: str | Path,
+    gate: Dict[str, Any],
+    *,
+    task_id: str = "",
+) -> Dict[str, Any]:
+    """Force disk allowlist to ultradeep current-only (bypasses turn re-arm lock)."""
+    paths = ultradeep_active_write_paths(gate)
+    phase = f"ultradeep:{paths[0]}" if paths else "ultradeep:locked"
+    dest = persist_allow_paths(
+        workspace,
+        paths,
+        task_id=task_id,
+        phase=phase,
+        force=True,
+        source="ultradeep",
+    )
+    return {
+        "ok": True,
+        "path": str(dest),
+        "paths": list(paths),
+        "phase": phase,
+        "hint": (
+            "Native Write allowed for current ultradeep file only "
+            "(empty while think/plan). Call end_turn / advance before the next file."
+            if paths
+            else "Native Write locked until ultradeep_plan_file reaches edit stage."
+        ),
+    }
 
 
 def decide_write(
@@ -233,6 +313,9 @@ def _allow_body_for_seal(data: Dict[str, Any]) -> Dict[str, Any]:
         "workspace": data.get("workspace"),
         "task_id": data.get("task_id") or "",
         "paths": list(data.get("paths") or []),
+        "phase": str(data.get("phase") or ""),
+        "turn_open": bool(data.get("turn_open", True)),
+        "source": str(data.get("source") or ""),
     }
 
 
@@ -274,19 +357,93 @@ def _verify_write_allow(data: Dict[str, Any], *, workspace: str | Path) -> bool:
     return hm.compare_digest(expect, raw)
 
 
-def persist_allow_paths(workspace: str | Path, paths: Sequence[str], *, task_id: str = "") -> Path:
+def persist_allow_paths(
+    workspace: str | Path,
+    paths: Sequence[str],
+    *,
+    task_id: str = "",
+    phase: str = "",
+    force: bool = False,
+    source: str = "set_paths",
+) -> Path:
+    """Seal write allowlist to disk.
+
+    Turn lock (unless force=True / source in ultradeep|end_turn):
+    if a turn is already open with a non-empty allowlist, refuse to re-arm
+    with a different path set — caller must end_write_turn() first.
+    This is what stops Phase 1+2+3 native Write rushes in one agent turn.
+    """
     ws = Path(workspace).resolve()
-    root = ws / ".godkiller"
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / "write_allow.json"
+    path = _write_allow_path(ws)
+    clean = [str(p).replace("\\", "/").lstrip("./") for p in paths if p]
+    clean = list(dict.fromkeys(clean))
+    cap = max_write_paths()
+    if len(clean) > cap and source == "set_paths" and not force:
+        raise ValueError(
+            f"write_guard set_paths capped at {cap} path(s) per turn "
+            f"(got {len(clean)}). Finish this turn with gk_guard.end_turn, "
+            f"or set GODKILLER_WRITE_MAX_PATHS (relax only helps outside ship)."
+        )
+
+    existing = load_write_allow(ws)
+    if (
+        not force
+        and source == "set_paths"
+        and existing.get("turn_open")
+        and list(existing.get("paths") or [])
+    ):
+        old = [str(p).replace("\\", "/").lstrip("./") for p in (existing.get("paths") or [])]
+        old_phase = str(existing.get("phase") or "")
+        new_phase = str(phase or old_phase or "turn")
+        # Same phase + identical or subset paths: allow shrink/refresh.
+        if new_phase == old_phase and set(clean).issubset(set(old)):
+            pass
+        else:
+            raise ValueError(
+                "write_guard turn still open — call gk_guard.end_turn before "
+                "set_paths for a new Phase/path set. "
+                f"(open_phase={old_phase or 'turn'!r}, open_paths={old[:8]})"
+            )
+
+    turn_open = bool(clean) if source != "end_turn" else False
+    phase_s = str(phase or existing.get("phase") or ("turn" if clean else ""))
+    if source == "end_turn":
+        phase_s = str(existing.get("phase") or phase_s)
+        clean = []
+        turn_open = False
+
     payload = {
         "workspace": str(ws),
-        "task_id": task_id,
-        "paths": [str(p).replace("\\", "/").lstrip("./") for p in paths if p],
+        "task_id": task_id or str(existing.get("task_id") or ""),
+        "paths": clean,
+        "phase": phase_s,
+        "turn_open": turn_open,
+        "source": source,
     }
     sealed = _seal_write_allow(payload, workspace=ws)
     path.write_text(json.dumps(sealed, indent=2), encoding="utf-8")
     return path
+
+
+def end_write_turn(workspace: str | Path, *, task_id: str = "") -> Dict[str, Any]:
+    """Close the write turn: empty allowlist → native Write denies until set_paths again."""
+    dest = persist_allow_paths(
+        workspace,
+        [],
+        task_id=task_id,
+        force=True,
+        source="end_turn",
+    )
+    return {
+        "ok": True,
+        "path": str(dest),
+        "paths": [],
+        "turn_open": False,
+        "hint": (
+            "Write turn closed. Native Write is denied until gk_guard.set_paths "
+            "for the NEXT Phase only. End the host turn / schedule wake before continuing."
+        ),
+    }
 
 
 def _host_marker_path() -> Path:

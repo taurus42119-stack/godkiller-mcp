@@ -12,7 +12,7 @@
 2. **Claim** — `verify_bundle` → `claim_done` · progress = `gk_verify.exit` → `stage_board` only  
 3. **Competitor + ladder** — real names · L0→L4 · below bar = not done  
 4. **No fake done** — stub / TODO / programmer-art ≠ ship  
-5. **One Phase / turn** — ultradeep + marathon  
+5. **One Phase / turn** — ultradeep + marathon · `gk_guard.set_paths` then `end_turn` before next Phase (host write-guard)  
 6. **Circuit breaker** — loop/RED → escalate · UI stuck → F12 console+network first  
 7. **Deep-read** — named path → full read (`view_file` / exhaustive) · no skim  
 8. **UI visual** — chrome-devtools first else `gk_browser` · `visual_step` ~8–10 → GREEN → `visual_sequence` · incomplete = no claim  

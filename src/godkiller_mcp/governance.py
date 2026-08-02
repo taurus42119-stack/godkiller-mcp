@@ -31,6 +31,7 @@ PRIVILEGED_TOOLS: Set[str] = {
     "view_finalize",
     "write_guard",
     "write_guard_set_paths",
+    "write_guard_end_turn",
     "swarm_spawn",
     "swarm_submit",
     "swarm_collect",

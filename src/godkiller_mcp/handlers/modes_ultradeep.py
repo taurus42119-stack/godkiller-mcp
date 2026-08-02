@@ -24,6 +24,22 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         suggest_from_catalog,
     )
 
+    def _sync_ude_write_allow(task_id: str, gate: Dict[str, Any]) -> Dict[str, Any]:
+        """Keep host write-guard allowlist = current ultradeep file only."""
+        try:
+            from godkiller_mcp.path_sandbox import workspace_root
+            from godkiller_mcp.write_guard import ultradeep_sync_write_allow
+
+            ws = workspace_root()
+            sync = ultradeep_sync_write_allow(ws, gate, task_id=task_id)
+            store.update_metadata(
+                task_id,
+                {"write_allow_paths": list(sync.get("paths") or [])},
+            )
+            return sync
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
     arguments = arguments or {}
     if name == "list_modes":
         return _json({"modes": modes.list_modes()})
@@ -243,6 +259,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             replace=bool(arguments.get("replace", False)),
         )
         store.update_metadata(task_id, {"ultradeep_file_gate": gate})
+        sync = _sync_ude_write_allow(task_id, gate)
         slug = arguments.get("slug") or (state.handle.metadata or {}).get("marathon_slug")
         if slug:
             try:
@@ -254,7 +271,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 )
             except FileNotFoundError:
                 pass
-        return _json({"ok": True, **ude.status_payload(gate)})
+        return _json({"ok": True, **ude.status_payload(gate), "write_allow": sync})
 
     if name == "ultradeep_think_file":
         task_id = arguments["task_id"]
@@ -297,6 +314,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             tools_used=arguments.get("tools_used"),
         )
         store.update_metadata(task_id, {"ultradeep_file_gate": result["gate"]})
+        sync = _sync_ude_write_allow(task_id, result["gate"]) if result.get("ok") else {}
         if result["ok"]:
             store.submit_evidence(
                 task_id=task_id,
@@ -304,7 +322,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 summary=f"ultradeep_plan:{arguments['path']}",
                 payload={"path": arguments["path"], "plan_len": len(arguments.get("plan") or "")},
             )
-        return _json({**result, "status": ude.status_payload(result["gate"])})
+        return _json({**result, "status": ude.status_payload(result["gate"]), "write_allow": sync})
 
     if name == "ultradeep_advance_file":
         task_id = arguments["task_id"]
@@ -312,7 +330,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         gate = ude.get_gate(state.handle.metadata)
         result = ude.advance_file(gate, arguments.get("path"))
         store.update_metadata(task_id, {"ultradeep_file_gate": result["gate"]})
-        return _json({**result, "status": ude.status_payload(result["gate"])})
+        sync = _sync_ude_write_allow(task_id, result["gate"]) if result.get("ok") else {}
+        return _json({**result, "status": ude.status_payload(result["gate"]), "write_allow": sync})
 
     if name == "ultradeep_file_status":
         task_id = arguments["task_id"]

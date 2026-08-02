@@ -21,7 +21,18 @@ After `pip install godkiller-mcp`:
 godkiller-bootstrap --workspace .
 ```
 
-Writes portable `.agents/` files (constitution + write-guard hooks) plus a **gitignored** local interpreter pin so PreToolUse works even when `python` is not on PATH. Never commit `godkiller-write-guard.local.cmd` / `.local.sh`.  
+Writes portable `.agents/` files (constitution + write-guard hooks + PROMPTS) plus a **gitignored** local interpreter pin so PreToolUse works even when `python` is not on PATH. Never commit `godkiller-write-guard.local.cmd` / `.local.sh`.
+
+### Hard turn lock (with host hook)
+
+| Action | Effect |
+| --- | --- |
+| `gk_guard.set_paths` | Arms **one** write turn (ship default: max **1** path). Re-arming a new Phase/path set fails until `end_turn`. |
+| Ultradeep plan→edit | Disk allowlist syncs to the **current file only** (never the whole queue). |
+| `gk_guard.end_turn` | Clears allowlist → native Write denies until the next `set_paths`. |
+
+Without PreToolUse → write-guard, these rules do not stop native IDE Write.
+
 Reload the IDE, then prove deny/allow before setting `GODKILLER_WRITE_GUARD_PROVEN=1`.
 
 ---

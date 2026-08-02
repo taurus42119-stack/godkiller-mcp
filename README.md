@@ -96,10 +96,12 @@ goal → mode → plan → search/blast → gated edit
 | --- | --- |
 | **Once (machine)** | `pip install godkiller-mcp` · add MCP server · set `GODKILLER_SEAL_KEY` ([`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)) |
 | **Once per project** | `godkiller-bootstrap --workspace .` · reload the IDE |
-| **Every task** | `/plan` → `gk_guard.set_paths` → `/ultradeep Phase N` → `/verify` → `claim_done` |
+| **Every task** | `/plan` → `gk_guard.set_paths` (one Phase) → `/ultradeep Phase N` → `gk_guard.end_turn` → `/verify` → `claim_done` |
 | **Full lock (optional)** | Prove deny/allow, then `GODKILLER_WRITE_GUARD_PROVEN=1` — [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) |
 
 `godkiller-bootstrap` writes `.agents/AGENTS.md`, `.agents/PROMPTS.md` (copy-paste prompts), and portable write-guard hooks. Do **not** commit `godkiller-write-guard.local.cmd` / `.local.sh` (machine pin).
+
+Ship write turns: **one `set_paths` per turn** (default max 1 path); `gk_guard.end_turn` before the next Phase. Ultradeep allowlists the **current file only**.
 
 MCP gates `gk_*` only. Native Write stays free until PreToolUse is wired. Details: [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md).
 
