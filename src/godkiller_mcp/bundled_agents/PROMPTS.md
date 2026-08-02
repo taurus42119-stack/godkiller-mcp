@@ -26,12 +26,13 @@ Do not build features yet.
 ## Start work (every feature)
 
 ```text
-/plan
-Build: <describe what you want>
-After the plan is accepted, run /ultradeep Phase 1 ONLY.
+First: gk_mode.activate mode=plan (or ask/view/debug/ultradeep) with the goal.
+/plan — write only under .agents/plans/. No app code.
+After the plan is accepted: gk_mode.activate mode=ultradeep for Phase 1 ONLY.
 Before edits: gk_guard.set_paths for Phase 1 files only (ship default: 1 path).
 Do not touch Phase 2/3 in this turn.
 When Phase 1 is done: gk_guard.end_turn, then stop / schedule wake.
+/ask and /view must not Write app files — if Write runs, the host hook must deny.
 Finish later Phases the same way. /verify then claim_done — never declare done from chat alone.
 ```
 

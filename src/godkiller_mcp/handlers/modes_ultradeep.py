@@ -239,11 +239,24 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 payload["power_mode"] = (
                     "Self-CTF: debug_self_ctf_start → tick (workspace only) until findings"
                 )
+        mode_pin_out: Dict[str, Any] = {}
+        try:
+            from godkiller_mcp.mode_pin import apply_mode_activation
+            from godkiller_mcp.path_sandbox import workspace_root
+
+            ws = workspace_root()
+            tid = (opened or {}).get("task_id") or ""
+            mode_pin_out = apply_mode_activation(ws, mode, task_id=tid)
+            if tid:
+                store.update_metadata(tid, {"mode": str(mode).lower().lstrip("/")})
+        except Exception as exc:
+            mode_pin_out = {"ok": False, "error": str(exc)}
         return _json(
             {
                 **payload,
                 "opened_task": opened,
                 "marathon": marathon_state,
+                "mode_pin": mode_pin_out,
             }
         )
 

@@ -26,6 +26,14 @@ _SKIP_PREFIXES = (
 )
 
 
+def _strip_rel(path: str) -> str:
+    """Strip leading ./ only — never lstrip('./') which eats '.agents'."""
+    s = str(path or "").replace("\\", "/")
+    while s.startswith("./"):
+        s = s[2:]
+    return s.lstrip("/")
+
+
 def _norm_rel(path: Path, workspace: Path) -> Optional[str]:
     try:
         rel = path.resolve().relative_to(workspace.resolve())
@@ -55,7 +63,7 @@ def collect_allow_paths(state=None, *, explicit: Optional[Sequence[str]] = None)
     """
     out: List[str] = []
     if explicit:
-        out.extend(str(p).replace("\\", "/").lstrip("./") for p in explicit if p)
+        out.extend(_strip_rel(str(p)) for p in explicit if p)
     if state is not None:
         meta = state.handle.metadata or {}
         gate = meta.get("ultradeep_file_gate") or {}
@@ -67,13 +75,13 @@ def collect_allow_paths(state=None, *, explicit: Optional[Sequence[str]] = None)
                 raw = meta.get(key) or []
                 if isinstance(raw, str):
                     raw = [raw]
-                out.extend(str(p).replace("\\", "/").lstrip("./") for p in raw if p)
+                out.extend(_strip_rel(str(p)) for p in raw if p)
             # Do NOT harvest every path-looking token from plan text into the
             # native-write allowlist — that widened the jail across all Phases.
     seen = set()
     uniq = []
     for p in out:
-        p = p.lstrip("./")
+        p = _strip_rel(p)
         if p and p not in seen:
             seen.add(p)
             uniq.append(p)
@@ -87,7 +95,7 @@ def ultradeep_active_write_paths(gate: Dict[str, Any]) -> List[str]:
     cur = gate.get("current") or gate.get("current_path")
     if not cur:
         return []
-    path = str(cur).replace("\\", "/").lstrip("./")
+    path = _strip_rel(str(cur))
     entry = (gate.get("files") or {}).get(path) or {}
     stage = str(entry.get("stage") or "")
     # Deny native writes during think/plan — force ritual before bytes.
@@ -176,6 +184,8 @@ def decide_write(
 
     If allow_paths empty and require_allowlist: deny (no envelope = no write).
     If require_allowlist False: allow any path under workspace only.
+
+    Active mode pin (ask/view/plan/…) can deny before allowlist checks.
     """
     ws = Path(workspace).resolve()
     raw = Path(path)
@@ -189,7 +199,18 @@ def decide_write(
     if any(rel.startswith(s) or f"/{s}" in f"/{rel}" for s in _SKIP_PREFIXES):
         return _deny(f"write_guard DENY: protected path {rel}", tool_name=tool_name)
 
-    allowed = [a.lstrip("./").replace("\\", "/") for a in (allow_paths or []) if a]
+    try:
+        from godkiller_mcp.mode_pin import load_active_mode, mode_blocks_native_write
+
+        pinned = load_active_mode(ws)
+        mode = str(pinned.get("mode") or "")
+        blocked, why = mode_blocks_native_write(mode, rel)
+        if blocked:
+            return _deny(f"write_guard DENY: {why}", tool_name=tool_name, extra={"mode": mode})
+    except Exception:
+        pass
+
+    allowed = [_strip_rel(a) for a in (allow_paths or []) if a]
     if require_allowlist:
         if not allowed:
             return _deny(
@@ -375,7 +396,7 @@ def persist_allow_paths(
     """
     ws = Path(workspace).resolve()
     path = _write_allow_path(ws)
-    clean = [str(p).replace("\\", "/").lstrip("./") for p in paths if p]
+    clean = [_strip_rel(str(p)) for p in paths if p]
     clean = list(dict.fromkeys(clean))
     cap = max_write_paths()
     if len(clean) > cap and source == "set_paths" and not force:
@@ -392,7 +413,7 @@ def persist_allow_paths(
         and existing.get("turn_open")
         and list(existing.get("paths") or [])
     ):
-        old = [str(p).replace("\\", "/").lstrip("./") for p in (existing.get("paths") or [])]
+        old = [_strip_rel(str(p)) for p in (existing.get("paths") or [])]
         old_phase = str(existing.get("phase") or "")
         new_phase = str(phase or old_phase or "turn")
         # Same phase + identical or subset paths: allow shrink/refresh.

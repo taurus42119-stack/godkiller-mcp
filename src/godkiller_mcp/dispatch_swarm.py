@@ -105,7 +105,40 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
                 rel = ensure_under_root(p).relative_to(auth)
                 clean_paths.append(str(rel).replace("\\", "/"))
             except Exception:
-                clean_paths.append(str(p).replace("\\", "/").lstrip("./"))
+                from godkiller_mcp.write_guard import _strip_rel
+
+                clean_paths.append(_strip_rel(str(p)))
+        try:
+            from godkiller_mcp.mode_pin import load_active_mode, mode_blocks_edit_safe
+
+            pinned = load_active_mode(auth)
+            mode = str(pinned.get("mode") or "")
+            blocked, why = mode_blocks_edit_safe(mode)
+            if blocked and mode != "plan":
+                return _json(
+                    {
+                        "ok": False,
+                        "error": "mode_forbids_set_paths",
+                        "detail": why,
+                        "mode": mode,
+                    }
+                )
+            if mode == "plan":
+                for cp in clean_paths:
+                    if not (
+                        cp == ".agents/plans"
+                        or cp.startswith(".agents/plans/")
+                    ):
+                        return _json(
+                            {
+                                "ok": False,
+                                "error": "plan_paths_only",
+                                "detail": "mode=plan: set_paths only under .agents/plans/",
+                                "path": cp,
+                            }
+                        )
+        except Exception:
+            pass
         try:
             path = persist_allow_paths(
                 auth,

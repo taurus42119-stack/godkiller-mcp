@@ -33,7 +33,7 @@ class EpistemicRouter:
         "/ultradeep": (r"^\s*/ultradeep\b|marathon|supreme|orchestrate|phase", "ULTRADEEP", True, True, True, "Ultradeep marathon + per-file think/plan/edit protocol"),
         "/view": (r"^\s*/view\b|lit review|literature review|adversarial review|critique paper|research critique", "VIEW", True, True, False, "Adversarial Research Planning Protocol"),
         "/verify": (r"^\s*/verify\b|rubric|claim done|empirical proof|pytest check", "VERIFICATION", False, False, True, "Empirical Pytest Proof Protocol"),
-        "/jury": (r"^\s*/jury\b|ship review|ตรวจเข้ม|go-no-go|beta audit|harsh review", "JURY", True, True, True, "Harsh Beta ship jury (evidence A–E; cold path)"),
+        "/jury": (r"^\s*/jury\b|ship review|go-no-go|beta audit|harsh review", "JURY", True, True, True, "Harsh Beta ship jury (evidence A–E; cold path)"),
     }
 
     def route_intent(self, prompt: str) -> IntentClassification:

@@ -61,6 +61,26 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "check_edit_safe":
         task_id = arguments.get("task_id")
+        try:
+            from godkiller_mcp.mode_pin import load_active_mode, mode_blocks_edit_safe
+            from godkiller_mcp.path_sandbox import workspace_root
+
+            ws = workspace_root()
+            pinned = load_active_mode(ws)
+            mode = str(pinned.get("mode") or "")
+            blocked, why = mode_blocks_edit_safe(mode)
+            if blocked:
+                return _json(
+                    {
+                        "ok": False,
+                        "allowed": False,
+                        "error": "mode_forbids_edit",
+                        "reason": why,
+                        "mode": mode,
+                    }
+                )
+        except Exception:
+            pass
         if task_id:
             from godkiller_mcp.governance import plan_always_required
 

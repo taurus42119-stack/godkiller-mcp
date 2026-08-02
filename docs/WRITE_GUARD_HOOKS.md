@@ -27,11 +27,14 @@ Writes portable `.agents/` files (constitution + write-guard hooks + PROMPTS) pl
 
 | Action | Effect |
 | --- | --- |
+| `gk_mode.activate` ask/view/verify | Mode pin + clear allowlist → native Write denied |
+| `gk_mode.activate` plan | Native Write only under `.agents/plans/` |
 | `gk_guard.set_paths` | Arms **one** write turn (ship default: max **1** path). Re-arming a new Phase/path set fails until `end_turn`. |
 | Ultradeep plan→edit | Disk allowlist syncs to the **current file only** (never the whole queue). |
 | `gk_guard.end_turn` | Clears allowlist → native Write denies until the next `set_paths`. |
 
 Without PreToolUse → write-guard, these rules do not stop native IDE Write.
+Without `gk_mode.activate`, there is no mode pin (agent must activate).
 
 Reload the IDE, then prove deny/allow before setting `GODKILLER_WRITE_GUARD_PROVEN=1`.
 
