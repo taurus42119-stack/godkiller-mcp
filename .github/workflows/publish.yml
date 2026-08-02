@@ -25,7 +25,7 @@ jobs:
           pip install cyclonedx-bom
           cyclonedx-py environment -o sbom.cdx.json
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: godkiller-mcp-sbom
           path: sbom.cdx.json
