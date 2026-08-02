@@ -1,1 +1,0 @@
-# Gauntlet package marker

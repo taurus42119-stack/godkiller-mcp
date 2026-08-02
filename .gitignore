@@ -42,7 +42,18 @@ benchmarks/arena_logs/*audit*
 # Local audit / adversarial scratch (never git add .)
 dist_audit/
 dist_review/
+dist_review_fresh/
 evil/
 **/dist_audit/
 **/dist_review/
 **/evil/
+
+# Maintainer-only (not Beta ship surface)
+.cursor/
+benchmarks/
+scripts/
+PUBLISH.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+_vendor_study/
+_study_refs/

@@ -223,20 +223,13 @@ Skills: `gk_mode.skill_catalog` — load **≤4** JIT skills per task. Dumping 2
 
 ---
 
-## Arena / A/B (optional proof — not marketing)
+## Arena / A/B (optional — maintainer machines)
 
 Internal Isolated/World volume oracles: **Bare ≈ WITH** on pass counts is an honest baseline.  
 Craft/discipline gains show more on long UI / game / marathon work.  
-Protocol: [`benchmarks/MEGA_AB_PROTOCOL.md`](benchmarks/MEGA_AB_PROTOCOL.md) · score with `score_11` / game / world — not chat vibes.
+Demos above are one session pair — not a universal scorecard.
 
-```powershell
-$env:GODKILLER_ARENA_ROOT="<arena-root>"
-python -m benchmarks.reset_arena
-# Bare arm then WITH arm — same prompt, no oracle cheat
-python -m benchmarks.score_11 --compare
-```
-
-Engine gauntlet + package tests: `pytest -q` (CI collects **~610** tests; count drifts as suites grow).
+Engine + package proof: `pytest -q` (CI collects **~610** tests; count drifts as suites grow).
 
 ---
 
