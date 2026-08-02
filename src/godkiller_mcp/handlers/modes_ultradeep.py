@@ -231,6 +231,23 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 payload["power_mode"] = (
                     "200% host-agent tool swarm + legacy ultradeep crucible + marathon pacing"
                 )
+                payload["autopilot"] = {
+                    "user_trigger": "/goal /ultradeep",
+                    "one_phase_per_turn": True,
+                    "after_phase": [
+                        "gk_guard.end_turn",
+                        "marathon_save_progress",
+                        "marathon_next_wake (or use next_wake below)",
+                        "HOST schedule(~5s) with that exact prompt",
+                        "STOP tools — do not ask the user to continue",
+                    ],
+                    "host_schedule_tool": "schedule",
+                    "host_schedule_note": (
+                        "schedule is Antigravity/host — not a GODKILLER MCP tool. "
+                        "MCP only emits next_wake text."
+                    ),
+                    "next_wake": marathon.next_wake_prompt(slug),
+                }
             if mode == "debug":
                 store.update_metadata(
                     opened_state.handle.task_id,

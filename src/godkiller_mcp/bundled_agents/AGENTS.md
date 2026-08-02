@@ -28,7 +28,7 @@ Skill/persona ≠ waive Law.
 `/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → `gk_mode`  
 `/jury` → ship/audit only  
 
-Pipeline: ask → plan → view? → ultradeep Phase N → verify  
+Pipeline: ask → plan → view? → `/goal /ultradeep` (one Phase/turn · host `schedule` wake) → verify  
 
 | Mode | Do | Don't |
 |---|---|---|
