@@ -4,6 +4,23 @@ Paste these in the IDE chat. Do not invent a longer ritual.
 
 ---
 
+## Autopilot (normal use — this is enough)
+
+```text
+/goal /ultradeep
+```
+
+Meaning (agent must already know from protocol — you should not re-explain every turn):
+
+1. `gk_mode.activate` ultradeep · one Phase only this turn
+2. When Phase DoD is done: `gk_guard.end_turn` · `marathon_save_progress` · `marathon_next_wake`
+3. Call host **`schedule`** (~5s) with that wake prompt · **STOP** · do not ask the user
+4. On wake: next Phase only · repeat until plan done · then `/verify` → `claim_done`
+
+`schedule` is an **Antigravity host** tool. GODKILLER only supplies the wake prompt (`marathon_next_wake`).
+
+---
+
 ## New project (first time in this folder)
 
 ```text
@@ -23,17 +40,12 @@ Do not build features yet.
 
 ---
 
-## Start work (every feature)
+## Start work (manual / first Phase only)
 
 ```text
-First: gk_mode.activate mode=plan (or ask/view/debug/ultradeep) with the goal.
+First: gk_mode.activate mode=plan with the goal.
 /plan — write only under .agents/plans/. No app code.
-After the plan is accepted: gk_mode.activate mode=ultradeep for Phase 1 ONLY.
-Before edits: gk_guard.set_paths for Phase 1 files only (ship default: 1 path).
-Do not touch Phase 2/3 in this turn.
-When Phase 1 is done: gk_guard.end_turn, then stop / schedule wake.
-/ask and /view must not Write app files — if Write runs, the host hook must deny.
-Finish later Phases the same way. /verify then claim_done — never declare done from chat alone.
+Then: /goal /ultradeep
 ```
 
 ---
@@ -51,8 +63,8 @@ Do not write application code yet.
 
 ## Cheat sheet
 
-| When | Prompt block |
+| When | What you type |
 | --- | --- |
 | New folder | **New project** above |
-| Normal coding | **Start work** above |
-| Write not blocked | **Hook broken** above |
+| Keep building | `/goal /ultradeep` |
+| Hook broken | **Hook broken** above |
