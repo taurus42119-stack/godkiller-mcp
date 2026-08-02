@@ -71,6 +71,9 @@ GODKILLER_WRITE_GUARD_PROVEN=1
 
 Without a proven host write-guard, do **not** claim native Write is forced.
 
+To **stop** full lock later: remove/disable the host write-guard hook and unset
+`GODKILLER_WRITE_GUARD_PROVEN`. Disabling the MCP server alone does not detach the hook.
+
 Antigravity opt-in template (merge into host PreToolUse — MCP does not auto-lock the IDE):  
 `docs/templates/antigravity-write-guard.hooks.json`
 

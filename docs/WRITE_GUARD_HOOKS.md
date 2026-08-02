@@ -146,6 +146,18 @@ File markers / `GODKILLER_WRITE_GUARD_WIRED` alone are **not** enforcement proof
 Agent calls `gk_guard.write` / checks allowlist **before** native Write and treats deny as stop.  
 This is discipline-only — same class of failure as skipping ultradeep.
 
+### 5) Disable / uninstall full lock
+
+MCP and write-guard are **separate switches**.
+
+| Stop using… | Action |
+| --- | --- |
+| Full lock only | Remove the PreToolUse write-guard entry, or set `"enabled": false` on the hooks file · unset `GODKILLER_WRITE_GUARD_PROVEN` · reload the IDE |
+| GODKILLER MCP only | Disable/remove the MCP server in host settings · soft gates go away · **write-guard still runs if left installed** |
+| Everything | Detach write-guard **and** disable MCP · then native Write behaves like a normal agent IDE |
+
+Do not assume “MCP off = lock off.” If writes still fail after disabling MCP, the write-guard hook is still attached — remove it.
+
 ---
 
 ## Threat model

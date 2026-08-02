@@ -157,11 +157,24 @@ That is enough for **gated MCP workflow**: **`.agents/AGENTS.md` + host MCP**.
 
 ### Full lock (optional)
 
-To stop native Write bypass when the host allows free file edits:
+Wire the **write-guard on the IDE host** (not inside MCP). Two switches:
 
-1. Copy [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json) into your host PreToolUse hooks (merge, don’t wipe other hooks).
-2. Prove deny/allow with `godkiller-write-guard --stdin` (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
+| Want | Do |
+| --- | --- |
+| **On (full lock)** | Attach PreToolUse → `godkiller-write-guard` · prove deny/allow · then `WRITE_GUARD_PROVEN=1` |
+| **Off (normal IDE writes)** | Remove or disable that write-guard hook · unset `WRITE_GUARD_PROVEN` · MCP off is optional and separate |
+
+**Attach (on):**
+
+1. Copy [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json) into the host PreToolUse hooks config (merge, don’t wipe other hooks). Project copy path often used: `.agents/hooks/godkiller-write-guard.hooks.json`
+2. Reload the IDE. Prove deny/allow with `godkiller-write-guard --stdin` (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
 3. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
+
+**Detach (off):**
+
+1. Delete the write-guard PreToolUse entry, or set `"enabled": false` on that hooks file.
+2. Unset `GODKILLER_WRITE_GUARD_PROVEN` (and relax `PROFILE=ship` if you no longer want ship posture).
+3. Reload the IDE. Turning off the GODKILLER MCP server alone does **not** remove the write-guard — remove the hook too.
 
 Optional craft packs (`workflows/`, `skills/`) can come later.
 
