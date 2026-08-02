@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/godkiller-mcp-banner.png" alt="GODKILLER MCP" width="520" />
+</p>
+
 # GODKILLER MCP
 
 **Beta MCP proof-kernel** for agent IDEs (Antigravity / Cursor / Claude Desktop).  
@@ -15,6 +19,20 @@ native Write/Edit/Terminal → NOT intercepted (unless host PreToolUse)
 [![CI](https://github.com/taurus42119-stack/godkiller-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/taurus42119-stack/godkiller-mcp/actions/workflows/ci.yml)
 
 **Contact:** [Instagram @Kayvin.th](https://instagram.com/Kayvin.th)
+
+---
+
+## Watch — same kind of task, Bare vs WITH MCP
+
+One real session: agent building a game. **Not** a universal scorecard — just what the loop looks like with vs without the kernel.
+
+### NO MCP (Bare)
+
+![Bare agent building a game without MCP](docs/assets/demo-no-mcp.mp4)
+
+### WITH MCP (GODKILLER)
+
+![Agent building a game with GODKILLER MCP](docs/assets/demo-with-mcp.mp4)
 
 ---
 
