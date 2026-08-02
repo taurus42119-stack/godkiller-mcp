@@ -5,7 +5,7 @@ Does not edit application code. Agent must show the proposal to the user / chat.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 # Anything below this → propose VIEW study NOW (user policy: not 99% sure ⇒ propose)
 CONFIDENCE_PROPOSE_BELOW = 99.0

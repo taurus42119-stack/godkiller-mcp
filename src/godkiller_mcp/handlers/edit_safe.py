@@ -10,30 +10,17 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     from godkiller_mcp.runtime_state import (
         _json,
         store,
-        policy,
         loops,
-        verify_runner,
-        lessons,
-        handoff,
-        browser,
-        vision,
-        marathon,
-        modes,
-        workflow,
         plan_os,
-        STATE_ROOT,
-        STORE_DIR,
     )
-    from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction, TaskKind
-    from godkiller_mcp.policy import rubric_for_kind
+    from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction
     from godkiller_mcp.code_intel import (
         blast_radius,
         check_edit_safe,
         get_failing_slice,
         require_blast_before_edit,
     )
-    import asyncio
-    from pathlib import Path
+    from godkiller_mcp import ultradeep_engine as ude
 
     arguments = arguments or {}
     if name == "get_failing_slice":

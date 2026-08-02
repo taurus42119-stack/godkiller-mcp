@@ -390,6 +390,8 @@ async def _handle_tool_body(name: str, arguments: Dict[str, Any]) -> List[TextCo
             return _json(blocked)
         res = pw_browser.screenshot(arguments.get("name") or "shot.png")
         if res.get("ok") and arguments.get("task_id"):
+            from godkiller_mcp.schema import EvidenceType
+
             vision_result = vision.analyze_screenshot(res["path"])
             res["vision"] = vision_result.__dict__
             ev = store.submit_evidence(

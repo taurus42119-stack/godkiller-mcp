@@ -18,21 +18,6 @@ __all__ = [
     "get_failing_slice",
     "blast_radius",
     "check_edit_safe",
-    "RepoMapGenerator",
-    "HyperSearchEngine",
-    "FastFindEngine",
-    "ContextPreviewEngine",
-    "AstGrepEngine",
-    "SecurityScanEngine",
-    "DeepScrapeEngine",
-    "LogTraceEngine",
-    "AutoFixEngine",
-    "PipelineRunner",
-    "SelfHealingEngine",
-    "EpistemicConfidenceGate",
-    "ExhaustiveReaderEngine",
-    "AutoSkillifyEngine",
-    "CouncilDebateEngine",
 ]
 
 @dataclass
@@ -147,6 +132,8 @@ def blast_radius(symbol: str, workspace_root: str | Path) -> BlastRadiusReport:
         return any(part.startswith(".") or part in skip_parts for part in p.parts)
 
     candidates: Optional[List[Path]] = None
+    from godkiller_mcp.engines.search import _find_dev_binary
+
     rg = _find_dev_binary("rg")
     if rg:
         try:
