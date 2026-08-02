@@ -52,7 +52,7 @@ Developers, AI engineers, and power users who run agents hard — and refuse to 
 
 | Pain | Without GODKILLER | With GODKILLER |
 | --- | --- | --- |
-| **Fake completion** | “เรียบร้อยครับ” / “All green” in chat | `claim_done` blocked until verify + evidence land |
+| **Fake completion** | “All done!” / “All green” in chat | `claim_done` blocked until verify + evidence land |
 | **Token bloat** | Schema / dump floods every turn | Compact payloads by default |
 | **Skipped ritual** | Plan → edit → vibes | Phase gates · illegal jumps die |
 | **Blind edits** | Multi-file rush, no blast | `edit_safe` · blast · hollow · fault probe |
