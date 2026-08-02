@@ -64,6 +64,7 @@ cfg = {
             "env": {
                 "GODKILLER_PROFILE": "ship",
                 "GODKILLER_SEAL_KEY": seal,
+                "GODKILLER_WORKSPACE": str(WORKSPACE),
                 "GODKILLER_SKILLS_ROOTS": skills,
                 "GODKILLER_AGENTS_MD": str(AGENTS_MD),
                 "GODKILLER_AGENTS_ROOT": str(AGENTS_ROOT),

@@ -37,6 +37,11 @@ def test_blast_radius_regex_fallback_flag(tmp_path: Path):
     extra = rep.to_evidence_payload()
     assert extra.get("regex_fallback_used") is True
     assert "regex_fallback" in str(extra.get("engine") or "")
+    assert extra.get("warn")
+    assert "false positive" in str(extra.get("warn") or "").lower() or "regex" in str(
+        extra.get("warn") or ""
+    ).lower()
+    assert "WARN:regex_fallback" in rep.summary
 
 
 def test_vision_no_pil_never_claim_grade(tmp_path: Path, monkeypatch):

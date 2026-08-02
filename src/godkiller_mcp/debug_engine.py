@@ -1,6 +1,9 @@
-""" /debug Self-CTF — adversarial *signal* loop against THIS workspace only.
+""" /debug Self-CTF — adversarial *signal heuristics* on THIS workspace only.
 
-Not a real debugger: rounds run SecurityScanEngine + token search heuristics.
+Honest mouth: **self_ctf_signal** — NOT a real debugger, NOT dynamic AST execution,
+NOT fuzzing. Each tick = SecurityScanEngine + token/string search heuristics
+(e.g. TODO/FIXME/password/shell=True/eval). Findings are signals for humans/tests
+to verify — never claim root-cause from CTF ticks alone.
 Never targets the open internet. No org/domain hunting.
 """
 
@@ -15,6 +18,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from godkiller_mcp.ship_mode import env_disables, relax_enabled
 
 _META_KEY = "debug_self_ctf"
+_SIGNAL_MOUTH = (
+    "self_ctf_signal: static scan + token heuristics only — "
+    "not dynamic AST execution / not fuzzing / not a debugger"
+)
 
 
 def _utcnow() -> str:
@@ -48,14 +55,28 @@ def start(
         "updated_at": _utcnow(),
         "scope": "workspace_only",
         "forbidden": ["open_internet_attack", "third_party_org_hunt"],
+        "method": "signal_heuristics",
+        "honest": _SIGNAL_MOUTH,
+        "not": ["real_debugger", "dynamic_ast_execution", "fuzzing"],
     }
-    return {"ok": True, "source": "debug_self_ctf_start", "server_authored": True, "ctf": state}
+    return {
+        "ok": True,
+        "source": "debug_self_ctf_start",
+        "server_authored": True,
+        "honest": _SIGNAL_MOUTH,
+        "ctf": state,
+    }
 
 
 def tick(state: Dict[str, Any]) -> Dict[str, Any]:
-    """One adversarial round against workspace paths only."""
+    """One adversarial *signal* round (static scan + token search) — not a debugger."""
     if state.get("status") in ("passed", "exhausted"):
-        return {"ok": True, "ctf": state, "note": f"already {state.get('status')}"}
+        return {
+            "ok": True,
+            "ctf": state,
+            "note": f"already {state.get('status')}",
+            "honest": _SIGNAL_MOUTH,
+        }
 
     root = Path(str(state.get("workspace") or ".")).resolve()
     if not root.exists():
@@ -91,7 +112,15 @@ def tick(state: Dict[str, Any]) -> Dict[str, Any]:
 
         tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", goal)[:6]
         if not tokens:
+            # Default heuristic token set — not a vulnerability oracle
             tokens = ["TODO", "FIXME", "password", "shell=True", "eval("]
+            state.setdefault("history", []).append(
+                {
+                    "round": rnd,
+                    "note": "default_token_heuristics",
+                    "honest": _SIGNAL_MOUTH,
+                }
+            )
         searcher = HyperSearchEngine()
         for tok in tokens:
             res = searcher.search(tok, search_path=str(root), max_results=6)
@@ -139,9 +168,13 @@ def tick(state: Dict[str, Any]) -> Dict[str, Any]:
             "ok": True,
             "source": "debug_self_ctf_tick",
             "server_authored": True,
+            "honest": _SIGNAL_MOUTH,
             "ctf": state,
             "added": added,
-            "next": "reproduce with failing evidence, then fix — or tick again for more pressure",
+            "next": (
+                "signals only — reproduce with failing evidence/tests, then fix; "
+                "do not treat CTF hits as root-cause proof"
+            ),
         }
 
     if rnd >= max_r:
@@ -150,6 +183,7 @@ def tick(state: Dict[str, Any]) -> Dict[str, Any]:
             "ok": True,
             "source": "debug_self_ctf_tick",
             "server_authored": True,
+            "honest": _SIGNAL_MOUTH,
             "ctf": state,
             "added": 0,
             "next": "No findings after max_rounds — change goal tokens or deepen scan; do not claim fixed",
@@ -160,6 +194,7 @@ def tick(state: Dict[str, Any]) -> Dict[str, Any]:
         "ok": True,
         "source": "debug_self_ctf_tick",
         "server_authored": True,
+        "honest": _SIGNAL_MOUTH,
         "ctf": state,
         "added": 0,
         "next": f"No finding this round — call debug_self_ctf_tick again ({rnd}/{max_r})",

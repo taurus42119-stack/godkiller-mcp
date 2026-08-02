@@ -67,16 +67,25 @@ class BlastRadiusReport:
 
     @property
     def summary(self) -> str:
-        return f"Symbol: {self.symbol}, Files: {len(self.files)}, Dependents: {len(self.dependents)}"
+        base = f"Symbol: {self.symbol}, Files: {len(self.files)}, Dependents: {len(self.dependents)}"
+        extra = getattr(self, "payload_extra", None) or {}
+        if extra.get("regex_fallback_used"):
+            return base + " WARN:regex_fallback_may_false_positive"
+        return base
 
     def to_evidence_payload(self) -> dict:
         extra = getattr(self, "payload_extra", None) or {}
-        return {
+        out = {
             "symbol": self.symbol,
             "files": self.files,
             "dependents": self.dependents,
             **extra,
         }
+        if extra.get("regex_fallback_used") and not out.get("warn"):
+            out["warn"] = (
+                "regex_fallback_used: SyntaxError paths matched by regex — may be false positives"
+            )
+        return out
 
 
 @dataclass
@@ -280,24 +289,38 @@ def check_edit_safe(
 
 # --- Code helpers (search / map / heuristics) ---
 
-# Engines live in godkiller_mcp.engines.* — re-export for stable import paths.
-from godkiller_mcp.engines import (  # noqa: E402
-    AstGrepEngine,
-    AutoFixEngine,
-    AutoSkillifyEngine,
-    ContextPreviewEngine,
-    CouncilDebateEngine,
-    DeepScrapeEngine,
-    EpistemicConfidenceGate,
-    ExhaustiveReaderEngine,
-    FastFindEngine,
-    HyperSearchEngine,
-    LogTraceEngine,
-    PipelineRunner,
-    RepoMapGenerator,
-    SecurityScanEngine,
-    SelfHealingEngine,
-    Tag,
-    _default_tools_dir,
-    _find_dev_binary,
+# Engines live in godkiller_mcp.engines.* — lazy re-export (avoid cold-start barrel).
+_ENGINE_EXPORTS = frozenset(
+    {
+        "AstGrepEngine",
+        "AutoFixEngine",
+        "AutoSkillifyEngine",
+        "ContextPreviewEngine",
+        "CouncilDebateEngine",
+        "DeepScrapeEngine",
+        "EpistemicConfidenceGate",
+        "ExhaustiveReaderEngine",
+        "FastFindEngine",
+        "HyperSearchEngine",
+        "LogTraceEngine",
+        "PipelineRunner",
+        "RepoMapGenerator",
+        "SecurityScanEngine",
+        "SelfHealingEngine",
+        "Tag",
+        "_default_tools_dir",
+        "_find_dev_binary",
+    }
 )
+
+
+def __getattr__(name: str):
+    if name in _ENGINE_EXPORTS:
+        from godkiller_mcp import engines as _engines
+
+        return getattr(_engines, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | _ENGINE_EXPORTS)

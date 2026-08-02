@@ -227,7 +227,9 @@ def _server_auto_roles(goal: str, workspace: str) -> Dict[str, Dict[str, Any]]:
         {
             "findings": clean_findings[:20],
             "paths": paths,
-            "confidence": 7,
+            # Fixed local stub weight — NOT measured confidence; never a claim gate
+            "heuristic_fixed": 7,
+            "honest": "heuristic_fixed local scout stub — not measured confidence / not a gate",
             "paging_hint": "Brief truncated — use godkiller_exhaustive_read / gk_code.read_full on paths before edit",
         },
     )
@@ -241,7 +243,8 @@ def _server_auto_roles(goal: str, workspace: str) -> Dict[str, Dict[str, Any]]:
                 "verify_bundle pytest",
             ],
             "paths": paths[:10],
-            "confidence": 6,
+            "heuristic_fixed": 6,
+            "honest": "heuristic_fixed local planner stub — not measured confidence / not a gate",
         },
     )
     verifier = _normalize_role(
@@ -371,7 +374,10 @@ def _normalize_role(role: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "must_fix": must_fix[:20],
         "paths": [str(p) for p in paths[:40] if p],
         "vote": str(data.get("vote") or "").upper(),
-        "severity": int(data.get("severity") or data.get("confidence") or 0),
+        # Prefer explicit severity; never treat heuristic_fixed / confidence as a gate score
+        "severity": int(data.get("severity") or 0),
+        "heuristic_fixed": data.get("heuristic_fixed"),
+        "honest": data.get("honest"),
         "commands": list(data.get("commands") or [])[:20],
         "raw": data,
     }

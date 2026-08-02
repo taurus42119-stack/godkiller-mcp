@@ -341,6 +341,12 @@ class PolicyEngine:
         if not ok_tp:
             return False, results, reason_tp, "tool_propose"
 
+        from godkiller_mcp.roi_gates import claim_write_guard_gate
+
+        ok_wg, reason_wg = claim_write_guard_gate()
+        if not ok_wg:
+            return False, results, reason_wg, "write_guard"
+
         # Feature dissatisfaction loop (competitors + ladder; visual when UI)
         from godkiller_mcp.quality_gates import quality_claim_gates
 

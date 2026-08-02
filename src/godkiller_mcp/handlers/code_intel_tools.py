@@ -1,4 +1,7 @@
-"""Domain handlers peeled from dispatch (facade names unchanged)."""
+"""Domain handlers peeled from dispatch (facade names unchanged).
+
+Engines are imported per-action (lazy) to avoid cold-start barrel weight.
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -8,79 +11,54 @@ from mcp.types import TextContent
 
 async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     import asyncio
-    from pathlib import Path
 
-    from godkiller_mcp.code_intel import (
-        AutoFixEngine,
-        AutoSkillifyEngine,
-        AstGrepEngine,
-        ContextPreviewEngine,
-        CouncilDebateEngine,
-        DeepScrapeEngine,
-        EpistemicConfidenceGate,
-        ExhaustiveReaderEngine,
-        FastFindEngine,
-        HyperSearchEngine,
-        LogTraceEngine,
-        PipelineRunner,
-        RepoMapGenerator,
-        SecurityScanEngine,
-        SelfHealingEngine,
-        blast_radius,
-        check_edit_safe,
-        get_failing_slice,
-        require_blast_before_edit,
-    )
-    from godkiller_mcp.dispatch import (
-        STORE_DIR,
-        STATE_ROOT,
-        _json,
-        browser,
-        handoff,
-        handle_tool,
-        lessons,
-        loops,
-        marathon,
-        modes,
-        plan_os,
-        policy,
-        store,
-        verify_runner,
-        vision,
-        workflow,
-        pw_browser,
-    )
-    from godkiller_mcp import ultradeep_engine as ude
-    from godkiller_mcp.policy import rubric_for_kind
-    from godkiller_mcp.quality_gates import (
-        LADDER_LEVELS,
-        build_compare_delta,
-        build_competitor_scan,
-        next_ladder_level,
-        run_soak,
-        run_visual_critic,
-    )
-    from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction, TaskKind
-    from godkiller_mcp.skill_catalog import (
-        build_catalog,
-        filter_catalog,
-        suggest_from_catalog,
-    )
+    from godkiller_mcp.dispatch import handle_tool
+    from godkiller_mcp.path_sandbox import WorkspaceRootError, path_gate_error, workspace_root
+    from godkiller_mcp.runtime_state import _json, store
+    from godkiller_mcp.schema import EvidenceType
 
     arguments = arguments or {}
-    from godkiller_mcp.path_sandbox import path_gate_error, workspace_root
 
     def _ws_or(raw: str) -> str:
         """Default '.' must be the IDE cwd/workspace — never the installed package tree."""
-        return str(workspace_root()) if str(raw).strip() in ("", ".") else str(raw)
+        if str(raw).strip() not in ("", "."):
+            return str(raw)
+        try:
+            return str(workspace_root())
+        except WorkspaceRootError as exc:
+            raise ValueError(str(exc)) from exc
 
     if name == "godkiller_exhaustive_read":
+        from godkiller_mcp.code_intel import ExhaustiveReaderEngine
+        from godkiller_mcp.roi_gates import symbol_intel_satisfied
+
         dpath = arguments["dir_path"]
         bad = path_gate_error(dpath)
         if bad:
             return _json(bad)
+        state = None
+        task_id = arguments.get("task_id")
+        if task_id:
+            try:
+                state = store.get(task_id)
+            except Exception:
+                state = None
+        ok_si, reason_si = symbol_intel_satisfied(arguments, state)
+        if not ok_si:
+            return _json(
+                {
+                    "ok": False,
+                    "allowed": False,
+                    "error": "symbol_intel_required",
+                    "reason": reason_si,
+                    "hint": (
+                        "Call jcodemunch / codebase-memory for ranked symbols, or "
+                        "gk_code.map / gk_code.search with task_id, then pass "
+                        "symbol_digest=… into read_all"
+                    ),
+                }
+            )
         mfiles = arguments.get("max_files", ExhaustiveReaderEngine.DEFAULT_MAX_FILES)
-        # Default: capped per-file chars (raise explicitly for full dumps).
         max_chars = arguments.get(
             "max_chars_per_file", ExhaustiveReaderEngine.DEFAULT_MAX_CHARS_PER_FILE
         )
@@ -88,9 +66,13 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         res = await asyncio.to_thread(
             engine.read_all, dpath, max_files=mfiles, max_chars_per_file=max_chars
         )
+        if isinstance(res, dict):
+            res.setdefault("symbol_intel", reason_si)
         return _json(res)
 
     if name == "godkiller_auto_skillify":
+        from godkiller_mcp.code_intel import AutoSkillifyEngine
+
         sname = arguments["skill_name"]
         sdesc = arguments["description"]
         sinst = arguments["instructions"]
@@ -103,6 +85,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_council_debate":
+        from godkiller_mcp.code_intel import CouncilDebateEngine
+
         prop = arguments["proposed_code_or_plan"]
         ctx = arguments.get("context", {})
         mode = arguments.get("mode")  # auto|host|api
@@ -121,6 +105,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_council_submit":
+        from godkiller_mcp.code_intel import CouncilDebateEngine
+
         engine = CouncilDebateEngine()
         res = engine.submit_opinion(
             session_id=arguments["session_id"],
@@ -133,6 +119,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_council_finalize":
+        from godkiller_mcp.code_intel import CouncilDebateEngine
+
         engine = CouncilDebateEngine()
         res = engine.finalize_host(
             arguments["session_id"],
@@ -156,6 +144,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_pipeline":
+        from godkiller_mcp.code_intel import PipelineRunner
+
         steps_arg = arguments["steps"]
         engine = PipelineRunner()
         execute = arguments.get("execute", True)
@@ -167,6 +157,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_self_heal":
+        from godkiller_mcp.code_intel import SelfHealingEngine
+
         ftool = arguments["failed_tool"]
         eout = arguments["error_or_output"]
         tctx = arguments.get("task_context", {})
@@ -183,6 +175,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_confidence_check":
+        from godkiller_mcp.code_intel import EpistemicConfidenceGate
+
         fpath = arguments["file_path"]
         bad = path_gate_error(fpath)
         if bad:
@@ -197,9 +191,18 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             has_searched=hsearched,
             search_hit_count=hit_count,
         )
+        res.pop("confidence", None)
+        res.pop("confidence_pct", None)
+        res.setdefault("label", "edit_readiness_metrics")
+        res.setdefault(
+            "honest",
+            "edit_readiness_metrics heuristic — not measured confidence",
+        )
         return _json(res)
 
     if name == "godkiller_deep_scrape":
+        from godkiller_mcp.code_intel import DeepScrapeEngine
+
         u_or_h = arguments["url_or_html"]
         mlength = arguments.get("max_length", 5000)
         engine = DeepScrapeEngine()
@@ -207,12 +210,17 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_log_trace":
+        from godkiller_mcp.code_intel import LogTraceEngine
+
         lout = arguments["log_output"]
         engine = LogTraceEngine()
         res = engine.parse_log(lout)
         return _json(res)
 
     if name == "godkiller_auto_fix":
+        from godkiller_mcp.code_intel import AutoFixEngine
+        from godkiller_mcp.ship_mode import relax_enabled
+
         fpath = arguments["file_path"]
         bad = path_gate_error(fpath)
         if bad:
@@ -220,7 +228,6 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         pat = arguments["pattern"]
         repl = arguments["replacement"]
         prev_only = arguments.get("preview_only", True)
-        from godkiller_mcp.ship_mode import relax_enabled
 
         if not relax_enabled():
             prev_only = True
@@ -231,6 +238,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_ast_grep":
+        from godkiller_mcp.code_intel import AstGrepEngine
+
         pat = arguments["pattern"]
         spath = arguments.get("search_path", ".")
         target = _ws_or(spath)
@@ -244,6 +253,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_security_scan":
+        from godkiller_mcp.code_intel import SecurityScanEngine
+
         tpath = arguments.get("target_path", ".")
         target = _ws_or(tpath)
         bad = path_gate_error(target)
@@ -255,6 +266,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_repo_map":
+        from godkiller_mcp.code_intel import RepoMapGenerator
+        from godkiller_mcp.roi_gates import stamp_symbol_intel
+
         wroot = arguments.get("workspace_root", ".")
         target = _ws_or(wroot)
         bad = path_gate_error(target)
@@ -263,9 +277,18 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         mtokens = arguments.get("max_tokens", 1000)
         generator = RepoMapGenerator(target)
         map_text = await asyncio.to_thread(generator.get_repo_map, max_tokens=mtokens)
+        stamp_symbol_intel(
+            store,
+            arguments.get("task_id"),
+            source="repo_map",
+            digest=map_text[:2000] if isinstance(map_text, str) else str(map_text)[:2000],
+        )
         return [TextContent(type="text", text=map_text)]
 
     if name == "godkiller_hyper_search":
+        from godkiller_mcp.code_intel import HyperSearchEngine
+        from godkiller_mcp.roi_gates import stamp_symbol_intel
+
         pat = arguments["pattern"]
         spath = arguments.get("search_path", ".")
         target = _ws_or(spath)
@@ -275,9 +298,20 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         mresults = arguments.get("max_results", 100)
         searcher = HyperSearchEngine()
         res = searcher.search(pat, search_path=target, max_results=mresults)
+        digest = pat
+        if isinstance(res, dict):
+            hits = res.get("hits") or res.get("matches") or res.get("results") or []
+            digest = f"{pat} :: {str(hits)[:1500]}"
+        else:
+            digest = f"{pat} :: {str(res)[:1500]}"
+        stamp_symbol_intel(
+            store, arguments.get("task_id"), source="hyper_search", digest=digest
+        )
         return _json(res)
 
     if name == "godkiller_fast_find":
+        from godkiller_mcp.code_intel import FastFindEngine
+
         npat = arguments["name_pattern"]
         spath = arguments.get("search_path", ".")
         target = _ws_or(spath)
@@ -290,6 +324,8 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         return _json(res)
 
     if name == "godkiller_context_preview":
+        from godkiller_mcp.code_intel import ContextPreviewEngine
+
         fpath = arguments["file_path"]
         bad = path_gate_error(fpath)
         if bad:
@@ -300,7 +336,6 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         res = previewer.preview(fpath, start_line=sline, end_line=eline)
         return _json(res)
 
-
     raise ValueError("handler %r not in this module" % (name,))
 
 
@@ -310,5 +345,23 @@ def register() -> None:
     async def _entry(n: str, a: Dict[str, Any]) -> List[TextContent]:
         return await handle(n, a)
 
-    for tool in ['godkiller_exhaustive_read', 'godkiller_auto_skillify', 'godkiller_council_debate', 'godkiller_council_submit', 'godkiller_council_finalize', 'godkiller_pipeline', 'godkiller_self_heal', 'godkiller_confidence_check', 'godkiller_deep_scrape', 'godkiller_log_trace', 'godkiller_auto_fix', 'godkiller_ast_grep', 'godkiller_security_scan', 'godkiller_repo_map', 'godkiller_hyper_search', 'godkiller_fast_find', 'godkiller_context_preview']:
+    for tool in [
+        "godkiller_exhaustive_read",
+        "godkiller_auto_skillify",
+        "godkiller_council_debate",
+        "godkiller_council_submit",
+        "godkiller_council_finalize",
+        "godkiller_pipeline",
+        "godkiller_self_heal",
+        "godkiller_confidence_check",
+        "godkiller_deep_scrape",
+        "godkiller_log_trace",
+        "godkiller_auto_fix",
+        "godkiller_ast_grep",
+        "godkiller_security_scan",
+        "godkiller_repo_map",
+        "godkiller_hyper_search",
+        "godkiller_fast_find",
+        "godkiller_context_preview",
+    ]:
         reg(tool, _entry)

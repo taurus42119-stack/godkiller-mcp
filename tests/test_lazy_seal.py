@@ -41,7 +41,7 @@ def test_store_access_requires_seal(monkeypatch, tmp_path):
     monkeypatch.delenv("GODKILLER_SEAL_KEY", raising=False)
     monkeypatch.delenv("GODKILLER_ALLOW_LEGACY_SEAL", raising=False)
     monkeypatch.setenv("GODKILLER_HOME", str(tmp_path))
-    from godkiller_mcp.dispatch import _LazyProxy
+    from godkiller_mcp.runtime_state import _LazyProxy
     from godkiller_mcp.evidence_store import EvidenceStore
     from godkiller_mcp.runtime_paths import tasks_dir
 

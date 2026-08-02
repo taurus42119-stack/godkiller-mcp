@@ -1,7 +1,7 @@
 """Fault probe — diff-scoped mutation pressure (GODKILLER-native, deeper than v1).
 
-Mutates changed Python files (git diff or explicit targets). Multiple operator
-sites per file. Survivors = tests too shallow to claim_done.
+Mutants run under a disposable shadow copy of the workspace so SIGKILL cannot
+leave live-tree mutants. Legacy in-place unclean markers are still restored/blocked.
 """
 
 from __future__ import annotations
@@ -26,16 +26,21 @@ def _probe_dirs(workspace: Path) -> Tuple[Path, Path]:
 
 
 def _restore_probe_backups_unlocked(ws: Path) -> Dict[str, Any]:
-    """Caller must hold ``probe.lock`` (or accept races)."""
+    """Caller must hold ``probe.lock`` (or accept races).
+
+    Fail-closed: unclean marker stays if any listed file lacks a readable bak.
+    """
     from godkiller_mcp.evidence_store import atomic_write_text
 
     backup_root, unclean = _probe_dirs(ws)
     restored: List[str] = []
     errors: List[str] = []
+    pending: List[str] = []
     if unclean.exists():
         try:
             meta = json.loads(unclean.read_text(encoding="utf-8"))
-            for rel in meta.get("files") or []:
+            pending = [str(r) for r in (meta.get("files") or [])]
+            for rel in pending:
                 bak = backup_root / f"{str(rel).replace('/', '__').replace(chr(92), '__')}.bak"
                 target = ws / rel
                 if bak.is_file():
@@ -45,18 +50,26 @@ def _restore_probe_backups_unlocked(ws: Path) -> Dict[str, Any]:
                         bak.unlink()
                     except OSError:
                         pass
+                else:
+                    errors.append(f"missing_bak:{rel}")
         except Exception as exc:
             errors.append(str(exc))
     for bak in backup_root.glob("*.bak"):
         rel = bak.name[: -len(".bak")].replace("__", "/")
+        if rel in restored:
+            continue
         target = ws / rel
         try:
             atomic_write_text(target, bak.read_text(encoding="utf-8"))
             restored.append(rel)
             bak.unlink(missing_ok=True)
+            if rel in pending and f"missing_bak:{rel}" in errors:
+                errors = [e for e in errors if e != f"missing_bak:{rel}"]
         except Exception as exc:
             errors.append(f"{rel}:{exc}")
-    if unclean.exists() and not errors:
+    # Only clear unclean when every listed file was restored and no errors remain
+    still_pending = [r for r in pending if r not in restored]
+    if unclean.exists() and not errors and not still_pending:
         try:
             unclean.unlink()
         except OSError:
@@ -64,7 +77,8 @@ def _restore_probe_backups_unlocked(ws: Path) -> Dict[str, Any]:
     return {
         "restored": restored,
         "errors": errors,
-        "clean": not unclean.exists() or bool(restored),
+        "pending": still_pending,
+        "clean": not unclean.exists(),
     }
 
 
@@ -99,6 +113,111 @@ def warn_if_probe_unclean(workspace: Path | str, *, stream=None) -> bool:
     except OSError:
         pass
     return True
+
+
+def _probe_ignore_names() -> set[str]:
+    return {
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".godkiller",
+        "dist",
+        "build",
+        ".eggs",
+        "htmlcov",
+        "coverage",
+    }
+
+
+def _copy_workspace_shadow(src: Path, dst: Path) -> None:
+    """Copy workspace into a disposable shadow (mutation target). Never write mutants to src."""
+    import shutil
+
+    ignore = _probe_ignore_names()
+
+    def _ignore(dirpath: str, names: list[str]) -> set[str]:
+        skipped = set()
+        for n in names:
+            if n in ignore or n.endswith(".pyc") or n.endswith(".pyo"):
+                skipped.add(n)
+        return skipped
+
+    shutil.copytree(src, dst, ignore=_ignore, symlinks=False)
+
+
+def _run_mutant_in_shadow(
+    *,
+    workspace: Path,
+    rel: str,
+    mutated: str,
+    test_command: str,
+    timeout_sec: int,
+) -> Any:
+    """Apply mutant only under a temp shadow copy; original workspace file untouched."""
+    import tempfile
+
+    from godkiller_mcp.evidence_store import atomic_write_text
+
+    with tempfile.TemporaryDirectory(prefix="gk_fp_") as td:
+        shadow = Path(td) / "ws"
+        _copy_workspace_shadow(workspace, shadow)
+        target = shadow / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(target, mutated)
+        return run_command_safely(test_command, cwd=shadow, timeout_sec=timeout_sec)
+
+
+def require_probe_clean_or_restore(workspace: Path | str | None = None) -> Optional[Dict[str, Any]]:
+    """Return error payload if unclean after restore attempt; else None.
+
+    Used by dispatch to block facades until mutants from a prior crash are cleared.
+    """
+    try:
+        from godkiller_mcp.path_sandbox import WorkspaceRootError, workspace_root
+
+        ws = Path(workspace).resolve() if workspace else workspace_root()
+    except WorkspaceRootError:
+        ws = Path(workspace).resolve() if workspace else Path.cwd().resolve()
+    except Exception:
+        ws = Path(workspace).resolve() if workspace else Path.cwd().resolve()
+
+    if not probe_unclean(ws):
+        return None
+    warn_if_probe_unclean(ws)
+    info = restore_probe_backups(ws)
+    if not probe_unclean(ws):
+        return None
+    return {
+        "ok": False,
+        "error": "probe_unclean",
+        "detail": (
+            "prior fault_probe crash left mutants; restore incomplete — "
+            "run godkiller-restore --workspace <root> then retry"
+        ),
+        "restored": info.get("restored"),
+        "errors": info.get("errors"),
+        "workspace": str(ws),
+        "fix": "godkiller-restore --workspace .",
+    }
+
+
+# Tools allowed while unclean (status / restore path / probe itself to re-attempt).
+PROBE_UNCLEAN_ALLOW = frozenset(
+    {
+        "gk_honesty_status",
+        "fault_probe",
+        "exit_checklist",
+        "ledger_tail",
+    }
+)
 
 
 @dataclass
@@ -468,11 +587,10 @@ def run_fault_probe(
     tried = 0
     budget = max_mutants
 
-    from godkiller_mcp.evidence_store import atomic_write_text
     from godkiller_mcp.file_lock import workspace_lock
 
     with workspace_lock(workspace, name="probe.lock", timeout_sec=max(60.0, timeout_sec * 3)):
-        # Crash recovery from prior unclean probe
+        # Crash recovery from prior *legacy* in-place unclean probe
         warn_if_probe_unclean(workspace)
         _restore_probe_backups_unlocked(Path(workspace).resolve())
         if probe_unclean(workspace):
@@ -487,8 +605,8 @@ def run_fault_probe(
                 summary="fault_probe BLOCKED: unclean workspace after prior crash",
             )
 
-        backup_root, unclean_path = _probe_dirs(workspace)
-
+        # Mutants apply only under a disposable shadow copy — workspace files stay pristine
+        # even on SIGKILL mid-test (no in-place write → no probe_unclean for this path).
         for fpath in files:
             if tried >= budget:
                 break
@@ -504,37 +622,44 @@ def run_fault_probe(
                     break
                 tried += 1
                 rel = str(fpath.relative_to(workspace)).replace("\\", "/")
-                bak = backup_root / f"{rel.replace('/', '__')}.bak"
-                atomic_write_text(bak, original)
-                atomic_write_text(
-                    unclean_path,
-                    json.dumps({"files": [rel], "bak": str(bak)}, indent=2),
+                proc = _run_mutant_in_shadow(
+                    workspace=workspace,
+                    rel=rel,
+                    mutated=mutated,
+                    test_command=test_command,
+                    timeout_sec=timeout_sec,
                 )
+                entry = {
+                    "file": rel,
+                    "kind": kind,
+                    "detail": detail,
+                    "exit_code": proc.returncode,
+                    "digest": hashlib.sha256(mutated.encode()).hexdigest()[:16],
+                    "shadow": True,
+                }
+                if proc.returncode == 0:
+                    survivors.append(entry)
+                else:
+                    killed += 1
+
+                # Integrity: original must still match pre-mutant bytes
                 try:
-                    atomic_write_text(fpath, mutated)
-                    proc = run_command_safely(
-                        test_command, cwd=workspace, timeout_sec=timeout_sec
-                    )
-                    entry = {
-                        "file": rel,
-                        "kind": kind,
-                        "detail": detail,
-                        "exit_code": proc.returncode,
-                        "digest": hashlib.sha256(mutated.encode()).hexdigest()[:16],
-                    }
-                    if proc.returncode == 0:
-                        survivors.append(entry)
-                    else:
-                        killed += 1
-                finally:
-                    try:
-                        atomic_write_text(fpath, bak.read_text(encoding="utf-8"))
-                        bak.unlink(missing_ok=True)
-                        if unclean_path.exists():
-                            unclean_path.unlink()
-                    except Exception:
-                        # Leave unclean marker + bak for next restore_probe_backups
-                        pass
+                    if fpath.read_text(encoding="utf-8") != original:
+                        return FaultProbeReport(
+                            clean=False,
+                            mutants_tried=tried,
+                            killed=killed,
+                            survivors=survivors,
+                            targets=[str(f.relative_to(workspace)).replace("\\", "/") for f in files],
+                            test_command=test_command,
+                            material_hash=mat["material_hash"],
+                            scope=scope,
+                            complete=bool(mat.get("complete", True)),
+                            summary="fault_probe ABORT: workspace file changed during shadow probe",
+                            skipped_reason=f"shadow integrity failed for {rel}",
+                        )
+                except OSError:
+                    pass
 
     clean = tried > 0 and len(survivors) == 0
     if tried == 0:

@@ -171,7 +171,8 @@ def decide_from_hook_event(event: Dict[str, Any], *, workspace: Optional[str] = 
         or event.get("file_path")
         or ""
     )
-    ws = workspace or event.get("cwd") or event.get("workspace") or os.getcwd()
+    # Authorized jail: GODKILLER_WORKSPACE pin if set, else hook cwd/workspace — never sealed rebind
+    ws = _authorized_hook_workspace(workspace=workspace, event=event)
     allow = event.get("allow_paths") or []
     # Optional on-disk envelope — only trust HMAC-sealed write_allow.json
     env_path = Path(ws) / ".godkiller" / "write_allow.json"
@@ -182,9 +183,21 @@ def decide_from_hook_event(event: Dict[str, Any], *, workspace: Optional[str] = 
                 # Tampered / unsigned — ignore paths (fail closed for allowlist expansion)
                 data = {}
             else:
-                allow = list(allow) + list(data.get("paths") or [])
-                if data.get("workspace"):
-                    ws = data["workspace"]
+                sealed_ws_raw = data.get("workspace")
+                if not sealed_ws_raw:
+                    data = {}
+                else:
+                    try:
+                        sealed_ws = Path(str(sealed_ws_raw)).expanduser().resolve()
+                    except OSError:
+                        sealed_ws = None
+                    auth = Path(ws).resolve()
+                    if sealed_ws is None or sealed_ws != auth:
+                        # P0: sealed envelope must match authorized root — never widen jail
+                        data = {}
+                    else:
+                        allow = list(allow) + list(data.get("paths") or [])
+                        # Intentionally do NOT reassign ws from sealed payload
         except (OSError, json.JSONDecodeError):
             pass
     require = True
@@ -199,6 +212,20 @@ def decide_from_hook_event(event: Dict[str, Any], *, workspace: Optional[str] = 
         require_allowlist=require,
         tool_name=tool,
     )
+
+
+def _authorized_hook_workspace(
+    *,
+    workspace: Optional[str] = None,
+    event: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Resolve hook jail without trusting sealed write_allow.workspace."""
+    event = event or {}
+    pinned = os.environ.get("GODKILLER_WORKSPACE", "").strip()
+    if pinned:
+        return str(Path(pinned).expanduser().resolve())
+    raw = workspace or event.get("cwd") or event.get("workspace") or os.getcwd()
+    return str(Path(str(raw)).expanduser().resolve())
 
 
 def _allow_body_for_seal(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -281,8 +308,19 @@ def mark_write_guard_wired(*, source: str = "install") -> Path:
 
 
 def write_guard_host_status() -> Dict[str, Any]:
-    """Light fail-loud probe for gk_meta.status — warn only, never kill the server."""
+    """Fail-loud probe for gk_meta.status — hint ≠ enforcement.
+
+    File/env markers only prove hook *artifacts* may exist. Native Write stays
+    unblocked until the host actually invokes PreToolUse → write_guard.
+    Set ``GODKILLER_WRITE_GUARD_PROVEN=1`` only after a live deny/allow test.
+    """
     env_on = os.environ.get("GODKILLER_WRITE_GUARD_WIRED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    proven = os.environ.get("GODKILLER_WRITE_GUARD_PROVEN", "").strip().lower() in (
         "1",
         "true",
         "yes",
@@ -318,25 +356,48 @@ def write_guard_host_status() -> Dict[str, Any]:
             hook_hits.append(str(p))
 
     wired = env_on or marker_ok or bool(hook_hits)
-    if wired:
+    if proven:
         return {
             "severity": "ok",
+            "hook_hint_only": False,
             "wired_hint": True,
+            "proven": True,
             "env": env_on,
             "marker": marker_ok,
             "hook_files_n": len(hook_hits),
-            "msg": "write-guard hook hint present — confirm host PreToolUse calls it",
+            "msg": (
+                "write-guard marked PROVEN via GODKILLER_WRITE_GUARD_PROVEN "
+                "(operator attested live PreToolUse)"
+            ),
+        }
+    if wired:
+        return {
+            "severity": "warn",
+            "hook_hint_only": True,
+            "wired_hint": True,
+            "proven": False,
+            "env": env_on,
+            "marker": marker_ok,
+            "hook_files_n": len(hook_hits),
+            "msg": (
+                "FAIL-LOUD: hook_hint_only — artifact/env hint ≠ enforcement. "
+                "Native Write still bypasses MCP until PreToolUse calls "
+                "godkiller-write-guard. After a live deny test set "
+                "GODKILLER_WRITE_GUARD_PROVEN=1."
+            ),
         }
     return {
         "severity": "warn",
+        "hook_hint_only": True,
         "wired_hint": False,
+        "proven": False,
         "env": False,
         "marker": False,
         "hook_files_n": 0,
         "msg": (
             "FAIL-LOUD: no write-guard heartbeat — native Write bypasses MCP. "
-            "Run: godkiller-write-guard install --target cursor && wire PreToolUse. "
-            "Or set GODKILLER_WRITE_GUARD_WIRED=1 after wiring."
+            "Optional PreToolUse hook: godkiller-write-guard install --target cursor. "
+            "See docs/WRITE_GUARD_HOOKS.md."
         ),
     }
 

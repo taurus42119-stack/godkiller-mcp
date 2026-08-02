@@ -84,10 +84,26 @@ class PlaywrightBrowser:
         if err:
             return err
         assert self._page is not None
-        path = self.artifact_dir / name
+        from godkiller_mcp.path_sandbox import normalize_artifact_name
+
+        try:
+            safe = normalize_artifact_name(name)
+        except ValueError as exc:
+            return {"ok": False, "error": "invalid_artifact_name", "detail": str(exc)}
+        root = self.artifact_dir.resolve()
+        path = (root / safe).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return {
+                "ok": False,
+                "error": "path_outside_workspace",
+                "detail": f"screenshot path escapes artifact_dir: {name!r}",
+            }
+        path.parent.mkdir(parents=True, exist_ok=True)
         self._page.screenshot(path=str(path), full_page=True)
-        self.state.screenshots.append(str(path.resolve()))
-        return {"ok": True, "engine": "playwright", "path": str(path.resolve())}
+        self.state.screenshots.append(str(path))
+        return {"ok": True, "engine": "playwright", "path": str(path)}
 
     def _guard_current_url(self) -> Optional[Dict[str, Any]]:
         from godkiller_mcp.ssrf import assert_public_url

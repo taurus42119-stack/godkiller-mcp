@@ -10,28 +10,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     import asyncio
     from pathlib import Path
 
-    from godkiller_mcp.code_intel import (
-        AutoFixEngine,
-        AutoSkillifyEngine,
-        AstGrepEngine,
-        ContextPreviewEngine,
-        CouncilDebateEngine,
-        DeepScrapeEngine,
-        EpistemicConfidenceGate,
-        ExhaustiveReaderEngine,
-        FastFindEngine,
-        HyperSearchEngine,
-        LogTraceEngine,
-        PipelineRunner,
-        RepoMapGenerator,
-        SecurityScanEngine,
-        SelfHealingEngine,
-        blast_radius,
-        check_edit_safe,
-        get_failing_slice,
-        require_blast_before_edit,
-    )
-    from godkiller_mcp.dispatch import (
+    from godkiller_mcp.runtime_state import (
         AGENTS_ROOT,
         STORE_DIR,
         STATE_ROOT,

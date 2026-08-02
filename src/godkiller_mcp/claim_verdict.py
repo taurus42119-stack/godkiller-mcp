@@ -31,6 +31,7 @@ LAYER = {
     "quality": "quality",
     "ui_proof": "ui_proof",
     "phase_close": "phase",
+    "write_guard": "write_guard",
 }
 
 NEXT_ACTION: Dict[str, str] = {
@@ -53,6 +54,7 @@ NEXT_ACTION: Dict[str, str] = {
     "quality": "Raise quality/competitor/ladder evidence, then retry.",
     "ui_proof": "Run app → gk_evidence.visual_step (~10 step_ids) with expected_elements → GREEN critics → retry.",
     "phase_close": "Legal phase path to CLAIM_DONE required before close.",
+    "write_guard": "Wire PreToolUse write-guard, prove live deny/allow, set GODKILLER_WRITE_GUARD_PROVEN=1.",
 }
 
 

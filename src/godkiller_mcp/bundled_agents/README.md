@@ -1,4 +1,7 @@
-# `.agents/` — GODKILLER agent constitution (English ship default)
+# `.agents/` — GODKILLER agent constitution (English)
+
+Ship with the package / repo so hosts + `gk_meta.status` can point at the same rules.
+
 
 Primary standing orders for agents live in:
 
@@ -15,5 +18,3 @@ If confidence is **below 99%**:
 > Call `gk_mode.view_propose_study` **immediately** — propose repositories/files to deep-read (copy-study structure; do not paste a whole tree as done).
 
 Primary standing orders: **[`AGENTS.md`](./AGENTS.md)**
-
-Optional Thai locale documents (repo only, not the PyPI default payload): `docs/th/agents/`.

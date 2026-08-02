@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Tuple
 
@@ -26,6 +26,42 @@ _LINT_PREFIXES = (
     ("mypy",),
 )
 _ALLOWED_PREFIXES = _TEST_PREFIXES + _LINT_PREFIXES
+
+# Markers that suggest a non-Python project — kernel claim-grade verify is Python-only.
+_NON_PYTHON_MARKERS = (
+    "package.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "go.mod",
+    "Cargo.toml",
+    "Gemfile",
+    "composer.json",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+)
+
+
+def detect_non_python_project(cwd: str | Path) -> List[str]:
+    """Return marker filenames present that imply Node/Go/etc. (not claim-grade here)."""
+    root = Path(cwd)
+    found: List[str] = []
+    for name in _NON_PYTHON_MARKERS:
+        if (root / name).is_file():
+            found.append(name)
+    return found
+
+
+def non_python_verify_warning(cwd: str | Path) -> str:
+    found = detect_non_python_project(cwd)
+    if not found:
+        return ""
+    return (
+        "non_python_project_markers="
+        + ",".join(found)
+        + " — kernel claim-grade verify_bundle is Python "
+        "(pytest/unittest/ruff/mypy) only; use a host/CI oracle for JS/TS/Go/etc."
+    )
 
 
 def is_test_verify_command(command_or_fp: str) -> bool:
@@ -58,6 +94,7 @@ _PYTEST_DENY_FLAGS = {
     "--pyargs",
     "--confcutdir",
     "--rootdir",
+    "--basetemp",
 }
 
 
@@ -92,7 +129,13 @@ def _pytest_argv_denied(argv: List[str]) -> Tuple[bool, str]:
         ):
             return True, f"verify deny-list: pytest flag `{tok}` not allowed (workspace escape / config inject)"
         # short -c without space already covered; -c value as next arg
-        if tok in ("-c", "-p") or tok.lower() in ("--override-ini", "--pyargs", "--confcutdir", "--rootdir"):
+        if tok in ("-c", "-p") or tok.lower() in (
+            "--override-ini",
+            "--pyargs",
+            "--confcutdir",
+            "--rootdir",
+            "--basetemp",
+        ):
             return True, f"verify deny-list: pytest flag `{tok}` not allowed"
         i += 1
     return False, ""
@@ -201,6 +244,8 @@ class VerifyResult:
     result_digest: str = ""
     commands: List[str] | None = None
     is_test_suite: bool = False
+    warnings: List[str] = field(default_factory=list)
+    host_oracle_hint: str = ""
 
     @property
     def summary(self) -> str:
@@ -208,7 +253,10 @@ class VerifyResult:
             return f"verify_bundle BLOCKED: {self.reason}"
         if self.passed:
             kind = "TEST" if self.is_test_suite else "LINT"
-            return f"verify_bundle PASS ({kind})"
+            base = f"verify_bundle PASS ({kind})"
+            if self.warnings:
+                return base + " WARN: " + "; ".join(self.warnings[:2])
+            return base
         return f"verify_bundle FAIL: {self.reason or self.stderr[:200]}"
 
     def compute_digest(self) -> str:
@@ -242,6 +290,9 @@ class VerifyResult:
             "is_test_suite": self.is_test_suite,
             "cwd": self.cwd,
             "result_digest": digest,
+            "warnings": list(self.warnings or []),
+            "host_oracle_hint": self.host_oracle_hint,
+            "claim_grade_scope": "python_pytest_unittest_ruff_mypy",
         }
 
 
@@ -297,6 +348,14 @@ class VerifyBundleRunner:
         if not commands:
             commands = ["python -m pytest -q"]
         is_test_suite = any(is_test_verify_command(c) for c in commands)
+        lang_warn = non_python_verify_warning(work_dir)
+        warnings = [lang_warn] if lang_warn else []
+        host_hint = (
+            "Run project-native tests on the host (npm test / go test / cargo test) "
+            "and attach results outside claim-grade verify_bundle."
+            if lang_warn
+            else ""
+        )
 
         fingerprints = []
         last_stdout = ""
@@ -316,6 +375,8 @@ class VerifyBundleRunner:
                     cwd=str(work_dir),
                     commands=list(commands),
                     is_test_suite=is_test_suite,
+                    warnings=list(warnings),
+                    host_oracle_hint=host_hint,
                 )
 
             try:
@@ -338,6 +399,8 @@ class VerifyBundleRunner:
                         cwd=str(work_dir),
                         commands=list(commands),
                         is_test_suite=is_test_suite,
+                        warnings=list(warnings),
+                        host_oracle_hint=host_hint,
                     )
             except Exception as e:
                 return VerifyResult(
@@ -349,6 +412,8 @@ class VerifyBundleRunner:
                     cwd=str(work_dir),
                     commands=list(commands),
                     is_test_suite=is_test_suite,
+                    warnings=list(warnings),
+                    host_oracle_hint=host_hint,
                 )
 
         out = VerifyResult(
@@ -361,6 +426,8 @@ class VerifyBundleRunner:
             cwd=str(work_dir),
             commands=list(commands),
             is_test_suite=is_test_suite,
+            warnings=list(warnings),
+            host_oracle_hint=host_hint,
         )
         out.result_digest = out.compute_digest()
         return out

@@ -1,4 +1,8 @@
-# /debug — Self-CTF on THIS workspace only
+# /debug — Self-CTF *signal* loop (NOT a real debugger)
+
+Honest mouth: this is **self_ctf_signal** — SecurityScan + token/heuristic search
+on **THIS workspace only**. It does **not** find real bugs the way a debugger or
+pytest oracle does. Do not claim “debug found the root cause” from CTF ticks alone.
 
 Reproduce. Attack your own code. Do not touch the open internet.
 
@@ -6,7 +10,7 @@ Reproduce. Attack your own code. Do not touch the open internet.
 
 1. Target = workspace / allowed localhost only. **Forbidden:** hunting real orgs, public CTF against third parties, “search the web then exploit”.
 2. No fix before: reproduce evidence **or** Self-CTF findings on disk.
-3. Loop: `debug_self_ctf_start` → `debug_self_ctf_tick` / `debug_self_ctf_run_until` until findings (or max_rounds). Server forces continue when empty.
+3. Loop: `debug_self_ctf_start` → `debug_self_ctf_tick` / `debug_self_ctf_run_until` until findings (or max_rounds). Server forces continue when empty. Findings are **signals**, not proof — verify with tests / `fault_probe` / evidence.
 4. Then: hypothesis → localize (`blast_radius`) → `check_edit_safe` → fix → `verify_bundle`.
 5. Claim blocked without failing→passing proof.
 6. **Posture:** pessimistic + win USER goal. Capability doubt → `tool_propose` (5–10) → approve/reject_all → `tool_used` if approved. Never silent install.

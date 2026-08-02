@@ -135,6 +135,71 @@ def workspace_lock(
         fh.close()
 
 
+@contextmanager
+def path_lock(
+    lock_path: Path | str,
+    *,
+    timeout_sec: float = 30.0,
+    stale_max_age_sec: float = 3600.0,
+) -> Iterator[Path]:
+    """Advisory exclusive lock on an arbitrary lock file path (tasks/evidence persist)."""
+    lock_path = Path(lock_path).resolve()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.touch(exist_ok=True)
+    fh = open(lock_path, "a+b")
+    deadline = time.monotonic() + max(0.1, float(timeout_sec))
+    locked = False
+    cleared_once = False
+    try:
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+                _write_lock_meta(lock_path)
+                break
+            except OSError:
+                if not cleared_once and _clear_stale_lock(
+                    lock_path, max_age_sec=stale_max_age_sec
+                ):
+                    cleared_once = True
+                    time.sleep(0.05)
+                    continue
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"path_lock timeout waiting for {lock_path} "
+                        "(another process may share GODKILLER_HOME — use one HOME per session)"
+                    )
+                time.sleep(0.05)
+        yield lock_path
+    finally:
+        if locked:
+            try:
+                _meta_path(lock_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+        fh.close()
+
+
 def try_warn_stderr(msg: str) -> None:
     try:
         print(msg, file=sys.stderr, flush=True)

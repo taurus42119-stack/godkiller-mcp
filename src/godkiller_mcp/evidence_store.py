@@ -244,16 +244,24 @@ class EvidenceStore:
     def _persist(self, state: TaskState) -> None:
         if not self.persist_dir:
             return
+        from godkiller_mcp.file_lock import path_lock
+
         path = self.persist_dir / f"{state.handle.task_id}.json"
-        atomic_write_text(path, state.model_dump_json(indent=2))
+        lock = self.persist_dir / "tasks.lock"
+        with path_lock(lock, timeout_sec=30.0):
+            atomic_write_text(path, state.model_dump_json(indent=2))
 
     def _load(self, task_id: str) -> Optional[TaskState]:
         if not self.persist_dir:
             return None
+        from godkiller_mcp.file_lock import path_lock
+
         path = self.persist_dir / f"{task_id}.json"
-        if not path.exists():
-            return None
-        state = TaskState.model_validate_json(path.read_text(encoding="utf-8"))
+        lock = self.persist_dir / "tasks.lock"
+        with path_lock(lock, timeout_sec=30.0):
+            if not path.exists():
+                return None
+            state = TaskState.model_validate_json(path.read_text(encoding="utf-8"))
         # B5: drop armor evidences whose seals do not match (disk forge)
         if self._seal_key:
             from godkiller_mcp.evidence_integrity import scrub_forged_armor

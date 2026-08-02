@@ -3,8 +3,6 @@
 Read when **installing / selecting** skills or MCP servers — not every turn.  
 Real law lives in `AGENTS.md`. North star: proof + law + catalog — external shops are parts, not a new system.
 
-Thai notes (optional): `docs/th/agents/`.
-
 ---
 
 ## Skill shops — intake rules

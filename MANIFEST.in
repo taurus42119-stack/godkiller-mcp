@@ -1,13 +1,26 @@
 # Prefer package data over repo tests in sdist (wheel already excludes tests).
 global-exclude *.pyc
 global-exclude __pycache__
+global-exclude .venv
+global-exclude .env
+global-exclude *.env
 recursive-exclude tests *
 recursive-exclude benchmarks *
 recursive-exclude .agents *
 prune tests
 prune benchmarks
+prune src/godkiller_mcp.egg-info
+prune godkiller_mcp.egg-info
+global-exclude *.egg-info
+global-exclude src/*.egg-info
+global-exclude src/godkiller_mcp.egg-info/**
+recursive-exclude * *.egg-info
+recursive-exclude src/godkiller_mcp.egg-info *
 include README.md
 include LICENSE
+include SECURITY.md
+include CHANGELOG.md
 include pyproject.toml
 include src/godkiller_mcp/py.typed
+recursive-include docs *.md
 recursive-include src/godkiller_mcp *.py *.md *.json

@@ -11,14 +11,14 @@ from typing import Any, Dict, List, Optional
 class ExhaustiveReaderEngine:
     """Full-file directory reader with byte budget (fail-visible when exceeded)."""
 
-    DEFAULT_MAX_TOTAL_BYTES = 2_000_000
-    DEFAULT_MAX_FILES = 48
-    DEFAULT_MAX_CHARS_PER_FILE = 6_000
+    DEFAULT_MAX_TOTAL_BYTES = 400_000
+    DEFAULT_MAX_FILES = 24
+    DEFAULT_MAX_CHARS_PER_FILE = 4_000
 
     def read_all(
         self,
         dir_path: str,
-        max_files: int = 48,
+        max_files: int = 24,
         max_chars_per_file: Optional[int] = None,
         max_total_bytes: Optional[int] = None,
         max_workers: Optional[int] = None,

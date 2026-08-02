@@ -51,6 +51,20 @@ jobs:
       - name: Build
         run: |
           python -m pip install -U pip build
+          rm -rf dist build src/*.egg-info *.egg-info src/godkiller_mcp.egg-info
           python -m build
+          # Fail if egg-info leaked into sdist
+          python - <<'PY'
+          import tarfile, pathlib, sys
+          sdists = list(pathlib.Path("dist").glob("*.tar.gz"))
+          assert sdists, "no sdist"
+          with tarfile.open(sdists[0], "r:gz") as tf:
+              names = tf.getnames()
+          bad = [n for n in names if ".egg-info" in n or n.endswith(".venv") or "/tests/" in n]
+          if bad:
+              print("sdist leak:", bad[:20])
+              sys.exit(1)
+          print("sdist clean:", sdists[0].name, "entries", len(names))
+          PY
       - name: Publish to PyPI (Trusted Publishing)
         uses: pypa/gh-action-pypi-publish@release/v1

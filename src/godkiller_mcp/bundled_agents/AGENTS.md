@@ -7,8 +7,6 @@
 
 Same law for every domain — only evidence types change; ambition never lowers.
 
-Thai locale (optional, not the wheel default): see `docs/th/agents/` in the repo.
-
 ---
 
 ## 0. Supreme Law
@@ -20,8 +18,8 @@ Thai locale (optional, not the wheel default): see `docs/th/agents/` in the repo
 5. **One Phase / turn** — ultradeep + marathon handoff.
 6. **Circuit breaker** — repeated loops / RED → escalate. UI/runtime stuck → **F12 console+network first**, then recapture.
 7. **Deep-read** — when a path is named, read it fully (`godkiller_exhaustive_read` / `view_file`); no skimming.
-8. **UI visual** — UI/web/3D work: **F12 first** → run for real → `visual_step` ~8–10 (per-step `expected_elements` from the surface, not IDE chrome) → GREEN → `visual_sequence` — incomplete = no claim even if build is green. **Mandatory Visual QA Gate** / Visual Screenshot Proof.
-9. **VIEW <99%** — if confidence &lt; 99% → `view_propose_study` / `/view` immediately (copy-study structure; do not paste a whole repo as “done”).
+8. **UI visual** — UI/web/3D: **chrome-devtools first** (if listed on host) for navigate/console/network/screenshot; **`gk_browser` only if chrome-devtools is absent**. Then `visual_step` ~8–10 → GREEN → `visual_sequence`. Incomplete = no claim.
+9. **VIEW when unsure** — if you are not sure → `view_propose_study` / `/view` immediately (copy-study structure; do not paste a whole repo as “done”). No fake confidence%.
 10. **Evidence habit (always-on)** — before calling anything fixed/safe/done/good: cite code path or run result; name one way it could still be fake; praise ≤1 clause. Wrong product bar (SSO/SIEM/100k SaaS) = out of score, not a fail. Full ship jury form = cold load `workflows/jury.md` only when auditing/shipping — do not paste A–E every turn.
 
 Skills/personas are craft recipes — **never waive Rule 0**.

@@ -138,6 +138,13 @@ def build_exit_checklist(
     if not ok_tp:
         blocking.append("tool_propose")
 
+    from godkiller_mcp.roi_gates import claim_write_guard_gate
+
+    ok_wg, reason_wg = claim_write_guard_gate()
+    gates.append(_gate("write_guard", ok_wg, reason_wg))
+    if not ok_wg:
+        blocking.append("write_guard")
+
     ok_q, reason_q = quality_claim_gates(
         state,
         require_for_feature=require_quality_loop,
@@ -149,7 +156,12 @@ def build_exit_checklist(
         blocking.append("quality")
 
     packed = _pack(gates, blocking)
-    if "tool_propose" in blocking:
+    if "write_guard" in blocking:
+        packed["next"] = (
+            "Wire PreToolUse → godkiller-write-guard, live deny/allow, then "
+            "GODKILLER_WRITE_GUARD_PROVEN=1 (PROFILE=ship)."
+        )
+    elif "tool_propose" in blocking:
         packed["next"] = (
             "Forced tool_propose: host-search → gk_mode.tool_propose (5–10) → "
             "tool_approve OR tool_reject_all → tool_used if approved — then re-run exit."

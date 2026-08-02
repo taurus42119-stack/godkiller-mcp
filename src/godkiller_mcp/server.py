@@ -89,7 +89,8 @@ FACADE_ACTIONS: Dict[str, Dict[str, str]] = {
         "auto_fix": "godkiller_auto_fix",
         "pipeline": "godkiller_pipeline",
         "self_heal": "godkiller_self_heal",
-        "confidence": "godkiller_confidence_check",
+        "confidence": "godkiller_confidence_check",  # deprecated alias → readiness
+        "readiness": "godkiller_confidence_check",
         "scrape": "godkiller_deep_scrape",
         "log_trace": "godkiller_log_trace",
         "council": "godkiller_council_debate",
@@ -168,13 +169,20 @@ FACADE_DESC = {
     "gk_task": "Task lifecycle: open, hypothesize, graph, policy, blast_radius, edit_safe, failing_slice.",
     "gk_phase": "Phase machine: assert, claim_done, rubric. Blocks illegal Antigravity phase skips.",
     "gk_evidence": "Evidence: submit, capture_shot, visual_critic, visual_step (~10-shot QA), visual_sequence, screenshot, journey, inspect_image.",
-    "gk_verify": "Verification: bundle, exit (stage_board progress), soak, probe, loop_*, competitor, compare, ladder.",
+    "gk_verify": "Verification: bundle, exit (short stage_board), soak, probe, loop_*, competitor, compare, ladder.",
     "gk_memory": "Workflow memory graph: lessons, marathon, query_graph, what_blocked, upsert_episode.",
     "gk_code": "Code intel helpers (map/search/read). council/swarm/pipeline/self_heal = best-effort, not magic fix or formal proof.",
     "gk_guard": "Write allowlist policy brain for host PreToolUse — only blocks native Write/Edit when the host actually wires the hook.",
     "gk_scan": "Best-effort regex CWE heuristics (signal, not a pro audit); optional semgrep CLI.",
-    "gk_browser": "Browser automation (Playwright when installed): navigate, snapshot, screenshot, click, fill.",
-    "gk_mode": "Modes/protocols/skills + ultradeep/view/debug + tool_propose (search≠install) + plan_refute wake.",
+    "gk_browser": (
+        "Playwright fallback ONLY when chrome-devtools is NOT on the host. "
+        "If chrome-devtools is listed, returns prefer_chrome_devtools — use that peer first; "
+        "force_gk_browser=1 to override."
+    ),
+    "gk_mode": (
+        "Modes/protocols/skills + ultradeep/view + debug_engine (static scan + token heuristics — "
+        "not a live debugger) + tool_propose (search≠install) + plan_refute wake."
+    ),
     "gk_handoff": "Spec/feedback handoff gates.",
     "gk_meta": "Honesty status (disk MCP configs + real facades) + secrets key listing + 9-step plan template/validate.",
 }
@@ -198,12 +206,18 @@ def _flatten_args(arguments: Dict[str, Any]) -> Dict[str, Any]:
     return flat
 
 
-async def _dispatch_facade(facade: str, action: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> str:
+async def _dispatch_facade(
+    facade: str,
+    action: str,
+    args: Optional[Dict[str, Any]] = None,
+    kwargs: Optional[Dict[str, Any]] = None,
+) -> str:
     amap = FACADE_ACTIONS[facade]
     if action not in amap:
         return dumps_payload({"error": f"unknown action {action}", "allowed": sorted(amap.keys())})
     payload = dict(args or {})
-    payload.update({k: v for k, v in kwargs.items() if v is not None})
+    if kwargs:
+        payload.update({k: v for k, v in kwargs.items() if v is not None})
     # Also accept flat kwargs already merged
     if facade == "gk_mode" and action == "activate" and payload.get("goal"):
         decision = router.route_intent(str(payload.get("goal") or ""))
@@ -225,13 +239,22 @@ def _register_facades() -> None:
     for facade_name, amap in FACADE_ACTIONS.items():
         n = len(amap)
         desc = (
-            f"{FACADE_DESC[facade_name]} Pass action= and args={{}}. "
+            f"{FACADE_DESC[facade_name]} Pass action= and optional args={{}}. "
             f"{n} actions; unknown action returns allowed list (saves schema tokens)."
         )
 
         def _make(fname: str, description: str):
-            async def _tool(action: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> str:
-                return await _dispatch_facade(fname, action, args, **kwargs)
+            # Only `action` + optional `args` — do NOT declare `kwargs` (hosts mark it required).
+            async def _tool(
+                action: str,
+                args: Optional[Dict[str, Any]] = None,
+            ) -> str:
+                # Tolerate clients that still nest under a "kwargs" key inside args
+                payload = dict(args or {})
+                nested = payload.pop("kwargs", None)
+                if isinstance(nested, dict):
+                    payload = {**payload, **nested}
+                return await _dispatch_facade(fname, action, payload, None)
 
             _tool.__name__ = fname
             _tool.__doc__ = description
@@ -246,13 +269,38 @@ _register_facades()
 def main() -> None:
     import os
 
+    from godkiller_mcp.path_sandbox import WorkspaceRootError, workspace_root, workspace_status
     from godkiller_mcp.ship_mode import profile, relax_enabled
 
     print("Starting GODKILLER MCP Server (facade surface)...", file=sys.stderr, flush=True)
     try:
-        from godkiller_mcp.fault_probe import warn_if_probe_unclean
+        root = workspace_root()
+        print(f"workspace_root={root}", file=sys.stderr, flush=True)
+    except WorkspaceRootError as exc:
+        st = workspace_status()
+        print(
+            f"FATAL: {exc}\n"
+            f"cwd={st.get('cwd')} home={st.get('home')}\n"
+            f"{st.get('fix')}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise SystemExit(2) from exc
+    try:
+        from godkiller_mcp.fault_probe import require_probe_clean_or_restore, warn_if_probe_unclean
 
-        warn_if_probe_unclean(Path.cwd())
+        warn_if_probe_unclean(root)
+        blocked = require_probe_clean_or_restore(root)
+        if blocked:
+            print(
+                f"FATAL: probe_unclean after restore attempt — {blocked.get('detail')}\n"
+                f"{blocked.get('fix')}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise SystemExit(3)
+    except SystemExit:
+        raise
     except Exception:
         pass
     if relax_enabled():

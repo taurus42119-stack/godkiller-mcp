@@ -7,7 +7,7 @@ from mcp.types import TextContent
 
 
 async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    from godkiller_mcp.dispatch import (
+    from godkiller_mcp.runtime_state import (
         _json,
         store,
         policy,

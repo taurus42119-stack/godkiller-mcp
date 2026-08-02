@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from godkiller_mcp.code_intel import _default_tools_dir
 from godkiller_mcp.safe_exec import split_command
 from godkiller_mcp.verify_bundle import VerifyBundleRunner
@@ -73,19 +75,59 @@ def test_no_hardcoded_user_home_paths_in_repo():
     assert not leaks, "machine-specific home path leaks:\n" + "\n".join(leaks)
 
 
-def test_state_root_defaults_to_home(monkeypatch, tmp_path):
+def test_state_root_refuses_home_without_pin(monkeypatch, tmp_path):
+    from godkiller_mcp.runtime_paths import StateRootError, resolve_state_root
+
+    monkeypatch.delenv("GODKILLER_HOME", raising=False)
+    monkeypatch.delenv("GODKILLER_WORKSPACE", raising=False)
+    monkeypatch.delenv("GODKILLER_ALLOW_HOME_STATE", raising=False)
+    home = tmp_path / "homeuser"
+    home.mkdir()
+    monkeypatch.setattr("godkiller_mcp.runtime_paths.Path.home", lambda: home)
+    monkeypatch.chdir(home)
+    with pytest.raises(StateRootError, match="state_root_unpinned"):
+        resolve_state_root()
+
+
+def test_state_root_uses_cwd_when_not_home(monkeypatch, tmp_path):
     from godkiller_mcp.runtime_paths import resolve_state_root
 
     monkeypatch.delenv("GODKILLER_HOME", raising=False)
+    monkeypatch.delenv("GODKILLER_WORKSPACE", raising=False)
+    proj = tmp_path / "proj"
+    proj.mkdir()
     home = tmp_path / "homeuser"
     home.mkdir()
-    monkeypatch.setattr(
-        "godkiller_mcp.runtime_paths.Path.home",
-        lambda: home,
-    )
+    monkeypatch.setattr("godkiller_mcp.runtime_paths.Path.home", lambda: home)
+    monkeypatch.chdir(proj)
+    root = resolve_state_root()
+    assert root == (proj / ".godkiller").resolve()
+
+
+def test_state_root_home_opt_in(monkeypatch, tmp_path):
+    from godkiller_mcp.runtime_paths import resolve_state_root
+
+    monkeypatch.delenv("GODKILLER_HOME", raising=False)
+    monkeypatch.delenv("GODKILLER_WORKSPACE", raising=False)
+    monkeypatch.setenv("GODKILLER_ALLOW_HOME_STATE", "1")
+    home = tmp_path / "homeuser"
+    home.mkdir()
+    monkeypatch.setattr("godkiller_mcp.runtime_paths.Path.home", lambda: home)
+    monkeypatch.chdir(home)
     root = resolve_state_root()
     assert root == (home / ".godkiller").resolve()
     assert root.is_dir()
+
+
+def test_verify_warns_on_non_python_markers(tmp_path):
+    (tmp_path / "package.json").write_text('{"name":"x"}', encoding="utf-8")
+    (tmp_path / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+    runner = VerifyBundleRunner(timeout_sec=30)
+    result = runner.run(tmp_path, ["python -m pytest -q"])
+    payload = result.to_payload()
+    assert any("non_python_project" in w for w in (payload.get("warnings") or []))
+    assert "host" in (payload.get("host_oracle_hint") or "").lower()
+    assert payload.get("claim_grade_scope", "").startswith("python")
 
 
 def test_split_command_basic():

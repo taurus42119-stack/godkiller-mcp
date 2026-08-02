@@ -16,6 +16,8 @@ from godkiller_mcp.marathon import MarathonRelay, normalize_marathon_slug
 def _seal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("GODKILLER_SEAL_KEY", "cd" * 32)
     monkeypatch.delenv("GODKILLER_PROFILE", raising=False)
+    monkeypatch.delenv("GODKILLER_WORKSPACE", raising=False)
+    monkeypatch.delenv("GODKILLER_HOME", raising=False)
     monkeypatch.chdir(tmp_path)
     (tmp_path / "sample.py").write_text("x = 1\n", encoding="utf-8")
 

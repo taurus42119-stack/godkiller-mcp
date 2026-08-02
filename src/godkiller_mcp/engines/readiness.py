@@ -133,10 +133,11 @@ class EpistemicConfidenceGate:
             "reasons": reasons,
             "recommendation": "PROCEED" if allowed else "BLOCK_EDIT_FORCE_RECON",
             "honest": (
-                "edit readiness heuristic — not Bayesian / not formal verification; "
-                "client search flags ignored"
+                "edit_readiness_metrics heuristic — not Bayesian / not formal verification; "
+                "not measured confidence; client search flags ignored"
             ),
             "readiness_score": round(score, 2),
+            "label": "edit_readiness_metrics",
         }
         from godkiller_mcp.view_propose import build_view_study_proposal, should_propose_view
 
@@ -152,7 +153,8 @@ class EpistemicConfidenceGate:
                 ],
             )
             res["order"] = (
-                "Confidence < 99%: IMMEDIATELY propose VIEW study (exemplar repos/files) "
-                "to the user — do not silently invent the design. Call gk_mode.view_propose_study."
+                "edit_readiness_metrics below bar: IMMEDIATELY propose VIEW study "
+                "(exemplar repos/files) — do not silently invent the design. "
+                "Call gk_mode.view_propose_study. Do not treat readiness_score as confidence%."
             )
         return res

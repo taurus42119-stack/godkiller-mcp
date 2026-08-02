@@ -13,6 +13,9 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
     from godkiller_mcp.dispatch import _json, store
 
     if name == "write_guard":
+        from pathlib import Path
+
+        from godkiller_mcp.path_sandbox import WorkspaceRootError, workspace_root
         from godkiller_mcp.ship_mode import relax_enabled
         from godkiller_mcp.write_guard import collect_allow_paths, decide_write
 
@@ -26,9 +29,31 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
         require_al = bool(arguments.get("require_allowlist", True))
         if not relax_enabled():
             require_al = True
+        try:
+            auth = workspace_root()
+        except WorkspaceRootError as exc:
+            return _json(
+                {
+                    "allowed": False,
+                    "permissionDecision": "deny",
+                    "reason": str(exc),
+                    "error": "workspace_root_unpinned",
+                }
+            )
+        raw_ws = arguments.get("workspace")
+        if raw_ws and Path(str(raw_ws)).expanduser().resolve() != auth.resolve():
+            return _json(
+                {
+                    "allowed": False,
+                    "permissionDecision": "deny",
+                    "reason": "workspace_root_rebinding_refused for write_guard",
+                    "error": "workspace_root_rebinding_refused",
+                    "workspace": str(auth),
+                }
+            )
         decision = decide_write(
             path=arguments["path"],
-            workspace=arguments.get("workspace") or ".",
+            workspace=auth,
             allow_paths=allow,
             require_allowlist=require_al,
             tool_name=arguments.get("tool_name") or "Write",
@@ -44,21 +69,53 @@ async def handle(name: str, arguments: Dict[str, Any]) -> Optional[List[TextCont
         return _json(decision)
 
     if name == "write_guard_set_paths":
+        from pathlib import Path
+
+        from godkiller_mcp.path_sandbox import (
+            WorkspaceRootError,
+            ensure_under_root,
+            path_gate_error,
+            workspace_root,
+        )
         from godkiller_mcp.write_guard import persist_allow_paths
 
         paths = arguments.get("paths") or []
         task_id = arguments.get("task_id") or ""
-        workspace = arguments.get("workspace") or "."
+        try:
+            auth = workspace_root()
+        except WorkspaceRootError as exc:
+            return _json({"ok": False, "error": "workspace_root_unpinned", "detail": str(exc)})
+        raw_ws = arguments.get("workspace")
+        if raw_ws and Path(str(raw_ws)).expanduser().resolve() != auth.resolve():
+            return _json(
+                {
+                    "ok": False,
+                    "error": "workspace_root_rebinding_refused",
+                    "detail": "write_guard_set_paths workspace must match GODKILLER_WORKSPACE/cwd pin",
+                    "workspace": str(auth),
+                }
+            )
+        clean_paths: list[str] = []
+        for p in paths:
+            bad = path_gate_error(p)
+            if bad:
+                return _json({**bad, "ok": False, "hint": "paths must stay under workspace pin"})
+            try:
+                rel = ensure_under_root(p).relative_to(auth)
+                clean_paths.append(str(rel).replace("\\", "/"))
+            except Exception:
+                clean_paths.append(str(p).replace("\\", "/").lstrip("./"))
         if task_id:
-            store.update_metadata(task_id, {"write_allow_paths": list(paths)})
+            store.update_metadata(task_id, {"write_allow_paths": list(clean_paths)})
             if arguments.get("require_swarm"):
                 store.update_metadata(task_id, {"require_swarm": True})
-        path = persist_allow_paths(workspace, paths, task_id=task_id)
+        path = persist_allow_paths(auth, clean_paths, task_id=task_id)
         return _json(
             {
                 "ok": True,
                 "path": str(path),
-                "paths": list(paths),
+                "paths": list(clean_paths),
+                "workspace": str(auth),
                 "hint": "Point host PreToolUse hook at: python -m godkiller_mcp.write_guard --stdin",
             }
         )

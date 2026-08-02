@@ -38,3 +38,11 @@ benchmarks/arena_logs/*.json
 benchmarks/arena_logs/*scorecard*
 benchmarks/arena_logs/*audit*
 !benchmarks/arena_logs/README.md
+
+# Local audit / adversarial scratch (never git add .)
+dist_audit/
+dist_review/
+evil/
+**/dist_audit/
+**/dist_review/
+**/evil/

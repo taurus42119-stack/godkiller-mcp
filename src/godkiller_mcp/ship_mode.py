@@ -2,6 +2,10 @@
 
 GODKILLER_PROFILE=ship → DEV_RELAX is ignored (no master-key disarm).
 Without that profile, GODKILLER_DEV_RELAX=1 softens gates for local experiments.
+
+Note: empty/unset PROFILE still yields ship_mode()==True (armor on) until
+DEV_RELAX or PROFILE=relax. “default profile” ≠ “ship PROFILE string” —
+soak/competitor theatre stays closed under empty profile for that reason.
 """
 
 from __future__ import annotations

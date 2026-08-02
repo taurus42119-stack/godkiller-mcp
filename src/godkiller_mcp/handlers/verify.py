@@ -7,7 +7,7 @@ from mcp.types import TextContent
 
 
 async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    from godkiller_mcp.dispatch import (
+    from godkiller_mcp.runtime_state import (
         _json,
         store,
         policy,
@@ -32,15 +32,30 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     arguments = arguments or {}
     if name == "verify_bundle":
         from godkiller_mcp.freshness import material_hash
+        from godkiller_mcp.path_sandbox import ensure_under_root, path_gate_error
 
+        ws_raw = arguments["workspace"]
+        bad = path_gate_error(ws_raw)
+        if bad:
+            return _json(bad)
+        try:
+            ws = str(ensure_under_root(ws_raw))
+        except ValueError as exc:
+            return _json(
+                {
+                    "ok": False,
+                    "error": "path_outside_workspace",
+                    "detail": str(exc),
+                }
+            )
         result = verify_runner.run(
-            arguments["workspace"],
+            ws,
             arguments.get("commands"),
         )
         out = result.to_payload()
         task_id = arguments.get("task_id")
         # Critic-proof: always bind freshness to the workspace tree — never agent decoy paths alone
-        mat = material_hash([arguments["workspace"]], workspace=arguments["workspace"])
+        mat = material_hash([ws], workspace=ws)
         out["material_hash"] = mat["material_hash"]
         out["material_files"] = mat["files"]
         out["material_file_count"] = mat["file_count"]
@@ -48,6 +63,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         out["complete"] = mat.get("complete", True)
         out["truncated"] = mat.get("truncated", False)
         out["manifest_hash"] = mat.get("manifest_hash")
+        out["cwd"] = ws
         out["total_code_files"] = mat.get("total_code_files")
         if arguments.get("attach", True) and task_id:
             # Lint-only green must NOT mint PASSING_TEST (claim-grade)
@@ -123,9 +139,20 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
     if name == "hollow_surface":
         from godkiller_mcp.hollow_surface import scan_hollow_surface
+        from godkiller_mcp.path_sandbox import gate_paths
 
-        roots = arguments.get("paths") or arguments.get("roots") or [arguments.get("workspace") or "."]
-        report = scan_hollow_surface(roots, max_files=int(arguments.get("max_files") or 200))
+        roots = arguments.get("paths") or arguments.get("roots") or [
+            arguments.get("workspace") or "."
+        ]
+        if isinstance(roots, str):
+            roots = [roots]
+        resolved, err = gate_paths(list(roots))
+        if err:
+            return _json(err)
+        report = scan_hollow_surface(
+            [str(p) for p in (resolved or [])],
+            max_files=int(arguments.get("max_files") or 200),
+        )
         payload = report.to_payload()
         task_id = arguments.get("task_id")
         if task_id and arguments.get("attach", True):

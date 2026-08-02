@@ -7,7 +7,7 @@ from mcp.types import TextContent
 
 
 async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    from godkiller_mcp.dispatch import (
+    from godkiller_mcp.runtime_state import (
         _json,
         store,
         policy,
@@ -26,6 +26,12 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     )
     from godkiller_mcp.schema import EvidenceType, Phase, PolicyAction, TaskKind
     from godkiller_mcp.policy import rubric_for_kind
+    from godkiller_mcp.code_intel import (
+        blast_radius,
+        check_edit_safe,
+        get_failing_slice,
+        require_blast_before_edit,
+    )
     import asyncio
     from pathlib import Path
 
@@ -140,6 +146,26 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                         "safe": False,
                         "reason": reason_ctf,
                         "action": PolicyAction.BLOCK.value,
+                    }
+                )
+            from godkiller_mcp.roi_gates import bugfix_edit_route_gate
+
+            ok_br, reason_br = bugfix_edit_route_gate(state)
+            if not ok_br:
+                loops.record(
+                    task_id,
+                    "check_edit_safe",
+                    signature="edit_blocked_bugfix_route",
+                    phase=state.handle.phase,
+                )
+                return _json(
+                    {
+                        "allowed": False,
+                        "safe": False,
+                        "reason": reason_br,
+                        "action": PolicyAction.BLOCK.value,
+                        "gate": "bugfix_route",
+                        "next": ["search_web / submit search evidence", "blast_radius", "edit_safe"],
                     }
                 )
         if task_id and arguments.get("require_blast", True):

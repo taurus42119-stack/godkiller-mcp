@@ -61,7 +61,52 @@ _WEB_HOLLOW_RE = re.compile(
     re.IGNORECASE,
 )
 
-_WEB_SUFFIXES = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".css", ".scss", ".html", ".mdx"}
+_WEB_SUFFIXES = {
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".vue",
+    ".svelte",
+    ".css",
+    ".scss",
+    ".html",
+    ".mdx",
+}
+
+# Marker-only scan for languages without Python AST hollow (Go/Rust/Java/…)
+_NATIVE_SUFFIXES = {
+    ".go",
+    ".rs",
+    ".java",
+    ".kt",
+    ".kts",
+    ".cs",
+    ".cpp",
+    ".cc",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".rb",
+    ".php",
+    ".swift",
+}
+
+_NATIVE_HOLLOW_RE = re.compile(
+    r"\b(TODO|FIXME|XXX|HACK|WIP|TBD)\b|"
+    r"panic\s*\(\s*[\"']not implemented|"
+    r"unimplemented!\s*\(|"
+    r"todo!\s*\(|"
+    r"throw\s+new\s+NotImplementedException|"
+    r"raise\s+NotImplementedError|"
+    r"not\s+implemented|"
+    r"coming\s+soon|"
+    r"placeholder|"
+    r"stub\b",
+    re.IGNORECASE,
+)
 
 
 _ABSTRACT_DECOS = {"abstractmethod", "overload", "abc.abstractmethod"}
@@ -79,13 +124,14 @@ class HollowFinding:
 class HollowReport:
     findings: List[HollowFinding] = field(default_factory=list)
     files_scanned: int = 0
+    warn: Optional[str] = None
 
     @property
     def clean(self) -> bool:
         return not self.findings
 
     def to_payload(self) -> dict:
-        return {
+        out = {
             "source": "hollow_surface",
             "server_authored": True,
             "clean": self.clean,
@@ -100,6 +146,12 @@ class HollowReport:
                 else f"hollow_surface BLOCKED: {len(self.findings)} finding(s)"
             ),
         }
+        if self.warn:
+            out["warn"] = self.warn
+            out["honest"] = (
+                "non-Python hollow = marker heuristics only — not AST-grade stub detection"
+            )
+        return out
 
 
 def _decorator_names(node: ast.AST) -> set[str]:
@@ -189,7 +241,9 @@ def iter_code_files(roots: Sequence[Path], *, max_files: int = 200) -> Iterable[
     for root in roots:
         root = root.resolve()
         if root.is_file() and (
-            root.suffix == ".py" or root.suffix.lower() in _WEB_SUFFIXES
+            root.suffix == ".py"
+            or root.suffix.lower() in _WEB_SUFFIXES
+            or root.suffix.lower() in _NATIVE_SUFFIXES
         ):
             yield root
             n += 1
@@ -204,11 +258,21 @@ def iter_code_files(roots: Sequence[Path], *, max_files: int = 200) -> Iterable[
             if any(part in _SKIP_DIRS for part in p.parts):
                 continue
             suf = p.suffix.lower()
-            if suf == ".py" or suf in _WEB_SUFFIXES:
+            if suf == ".py" or suf in _WEB_SUFFIXES or suf in _NATIVE_SUFFIXES:
                 yield p
                 n += 1
                 if n >= max_files:
                     return
+
+
+def _scan_native_source(path: Path, text: str) -> List[HollowFinding]:
+    findings: List[HollowFinding] = []
+    for i, line in enumerate(text.splitlines(), start=1):
+        if _NATIVE_HOLLOW_RE.search(line):
+            findings.append(
+                HollowFinding(str(path), i, "native_placeholder", line.strip()[:120])
+            )
+    return findings
 
 
 def _scan_web_source(path: Path, text: str) -> List[HollowFinding]:
@@ -243,8 +307,17 @@ def scan_hollow_surface(
             continue
         if path.suffix == ".py":
             report.findings.extend(_scan_python_source(path, text))
+        elif path.suffix.lower() in _NATIVE_SUFFIXES:
+            report.findings.extend(_scan_native_source(path, text))
         else:
             report.findings.extend(_scan_web_source(path, text))
+    native_n = sum(1 for p in paths if p.suffix.lower() in _NATIVE_SUFFIXES)
+    py_n = sum(1 for p in paths if p.suffix == ".py")
+    if native_n > 0 and py_n == 0:
+        report.warn = (
+            f"hollow_surface scanned {native_n} non-Python file(s) with marker heuristics only "
+            "(no AST hollow for Go/Rust/Java) — stubs without TODO may still slip"
+        )
     return report
 
 

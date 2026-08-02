@@ -6,22 +6,52 @@ import os
 from pathlib import Path
 
 
+class StateRootError(ValueError):
+    """Refused to place mutable state under unpinned $HOME."""
+
+
+def _truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def resolve_state_root(workspace: str | Path | None = None) -> Path:
     """
-    Prefer GODKILLER_HOME, else <workspace>/.godkiller, else ~/.godkiller.
-    Never write under site-packages / the installed package path.
-    Never dump lessons.db into a random cwd when no workspace is set.
+    Prefer GODKILLER_HOME, else <workspace>/.godkiller, else GODKILLER_WORKSPACE,
+    else <cwd>/.godkiller when cwd is not $HOME.
 
-    Multi-process: use a distinct GODKILLER_HOME (or workspace) per process —
-    only fault_probe holds an advisory file lock; task/evidence persist does not.
+    Never silently write under ``~/.godkiller`` — that races multi-session and
+    treats the user profile as a project. Opt-in only via
+    ``GODKILLER_ALLOW_HOME_STATE=1`` (or explicit ``GODKILLER_HOME=~/.godkiller``).
+
+    Never write under site-packages / the installed package path.
+
+    Multi-process: use a distinct GODKILLER_HOME (or workspace) per process.
+    RED: sharing one GODKILLER_HOME across concurrent hosts still contends —
+    ``tasks.lock`` + ``probe.lock`` are advisory only. Do not claim multi-tenant safety.
     """
     env = os.environ.get("GODKILLER_HOME", "").strip()
     if env:
         root = Path(env).expanduser().resolve()
-    elif workspace:
-        root = Path(workspace).resolve() / ".godkiller"
+    elif workspace is not None and str(workspace).strip():
+        root = Path(workspace).expanduser().resolve() / ".godkiller"
     else:
-        root = Path.home().resolve() / ".godkiller"
+        pinned_ws = os.environ.get("GODKILLER_WORKSPACE", "").strip()
+        if pinned_ws:
+            root = Path(pinned_ws).expanduser().resolve() / ".godkiller"
+        else:
+            cwd = Path.cwd().resolve()
+            home = Path.home().resolve()
+            if cwd == home:
+                if _truthy("GODKILLER_ALLOW_HOME_STATE"):
+                    root = home / ".godkiller"
+                else:
+                    raise StateRootError(
+                        "state_root_unpinned: cwd is $HOME and neither GODKILLER_HOME "
+                        "nor GODKILLER_WORKSPACE is set — refusing ~/.godkiller fallback. "
+                        "Set GODKILLER_HOME or GODKILLER_WORKSPACE to the project, "
+                        "or GODKILLER_ALLOW_HOME_STATE=1 only if intentional."
+                    )
+            root = cwd / ".godkiller"
     root.mkdir(parents=True, exist_ok=True)
     return root
 

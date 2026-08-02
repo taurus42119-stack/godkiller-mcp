@@ -99,14 +99,21 @@ class LessonMemory:
         tier: str = "semantic",
         mark_verified: bool = True,
     ) -> Optional[Lesson]:
-        if not task_passed:
+        # Failures are stored for fail-recipe injection (task_passed=0).
+        # Praise-only fluff still filtered: empty / tiny content rejected.
+        text = (content or "").strip()
+        if len(text) < 8:
             return None
 
         tags_str = ",".join(tags) if tags else ""
         ev_str = ",".join(evidence_ids) if evidence_ids else ""
 
         # Unanchored semantic without evidence mark_verified check
-        verified = 1 if mark_verified and (evidence_ids or tier != "semantic") else 0
+        # Failures may be verified when mark_verified=True (operator attested).
+        if task_passed:
+            verified = 1 if mark_verified and (evidence_ids or tier != "semantic") else 0
+        else:
+            verified = 1 if mark_verified else 0
 
         def _insert() -> int:
             with self.conn:
@@ -118,7 +125,7 @@ class LessonMemory:
                     (
                         project_id,
                         task_id,
-                        content,
+                        text,
                         tags_str,
                         ev_str,
                         1 if task_passed else 0,
@@ -134,7 +141,7 @@ class LessonMemory:
             id=lesson_id,
             project_id=project_id,
             task_id=task_id,
-            content=content,
+            content=text,
             tags=tags or [],
             evidence_ids=evidence_ids or [],
             task_passed=task_passed,
@@ -201,6 +208,57 @@ class LessonMemory:
             "count_injected": len(injected),
             "injected": injected,
         }
+
+    def retrieve_fail_recipes(
+        self, project_id: str, query: str = "", limit: int = 5
+    ) -> Dict[str, Any]:
+        """Prior *failures* only (task_passed=0) — feed plan templates, never praise."""
+
+        def _query() -> List[Any]:
+            cur = self.conn.cursor()
+            return cur.execute(
+                """
+                SELECT id, project_id, task_id, content, tags, evidence_ids, task_passed, tier, verified
+                FROM lessons
+                WHERE project_id = ? AND task_passed = 0 AND verified = 1
+                ORDER BY id DESC
+                LIMIT ?
+            """,
+                (project_id, limit * 3),
+            ).fetchall()
+
+        rows = _with_busy_retry(_query)
+        lessons: List[Lesson] = []
+        for r in rows:
+            lessons.append(
+                Lesson(
+                    id=r[0],
+                    project_id=r[1],
+                    task_id=r[2],
+                    content=r[3],
+                    tags=r[4].split(",") if r[4] else [],
+                    evidence_ids=r[5].split(",") if r[5] else [],
+                    task_passed=bool(r[6]),
+                    tier=r[7],
+                    verified=bool(r[8]),
+                )
+            )
+        q_words = [w for w in query.lower().split() if w]
+        if q_words:
+            matched = [
+                l
+                for l in lessons
+                if any(
+                    w in l.content.lower() or any(w in t.lower() for t in l.tags)
+                    for w in q_words
+                )
+            ]
+            lessons = matched if matched else lessons
+        injected = [
+            {"id": l.id, "content": l.content, "tags": l.tags, "task_passed": False}
+            for l in lessons[:limit]
+        ]
+        return {"count_injected": len(injected), "injected": injected}
 
     def export_evidence_payload(self, lessons: List[Lesson]) -> Dict[str, Any]:
         """Serialize retrieved lessons for evidence attach / agent JSON."""

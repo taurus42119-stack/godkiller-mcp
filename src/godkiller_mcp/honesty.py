@@ -132,6 +132,12 @@ def honesty_rules(*, detail: bool = False) -> List[str]:
         "If configs disagree across paths, report disagreement.",
         "Human 'looks nice' is not a machine gate unless scorers say so.",
         ".agents + GODKILLER are a paired pack — skill_catalog; do not skip constitution.",
+        "Intensity: harsh on MCP claim path; weak on native Write until write-guard PROVEN.",
+        "PROFILE=ship blocks claim_done until GODKILLER_WRITE_GUARD_PROVEN=1 (host attest).",
+        "Browser: chrome-devtools first when listed on host; gk_browser = Playwright fallback.",
+        "Search gate = server evidence required — not automatic exhaustive/read_full.",
+        "exhaustive_read requires symbol intel (jcodemunch/map/search digest) first.",
+        "write_guard hook_hint_only ≠ OS Write lock.",
     ]
 
 
@@ -164,6 +170,7 @@ def _host_mcp_summary(present: List[Dict[str, Any]], *, detail: bool) -> Dict[st
 
 def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
     from godkiller_mcp.agents_constitution import constitution_status
+    from godkiller_mcp.path_sandbox import workspace_status
     from godkiller_mcp.write_guard import write_guard_host_status
 
     detail = verbose_enabled(detail)
@@ -172,12 +179,44 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
     host = _host_mcp_summary(present, detail=detail)
     agents_full = constitution_status()
     guard = write_guard_host_status()
+    workspace = workspace_status()
     if not detail:
         guard = {
             "severity": guard.get("severity"),
+            "hook_hint_only": guard.get("hook_hint_only"),
             "wired_hint": guard.get("wired_hint"),
+            "proven": guard.get("proven"),
             "msg": guard.get("msg"),
         }
+        workspace = {
+            "ok": workspace.get("ok"),
+            "root": workspace.get("root"),
+            "pinned": workspace.get("pinned"),
+            "source": workspace.get("source"),
+            "error": workspace.get("error"),
+        }
+
+    if guard.get("proven"):
+        wg_mouth = "write-guard PROVEN"
+    elif guard.get("hook_hint_only"):
+        wg_mouth = "write-guard hook_hint_only — native Write may bypass"
+    else:
+        wg_mouth = "write-guard WARN — native Write bypasses MCP"
+
+    from godkiller_mcp.browser_preference import browser_preference_status
+
+    browser_pref = browser_preference_status()
+    br_mouth = browser_pref.get("mouth") or ""
+
+    ws_mouth = (
+        "workspace pinned"
+        if workspace.get("ok") and workspace.get("pinned")
+        else (
+            "workspace UNPINNED_HOME — set GODKILLER_WORKSPACE"
+            if workspace.get("error") == "workspace_root_unpinned"
+            else "workspace=cwd"
+        )
+    )
 
     if not detail:
         return {
@@ -190,17 +229,18 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
             "agents_ok": bool(agents_full.get("exists")),
             "visual_qa_rule_8": bool(agents_full.get("has_visual_qa_rule_8")),
             "runtime": runtime_flags(detail=False),
+            "workspace": workspace,
             "facades": facade_inventory(detail=False),
             "host_mcp": host,
             "write_guard": guard,
+            "browser": {
+                "primary": browser_pref.get("primary"),
+                "chrome_devtools_listed": browser_pref.get("chrome_devtools_listed"),
+            },
             "mouth": (
                 "Beta proof-kernel (local MCP); disk>chat; no invent names/scores; "
                 "not multi-tenant/SSO/SIEM; detail=true for full maps; "
-                + (
-                    "write-guard WARN — native Write bypasses MCP"
-                    if guard.get("severity") == "warn"
-                    else "write-guard hint ok"
-                )
+                f"{ws_mouth}; {wg_mouth}; {br_mouth}"
             ),
         }
 
@@ -214,17 +254,23 @@ def build_honesty_status(*, detail: bool = False) -> Dict[str, Any]:
         "honesty_rules": honesty_rules(detail=True),
         "agents_constitution": agents_full,
         "runtime": runtime_flags(detail=True),
+        "workspace": workspace,
         "this_server_facades": facade_inventory(detail=True),
         "host_mcp": host,
         "host_mcp_configs": configs,
         "configs_agree_on_server_names": host.get("agree"),
         "godkiller_listed_in_any_config": host.get("godkiller"),
         "write_guard": guard,
+        "browser": browser_pref,
         "token_hint": "detail=true payload. Default status is ultra-compact.",
         "truth": (
             "Host MCP inventory = config files. This process = facades only. "
             "Chat that disagrees is wrong. "
-            "Without PreToolUse → write-guard, native Write bypasses MCP. "
+            "write_guard hook_hint_only until GODKILLER_WRITE_GUARD_PROVEN — "
+            "native Write bypasses MCP without live PreToolUse. "
+            "Sandbox root = GODKILLER_WORKSPACE or cwd (never unpinned $HOME). "
+            "Browser: chrome-devtools first when listed; gk_browser = Playwright fallback. "
             "Local single-process MCP — not multi-tenant SaaS."
         ),
+        "mouth": f"{ws_mouth}; {wg_mouth}; {br_mouth}",
     }

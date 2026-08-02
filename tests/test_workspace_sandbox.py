@@ -16,6 +16,8 @@ from godkiller_mcp.path_sandbox import normalize_slug
 def _env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("GODKILLER_SEAL_KEY", "ef" * 32)
     monkeypatch.delenv("GODKILLER_PROFILE", raising=False)
+    monkeypatch.delenv("GODKILLER_WORKSPACE", raising=False)
+    monkeypatch.delenv("GODKILLER_HOME", raising=False)
     monkeypatch.chdir(tmp_path)
     (tmp_path / "in_ws.py").write_text("secret_in = 1\n", encoding="utf-8")
 
