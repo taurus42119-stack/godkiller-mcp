@@ -22,21 +22,7 @@ native Write/Edit/Terminal → NOT intercepted (unless host PreToolUse)
 
 ---
 
-## Watch — same kind of task, Bare vs WITH MCP
-
-One real session: agent building a game. **Not** a universal scorecard — just what the loop looks like with vs without the kernel.
-
-### NO MCP (Bare)
-
-![Bare agent building a game without MCP](docs/assets/demo-no-mcp.mp4)
-
-### WITH MCP (GODKILLER)
-
-![Agent building a game with GODKILLER MCP](docs/assets/demo-with-mcp.mp4)
-
----
-
-## What this is / is not (read once)
+## Scope
 
 | Claim | Truth |
 | --- | --- |
