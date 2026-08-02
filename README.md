@@ -4,8 +4,13 @@
 
 # GODKILLER MCP
 
-MCP for Antigravity / Cursor / Claude Desktop.  
-Plan → gate → verify on disk → `claim_done`. Chat does not count.
+Agent IDEs skip steps, invent “done,” and rewrite files with no proof on disk.  
+**GODKILLER** is the MCP that makes them earn it.
+
+Plan → gate → verify on disk → `claim_done`.  
+Chat is noise. The harness decides.
+
+Built for **Google Antigravity**, also runs on Cursor / Claude Desktop.
 
 [![PyPI](https://img.shields.io/pypi/v/godkiller-mcp.svg)](https://pypi.org/project/godkiller-mcp/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
@@ -16,10 +21,36 @@ Plan → gate → verify on disk → `claim_done`. Chat does not count.
 
 ---
 
+## Why it exists
+
+| Pain | What GODKILLER does |
+| --- | --- |
+| Agent jumps `/plan` → code → “finished” | Phase gates. Illegal skips get blocked. |
+| “Tests passed” in chat only | Verify runs on disk. No digest, no claim. |
+| Multi-file rush | `/ultradeep` — one file think → plan → edit. |
+| Fake green / hollow stubs | Hollow + fault probe before `claim_done`. |
+| Session amnesia | Task + evidence + memory under `.godkiller/`. |
+
+**The flex:** the model can *propose* done. Only sealed evidence can *make* it done.
+
+---
+
+## What it is not
+
+- Not an OS jail. Native Write/Edit still bypass until you wire PreToolUse → `godkiller-write-guard`.
+- Not Enterprise / SSO / multi-tenant SaaS — local MCP, one process.
+- Not a magic win over Bare agents on every short oracle puzzle.
+
+Full stack: `PROFILE=ship` + workspace pin + seal + proven write-guard.  
+[`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md) · [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)
+
+---
+
 ## Install
 
 ```bash
 pip install godkiller-mcp
+# or: pip install "git+https://github.com/taurus42119-stack/godkiller-mcp.git"
 ```
 
 ```bash
@@ -43,11 +74,10 @@ python -c "import secrets; print(secrets.token_hex(32))"
 }
 ```
 
-`python -m godkiller_mcp.server` works too.  
-One `GODKILLER_HOME` per host. Do not share across concurrent sessions.
+Alternate: `python -m godkiller_mcp.server`.  
+One `GODKILLER_HOME` per host — don’t share across concurrent sessions.
 
-Ship posture: wire PreToolUse → `godkiller-write-guard`, then set `GODKILLER_WRITE_GUARD_PROVEN=1`.  
-Native Write is not blocked until that hook is real. Details: [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md) · [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md).
+Modes (`/ask` `/plan` `/debug` `/ultradeep` `/view` `/verify`) ship inside the package — no root `.agents/` folder required.
 
 ---
 
@@ -56,7 +86,7 @@ Native Write is not blocked until that hook is real. Details: [`docs/WRITE_GUARD
 | | |
 | --- | --- |
 | `gk_meta` | status · plan |
-| `gk_route` | `/ask` `/plan` `/debug` `/ultradeep` `/view` `/verify` |
+| `gk_route` | modes |
 | `gk_task` | open · blast · edit_safe |
 | `gk_phase` | assert · claim_done |
 | `gk_evidence` | shots · visual_step · critic |
@@ -71,11 +101,7 @@ Native Write is not blocked until that hook is real. Details: [`docs/WRITE_GUARD
 
 ---
 
-## Limits
-
-- Gates apply to GODKILLER tool calls. Not an OS lockdown. Not Enterprise SaaS.
-- Native Write/Edit bypass MCP unless the host PreToolUse hook is proven.
-- Not a claim that WITH beats Bare on every oracle.
+## Security
 
 [`SECURITY.md`](SECURITY.md)
 
