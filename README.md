@@ -119,12 +119,31 @@ Drop into your MCP host config:
 Alternate entry: `python -m godkiller_mcp.server`  
 From source: `pip install "git+https://github.com/taurus42119-stack/godkiller-mcp.git"`
 
-Modes ship **inside the package** — no root `.agents/` folder required.  
+Modes ship **inside the package** — a full `.agents/workflows` tree is **not** required.  
 One `GODKILLER_HOME` per concurrent host.
 
 **Ship tip:** wire host PreToolUse → `godkiller-write-guard`, then set `GODKILLER_WRITE_GUARD_PROVEN=1`.  
 Until that hook is real, native Write can still bypass MCP tools.  
 Details: [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md) · [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)
+
+---
+
+## New empty project (recommended)
+
+Install **GODKILLER MCP once** on the host (Antigravity / Cursor). For each new repo:
+
+1. Copy the constitution into the project:
+   ```bash
+   mkdir -p .agents
+   # from this repo / installed package:
+   cp path/to/godkiller_mcp/bundled_agents/AGENTS.md .agents/AGENTS.md
+   ```
+   Or grab the tracked file:  
+   [`src/godkiller_mcp/bundled_agents/AGENTS.md`](src/godkiller_mcp/bundled_agents/AGENTS.md)
+2. Open the project in the host. MCP stays enabled at host level — **do not reinstall per folder**.
+3. Start with `/plan` (Mermaid + `### Phase N` only). Execute with `/ultradeep Phase N`. Finish with `/verify` → `claim_done`.
+
+That is enough: **`.agents/AGENTS.md` + host MCP**. Optional craft packs (`workflows/`, `skills/`) can come later.
 
 ---
 

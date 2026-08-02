@@ -33,10 +33,6 @@ def _candidates() -> List[Path]:
             break
         parent = parent.parent
 
-    # Desktop workspace used in GODKILLER campaigns (Windows default)
-    desk = Path.home() / "Desktop" / "ANTIGRAVITY MCP" / ".agents" / "AGENTS.md"
-    out.append(desk)
-
     pkg = package_root()
     out.append(pkg / ".agents" / "AGENTS.md")
     out.append(Path(__file__).resolve().parent / "bundled_agents" / "AGENTS.md")

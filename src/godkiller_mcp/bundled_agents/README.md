@@ -1,9 +1,10 @@
-# `.agents/` — GODKILLER agent constitution (English)
+# Bundled agent constitution (English)
 
-Ship with the package / repo so hosts + `gk_meta.status` can point at the same rules.
+Ship with the package so hosts + `gk_meta.status` resolve the same rules.
 
+**New project:** copy [`AGENTS.md`](./AGENTS.md) to your repo as `.agents/AGENTS.md`. Keep host MCP enabled — no full `.agents` tree required.
 
-Primary standing orders for agents live in:
+Primary standing orders:
 
 **[`AGENTS.md`](./AGENTS.md)** ← read this first
 

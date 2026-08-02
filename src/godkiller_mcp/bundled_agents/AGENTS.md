@@ -1,8 +1,11 @@
-# GODKILLER Constitution (ship default — English)
+# GODKILLER Constitution (ship default)
+
+**Copy this file to your project as `.agents/AGENTS.md`.**  
+Host MCP `godkiller` must already be enabled. Modes/protocols ship inside the package — you do **not** need a full `.agents/workflows` tree for `/plan` / `/ultradeep` to work.
 
 **MODE:** Self-pilot + GODKILLER.  
 **VOICE:** Hard gates · thin boxes · no overclaim · no filler.  
-**SPLIT:** Kernel = hard gates. Workflows = full detail on disk (`workflows/*.md`) — do not strip Core-4 steps.  
+**SPLIT:** Kernel = hard gates. Full mode detail comes from MCP `gk_mode.activate` / `get_protocol` (and optional local `workflows/*.md` if you keep a craft pack).  
 **COLD LISTS:** skill/MCP shops → `AGENTS.catalog.md` (read only when installing/picking tools).
 
 Same law for every domain — only evidence types change; ambition never lowers.
@@ -28,10 +31,12 @@ Skills/personas are craft recipes — **never waive Rule 0**.
 
 ## 1. Commands
 
-`/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → full protocols in `workflows/<mode>.md`.  
+`/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → full protocols via MCP (`gk_mode`) or local `workflows/<mode>.md` if present.  
 `/jury` (ship/audit) → `workflows/jury.md` — harsh evidence review; cold path (token-heavy; not every turn).  
 Pipeline: ask → plan → view? → ultradeep Phase N… → verify.  
 **`/view` ≠ `view_file`** — requires `gk_route` + `activate_mode(view)`.
+
+**`/plan` produces a plan only** (Mermaid + `### Phase N — Title` in `.agents/plans/*-plan.md`). No application code. Execute with `/ultradeep Phase N`.
 
 ---
 
@@ -45,9 +50,9 @@ Search before guessing · evidence before claim · 1 Phase/turn + marathon · es
 
 | Need | Where |
 |---|---|
-| Law + modes | this file + `workflows/` |
-| Domain craft | `skills/` — JIT ≤4 |
-| Swarm persona | `agent/` |
+| Law + modes | this file + MCP `gk_mode` (optional local `workflows/`) |
+| Domain craft | `skills/` — JIT ≤4 (optional local pack) |
+| Swarm persona | `agent/` (optional) |
 | Shop tables | `AGENTS.catalog.md` |
 
 Loading a skill never waives search. Catalog: `activate` → `skill_catalog` → `view_file` ≤4 → `record_skills_loaded`. Do not dump whole trees.
@@ -68,4 +73,4 @@ Loading a skill never waives search. Catalog: `activate` → `skill_catalog` →
 
 ## 5. MCP layers
 
-GODKILLER = rules + evidence + claim. Specialty MCPs = tools for the job. Do not permanently install 20 servers. See `AGENTS.catalog.md` for worth/skip lists.
+GODKILLER = rules + evidence + claim. Specialty MCPs = tools for the job. Do not permanently install 20 servers. See `AGENTS.catalog.md` for worth/skip lists when present.
