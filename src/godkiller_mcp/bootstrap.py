@@ -86,6 +86,10 @@ def _bundled_agents_md() -> Path:
     return _pkg_root() / "bundled_agents" / "AGENTS.md"
 
 
+def _bundled_prompts_md() -> Path:
+    return _pkg_root() / "bundled_agents" / "PROMPTS.md"
+
+
 def _bundled_hook_template() -> Path:
     p = _pkg_root() / "hooks" / "antigravity_pretooluse_write_guard.json"
     if p.is_file():
@@ -172,6 +176,16 @@ def bootstrap_workspace(
         shutil.copy2(agents_md_src, dest_agents)
         agents_action = "copied" if not force_agents_md else "replaced"
 
+    dest_prompts = agents_dir / "PROMPTS.md"
+    prompts_src = _bundled_prompts_md()
+    prompts_action = "skipped"
+    if prompts_src.is_file():
+        if force_agents_md or not dest_prompts.is_file():
+            shutil.copy2(prompts_src, dest_prompts)
+            prompts_action = "copied" if not force_agents_md else "replaced"
+        else:
+            prompts_action = "kept"
+
     dest_tpl = hooks_dir / "godkiller-write-guard.hooks.json"
     shutil.copy2(hook_tpl, dest_tpl)
 
@@ -229,6 +243,8 @@ def bootstrap_workspace(
         "workspace": str(ws),
         "agents_md": str(dest_agents),
         "agents_md_action": agents_action,
+        "prompts_md": str(dest_prompts) if prompts_src.is_file() else None,
+        "prompts_md_action": prompts_action,
         "hooks_json": str(hooks_path),
         "wrapper": str(wrapper),
         "local_pin": str(local_pin),

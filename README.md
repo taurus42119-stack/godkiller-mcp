@@ -99,7 +99,7 @@ goal → mode → plan → search/blast → gated edit
 | **Every task** | `/plan` → `gk_guard.set_paths` → `/ultradeep Phase N` → `/verify` → `claim_done` |
 | **Full lock (optional)** | Prove deny/allow, then `GODKILLER_WRITE_GUARD_PROVEN=1` — [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) |
 
-`godkiller-bootstrap` writes `.agents/AGENTS.md` + portable write-guard hooks. Do **not** commit `godkiller-write-guard.local.cmd` / `.local.sh` (machine pin).
+`godkiller-bootstrap` writes `.agents/AGENTS.md`, `.agents/PROMPTS.md` (copy-paste prompts), and portable write-guard hooks. Do **not** commit `godkiller-write-guard.local.cmd` / `.local.sh` (machine pin).
 
 MCP gates `gk_*` only. Native Write stays free until PreToolUse is wired. Details: [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md).
 
