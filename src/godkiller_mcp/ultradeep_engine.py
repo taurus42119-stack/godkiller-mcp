@@ -400,7 +400,7 @@ def status_payload(gate: Dict[str, Any]) -> Dict[str, Any]:
         "files": gate.get("files") or {},
         "updated_at": gate.get("updated_at"),
         "loop": "think → plan → edit(one file) → verify → advance → next file",
-        "cursor_agent_power": (
+        "host_agent_power": (
             "Use maximal tool swarm: gk_code/search/map/read_full, gk_scan, gk_browser, "
             "gk_evidence, peer MCP jcodemunch + codebase-memory + chrome-devtools, "
             "parallel subagent reconnaissance BEFORE any write."

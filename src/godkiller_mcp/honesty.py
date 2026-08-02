@@ -25,7 +25,6 @@ def mcp_config_candidates() -> List[Path]:
         h / ".gemini" / "antigravity" / "mcp_config.json",
         h / ".gemini" / "antigravity" / "mcp" / "mcp_config.json",
         h / ".gemini" / "antigravity-ide" / "mcp_config.json",
-        h / ".cursor" / "mcp.json",
     ]
 
 

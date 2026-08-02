@@ -213,7 +213,7 @@ async def handle(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 payload["next_wake"] = marathon.next_wake_prompt(slug)
                 payload["per_file_gate"] = ude.status_payload(gate)
                 payload["power_mode"] = (
-                    "200% Cursor-agent tool swarm + legacy ultradeep crucible + marathon pacing"
+                    "200% host-agent tool swarm + legacy ultradeep crucible + marathon pacing"
                 )
             if mode == "debug":
                 store.update_metadata(

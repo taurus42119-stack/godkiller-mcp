@@ -166,13 +166,16 @@ Wire the **write-guard on the IDE host** (not inside MCP). Two switches:
 
 **Attach (on):**
 
-1. Copy [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json) into the host PreToolUse hooks config (merge, don’t wipe other hooks). Project copy path often used: `.agents/hooks/godkiller-write-guard.hooks.json`
-2. Reload the IDE. Prove deny/allow with `godkiller-write-guard --stdin` (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
-3. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
+1. Copy / merge write-guard into **`.agents/hooks.json`** (PreToolUse for Write|Edit). Template: [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json). Optional helper: `godkiller-write-guard install --target agents`
+2. Ensure the hook command runs on this machine (`godkiller-write-guard --stdin` or a small `.agents/hooks/*.cmd` wrapper).
+3. Reload the IDE. Prove deny/allow (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
+4. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
+
+Use the host’s **`.agents/`** layout. Do not invent a separate vendor IDE hooks folder for GODKILLER setup.
 
 **Detach (off):**
 
-1. Delete the write-guard PreToolUse entry, or set `"enabled": false` on that hooks file.
+1. Delete the write-guard PreToolUse entry from `.agents/hooks.json`, or set `"enabled": false`.
 2. Unset `GODKILLER_WRITE_GUARD_PROVEN` (and relax `PROFILE=ship` if you no longer want ship posture).
 3. Reload the IDE. Turning off the GODKILLER MCP server alone does **not** remove the write-guard — remove the hook too.
 

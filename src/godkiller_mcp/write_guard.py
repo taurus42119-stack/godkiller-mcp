@@ -338,13 +338,12 @@ def write_guard_host_status() -> Dict[str, Any]:
     home = Path.home()
     hook_hits: list[str] = []
     scan_paths = [
-        home / ".cursor" / "hooks" / "pretooluse_write_guard.json",
-        home / ".claude" / "settings.json",
-        Path.cwd() / ".cursor" / "hooks" / "pretooluse_write_guard.json",
-        Path.cwd() / ".claude" / "settings.json",
-        Path.cwd() / ".godkiller" / "pretooluse_write_guard.json",
+        Path.cwd() / ".agents" / "hooks.json",
         Path.cwd() / ".agents" / "hooks" / "godkiller-write-guard.hooks.json",
         Path.cwd() / ".agents" / "hooks" / "antigravity_pretooluse_write_guard.json",
+        Path.cwd() / ".godkiller" / "pretooluse_write_guard.json",
+        Path.cwd() / ".antigravity" / "hooks" / "pretooluse_write_guard.json",
+        home / ".godkiller" / "write_guard_host.json",
     ]
     needles = ("write_guard", "godkiller-write-guard", "pretooluse_write_guard")
     for p in scan_paths:
@@ -398,7 +397,7 @@ def write_guard_host_status() -> Dict[str, Any]:
         "hook_files_n": 0,
         "msg": (
             "FAIL-LOUD: no write-guard heartbeat — native Write bypasses MCP. "
-            "Optional PreToolUse hook: godkiller-write-guard install --target cursor. "
+            "Optional PreToolUse hook: godkiller-write-guard install --target agents. "
             "See docs/WRITE_GUARD_HOOKS.md."
         ),
     }
@@ -417,14 +416,14 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     p_install = sub.add_parser(
         "install",
-        help="Copy hook JSON into .cursor / Antigravity-style config path (does not claim enforce)",
+        help="Copy hook JSON into .agents / host config path (does not claim enforce)",
     )
     p_install.add_argument("--workspace", default=None)
     p_install.add_argument(
         "--target",
-        choices=("cursor", "antigravity", "godkiller"),
-        default="cursor",
-        help="Where to drop pretooluse_write_guard.json",
+        choices=("agents", "antigravity", "godkiller"),
+        default="agents",
+        help="Where to drop write-guard hook JSON",
     )
     p_install.add_argument("--force", action="store_true")
 
@@ -443,22 +442,23 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "workspace": str(ws),
                     "command": "godkiller-write-guard --stdin",
                     "python_module": "python -m godkiller_mcp.write_guard --stdin",
-                    "hook_artifact": "godkiller_mcp/hooks/pretooluse_write_guard.json",
-                    "install": "godkiller-write-guard install --target cursor",
+                    "hook_artifact": "godkiller_mcp/hooks/antigravity_pretooluse_write_guard.json",
+                    "install": "godkiller-write-guard install --target agents",
                     "honest": (
                         "Without host PreToolUse pointing at this CLI, native Write bypasses MCP. "
                         "install copies config only — does not prove enforcement."
                     ),
-                    "example_cursor": {
-                        "hooks": {
-                            "PreToolUse": [
-                                {
-                                    "matcher": "Write|Edit|NotebookEdit",
-                                    "command": "godkiller-write-guard --stdin",
-                                }
-                            ]
-                        }
+                    "example_agents_hooks": {
+                        "enabled": True,
+                        "PreToolUse": [
+                            {
+                                "matcher": "Write|Edit|NotebookEdit",
+                                "command": "godkiller-write-guard --stdin",
+                                "timeout": 15,
+                            }
+                        ],
                     },
+                    "merge_into": ".agents/hooks.json",
                 },
                 indent=2,
             )
@@ -467,16 +467,18 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.cmd == "install":
         ws = Path(args.workspace or os.getcwd()).resolve()
-        pkg_hook = Path(__file__).resolve().parent / "hooks" / "pretooluse_write_guard.json"
+        pkg_hook = Path(__file__).resolve().parent / "hooks" / "antigravity_pretooluse_write_guard.json"
+        if not pkg_hook.is_file():
+            pkg_hook = Path(__file__).resolve().parent / "hooks" / "pretooluse_write_guard.json"
         if not pkg_hook.is_file():
             print(json.dumps({"ok": False, "reason": f"missing package hook: {pkg_hook}"}))
             return 1
-        if args.target == "cursor":
-            dest_dir = ws / ".cursor"
-            dest = dest_dir / "hooks" / "pretooluse_write_guard.json"
+        if args.target == "agents":
+            dest_dir = ws / ".agents" / "hooks"
+            dest = dest_dir / "godkiller-write-guard.hooks.json"
         elif args.target == "antigravity":
-            dest_dir = ws / ".antigravity"
-            dest = dest_dir / "hooks" / "pretooluse_write_guard.json"
+            dest_dir = ws / ".agents" / "hooks"
+            dest = dest_dir / "godkiller-write-guard.hooks.json"
         else:
             dest_dir = ws / ".godkiller"
             dest = dest_dir / "pretooluse_write_guard.json"
@@ -501,8 +503,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "copied": str(dest),
                     "marker": str(marker),
                     "next": (
-                        "Wire host PreToolUse to: godkiller-write-guard --stdin. "
-                        "Copying JSON is not enforcement proof."
+                        "Merge into .agents/hooks.json PreToolUse, or point the host at "
+                        "godkiller-write-guard --stdin. Copying JSON is not enforcement proof."
                     ),
                 },
                 indent=2,

@@ -60,13 +60,20 @@ Exit **2** = deny (host should block the tool).
 
 ---
 
-## Example: flat hooks JSON
+## Example: host hooks JSON
 
-Some hosts use a project or user `hooks.json`. Minimal shape also ships as:
+Merge into the project file the host reads for PreToolUse (commonly `.agents/hooks.json`).  
+Template also ships as:
 
-[`src/godkiller_mcp/hooks/pretooluse_write_guard.json`](../src/godkiller_mcp/hooks/pretooluse_write_guard.json)
+[`src/godkiller_mcp/hooks/antigravity_pretooluse_write_guard.json`](../src/godkiller_mcp/hooks/antigravity_pretooluse_write_guard.json)
 
-Point PreToolUse at `godkiller-write-guard --stdin`.
+```bash
+godkiller-write-guard install --target agents
+# → .agents/hooks/godkiller-write-guard.hooks.json
+# then merge PreToolUse into .agents/hooks.json
+```
+
+Point PreToolUse at `godkiller-write-guard --stdin` (or `python -m godkiller_mcp.write_guard --stdin`).
 
 ---
 
