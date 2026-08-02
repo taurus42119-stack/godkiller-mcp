@@ -90,6 +90,20 @@ goal → mode → plan → search/blast → gated edit
 
 ---
 
+## How to use (summary)
+
+| | Do this |
+| --- | --- |
+| **Once (machine)** | `pip install godkiller-mcp` · add the MCP server · set `GODKILLER_SEAL_KEY` |
+| **Once per project** | `godkiller-bootstrap --workspace .` · reload the IDE |
+| **Prove (optional full lock)** | deny/allow live test · then `GODKILLER_WRITE_GUARD_PROVEN=1` |
+| **Every task** | `/plan` → `gk_guard.set_paths` → `/ultradeep Phase N` → `/verify` → `claim_done` |
+
+**Antigravity playbook (full):** [`docs/ANTIGRAVITY.md`](docs/ANTIGRAVITY.md)  
+**Write-guard details:** [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · **Host vs MCP:** [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md)
+
+---
+
 ## 60-second install
 
 ```bash
@@ -140,7 +154,9 @@ We do **not** ship a hostile filesystem lock inside MCP. Full lock is **your** P
 
 ## Recommended
 
-Install **GODKILLER MCP once** on your MCP host (for example, an agent IDE that loads MCP servers). For each new repo:
+Full Antigravity steps: [`docs/ANTIGRAVITY.md`](docs/ANTIGRAVITY.md).
+
+Install **GODKILLER MCP once** on your MCP host. For each new repo:
 
 1. Copy the constitution into the project:
    ```bash
