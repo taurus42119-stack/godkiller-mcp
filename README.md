@@ -4,13 +4,11 @@
 
 # GODKILLER MCP
 
-Agent IDEs skip steps, invent “done,” and rewrite files with no proof on disk.  
-**GODKILLER** is the MCP that makes them earn it.
+**Gates on disk beat chat.**  
+The agent may *say* done. The harness decides.
 
-Plan → gate → verify on disk → `claim_done`.  
-Chat is noise. The harness decides.
-
-Built for **Google Antigravity**, also runs on Cursor / Claude Desktop.
+MCP for **Google Antigravity** (also Cursor / Claude Desktop).  
+Plan → gate → verify on disk → `claim_done`.
 
 [![PyPI](https://img.shields.io/pypi/v/godkiller-mcp.svg)](https://pypi.org/project/godkiller-mcp/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
@@ -21,27 +19,43 @@ Built for **Google Antigravity**, also runs on Cursor / Claude Desktop.
 
 ---
 
-## Why it exists
+## Who it’s for
 
-| Pain | What GODKILLER does |
-| --- | --- |
-| Agent jumps `/plan` → code → “finished” | Phase gates. Illegal skips get blocked. |
-| “Tests passed” in chat only | Verify runs on disk. No digest, no claim. |
-| Multi-file rush | `/ultradeep` — one file think → plan → edit. |
-| Fake green / hollow stubs | Hollow + fault probe before `claim_done`. |
-| Session amnesia | Task + evidence + memory under `.godkiller/`. |
+Developers, AI engineers, and power users who run **coding agents** hard — and are tired of trusting the chat bubble.
 
-**The flex:** the model can *propose* done. Only sealed evidence can *make* it done.
+| Pain | What usually happens | What GODKILLER does |
+| --- | --- | --- |
+| **Fake completion** | “Fixed!” in chat — tests fail, stubs ship | No `claim_done` without disk verify + evidence |
+| **Token bloat** | Fat JSON / schema dumps flood context | Compact payloads by default |
+| **Skipped ritual** | Jumps plan → edit → “done” | Phase gates · `/ask` `/plan` `/debug` `/ultradeep` `/verify` |
+| **Unproven edits** | Files change with no blast / proof | `edit_safe` · blast · hollow · fault probe |
+
+---
+
+## Why it hits
+
+**Proof over promises.** Chat vibes don’t move the gate. Sealed evidence on disk does.
+
+**Phase kernel.** `gk_route` puts the agent on a real pipeline — not free-form hope.
+
+**One MCP surface.** Code · scan · browser · guard · handoff · memory — facades in one place, judge for the rest.
+
+**The flex:** the model proposes. GODKILLER disposes.
+
+```text
+goal → mode → plan → search/blast → gated edit
+    → disk verify → hollow → probe → exit → claim_done | blocked
+```
 
 ---
 
 ## What it is not
 
-- Not an OS jail. Native Write/Edit still bypass until you wire PreToolUse → `godkiller-write-guard`.
-- Not Enterprise / SSO / multi-tenant SaaS — local MCP, one process.
-- Not a magic win over Bare agents on every short oracle puzzle.
+- Not an OS lockdown. Native Write/Edit still bypass until PreToolUse → `godkiller-write-guard` is proven.
+- Not Enterprise / SSO / multi-tenant SaaS — local single-process MCP.
+- Not a guarantee that WITH beats Bare on every short oracle puzzle.
 
-Full stack: `PROFILE=ship` + workspace pin + seal + proven write-guard.  
+Ship posture: `PROFILE=ship` + workspace pin + seal + proven write-guard.  
 [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md) · [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)
 
 ---
@@ -75,9 +89,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 Alternate: `python -m godkiller_mcp.server`.  
-One `GODKILLER_HOME` per host — don’t share across concurrent sessions.
-
-Modes (`/ask` `/plan` `/debug` `/ultradeep` `/view` `/verify`) ship inside the package — no root `.agents/` folder required.
+One `GODKILLER_HOME` per host. Modes ship inside the package — no root `.agents/` required.
 
 ---
 
@@ -86,7 +98,7 @@ Modes (`/ask` `/plan` `/debug` `/ultradeep` `/view` `/verify`) ship inside the p
 | | |
 | --- | --- |
 | `gk_meta` | status · plan |
-| `gk_route` | modes |
+| `gk_route` | `/ask` `/plan` `/debug` `/ultradeep` `/view` `/verify` |
 | `gk_task` | open · blast · edit_safe |
 | `gk_phase` | assert · claim_done |
 | `gk_evidence` | shots · visual_step · critic |
