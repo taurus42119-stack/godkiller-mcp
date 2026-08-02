@@ -1,49 +1,52 @@
 ---
 name: view-protocol
-description: Bundled /view — adversarial research planning (weaknesses-only).
+description: Triggers when user types '/view'. Adversarial Research Planning — NOT plain file reading.
 ---
 
-# Trigger Command: `/view`
+# Trigger: /view
 
-Research **planning** only. No application code edits.
+When `/view` is invoked, **immediately** enter **Adversarial Research Planning Mode**.
 
 ## [CRITICAL — NOT `view_file`]
 
-Slash `/view` = this adversarial protocol. IDE tool `view_file` ≠ `/view`.
-First tools must be `gk_route` / `activate_mode(view)` / `view_start` — not “I read geometry.js, plan looks OK.”
+| Token | Meaning |
+|---|---|
+| **`/view`** (slash command) | GODKILLER **mode**: hunt → attack plan → refute → seal. Use `gk_route` + `gk_mode.view_*` |
+| **`view_file`** (IDE tool) | Just open a file. **Does NOT satisfy `/view`.** |
 
-## Contract
+**FORBIDDEN first response to `/view`:** only calling `view_file` / reading one local file / saying “I inspected the plan, looks OK.”
 
-- Agent proposes; harness seals.
-- Praise / balanced review = Seal fail.
-- Gravity G1–G4 = scale of work (not a calendar). One heavy refute wake after draft plan.
+**REQUIRED first tools:** `gk_route.classify` (or equivalent) → `gk_mode.activate({mode:"view", …})` → `gk_mode.view_start` (or `view_propose_study` if confidence &lt; 99%).
 
-## Pipeline (forced)
+## [WORLD KERNEL — ADDITIVE GATES]
 
-0. **If confidence < 99%:** `gk_mode.view_propose_study` **immediately** — propose in chat which public repos/files to deep-read (copy-study). Do not silently invent.
-1. `activate_mode({mode:"view", goal, open_kernel_task:true})`
-2. `gk_mode.view_start` — goal + gravity
-3. `view_search` × N (G1≥12 … G4≥30) — each with real `http(s)` URL or `doi:`
-4. `view_attack` × K — each: quote ≥20 + doi_or_url + locator + stance + taxonomy + severity  
-   - DOI cites: live resolve (unless `GODKILLER_DOI_RESOLVE=0`); quote must bind to title/abstract **or** `page_excerpt` must contain the quote (`GODKILLER_QUOTE_BIND`).
-   - DOI must **resolve** via Crossref/OpenAlex unless `GODKILLER_DOI_RESOLVE=0` (shape-only offline)
-5. `view_draft` — full Plan OS 9 steps, adversarial content (autopsy / outcompete)
-6. **Alarm:** `view_refute` ≥20–30 findings **attacking the plan** → HOLD | REOPEN | KILL
-7. `view_finalize` — weaknesses-only report ≥200 chars
-8. Optional: `gk_meta.plan_validate` with sealed steps before leaving to code modes
+If MCP `GODKILLER` is available, ALSO:
+1. `gk_route.classify` on the user message containing `/view`.
+2. `activate_mode({mode:"view", goal, open_kernel_task:true})` and **follow the protocol markdown returned**.
+3. Pipeline (forced):
+   - confidence &lt; 99% → `view_propose_study` first (copy-study repos/files)
+   - `view_start` (goal + gravity G1–G4)
+   - `view_search` × N with real `http(s)` / `doi:` (G1≥12 … G4≥30)
+   - `view_attack` × K (quote + URL/DOI + stance + severity)
+   - `view_draft` — full 9-step adversarial plan
+   - `view_refute` ≥20–30 attacks on **the plan** → HOLD | REOPEN | KILL
+   - `view_finalize` — weaknesses-only report ≥200 chars
+   - optional `gk_meta.plan_validate` (with `### Phase N` headings) before `/ultradeep`
+4. **No application code edits** in `/view`. No `request_claim_done`.
+5. Praise / “looks good / 100% aligned” without refute HOLD = **Seal fail**.
 
-## Example hunt (copy-study)
+## [RELATION TO `/plan`]
 
-- Goal: learn file layout / API from a **public reference repo**, then adapt.
-- Allowed: deep-read exemplar files; cite what you will change.
-- Forbidden: paste an entire foreign repo and claim the task done.
+- `/plan` = write the blueprint (phases, research log, architecture).
+- `/view` = **stress-test / red-team that blueprint** (or research a sealed adversarial plan) before coding.
+- User may say `/view` after `/plan` — still run the full adversarial pipeline; do **not** reduce it to re-reading local plan markdown with `view_file` alone.
 
-## Forbidden
+## [ANTI-EXCUSE]
 
-- Claiming done from chat
-- Seal without HOLD refute
-- inventing URLs / “from training memory”
+- **FORBIDDEN:** “`/view` means look at files.”
+- **FORBIDDEN:** Skipping `gk_mode` because training memory already “knows” `/view`.
+- Local `view_file` of `geometry.js` / `implementation_plan.md` is optional **evidence**, never a substitute for `view_start`…`view_finalize`.
 
-## Posture (all modes)
+## Hard brake
 
-Pessimistic + win USER goal. Any capability gap → `tool_propose` (5–10 public candidates after host search) → `tool_approve` OR `tool_reject_all` → `tool_used` if approved. **Never silent install.**
+STRICTLY PROHIBITED from writing/editing application code (`.ts`, `.py`, game sources, etc.) under `/view`. Plan/research artifacts and GODKILLER evidence only.
