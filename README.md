@@ -157,21 +157,32 @@ That is enough for **gated MCP workflow**: **`.agents/AGENTS.md` + host MCP**.
 
 ### Full lock (optional)
 
-Wire the **write-guard on the IDE host** (not inside MCP). Two switches:
+Wire the **write-guard on the IDE host** (not inside MCP). Prefer one command after `pip install godkiller-mcp`:
+
+```bash
+godkiller-bootstrap --workspace .
+```
+
+This writes portable files only (no machine-specific paths in what you commit):
+
+- `.agents/AGENTS.md` (if missing)
+- `.agents/hooks.json` (merges Write|Edit PreToolUse; keeps other hooks)
+- `.agents/hooks/godkiller-write-guard.cmd` (Windows) or `.sh` (POSIX)
+- `.agents/hooks/godkiller-write-guard.local.cmd` / `.local.sh` — **machine pin** (gitignored; uses the Python that ran bootstrap)
 
 | Want | Do |
 | --- | --- |
-| **On (full lock)** | Attach PreToolUse → `godkiller-write-guard` · prove deny/allow · then `WRITE_GUARD_PROVEN=1` |
-| **Off (normal IDE writes)** | Remove or disable that write-guard hook · unset `WRITE_GUARD_PROVEN` · MCP off is optional and separate |
+| **On (full lock)** | `godkiller-bootstrap` · reload IDE · prove deny/allow · then `WRITE_GUARD_PROVEN=1` |
+| **Off (normal IDE writes)** | Remove the Write|Edit PreToolUse entry from `.agents/hooks.json` · unset `WRITE_GUARD_PROVEN` |
 
 **Attach (on):**
 
-1. Copy / merge write-guard into **`.agents/hooks.json`** (PreToolUse for Write|Edit). Template: [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json). Optional helper: `godkiller-write-guard install --target agents`
-2. Ensure the hook command runs on this machine (`godkiller-write-guard --stdin` or a small `.agents/hooks/*.cmd` wrapper).
+1. `godkiller-bootstrap --workspace .` (or copy templates from [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json)).
+2. Ensure `python -m godkiller_mcp.write_guard --help` works on the host.
 3. Reload the IDE. Prove deny/allow (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
 4. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
 
-Use the host’s **`.agents/`** layout. Do not invent a separate vendor IDE hooks folder for GODKILLER setup.
+Use the host’s **`.agents/`** layout.
 
 **Detach (off):**
 

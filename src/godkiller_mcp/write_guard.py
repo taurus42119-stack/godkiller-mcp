@@ -397,7 +397,7 @@ def write_guard_host_status() -> Dict[str, Any]:
         "hook_files_n": 0,
         "msg": (
             "FAIL-LOUD: no write-guard heartbeat — native Write bypasses MCP. "
-            "Optional PreToolUse hook: godkiller-write-guard install --target agents. "
+            "Bootstrap: godkiller-bootstrap --workspace . "
             "See docs/WRITE_GUARD_HOOKS.md."
         ),
     }
@@ -443,10 +443,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "command": "godkiller-write-guard --stdin",
                     "python_module": "python -m godkiller_mcp.write_guard --stdin",
                     "hook_artifact": "godkiller_mcp/hooks/antigravity_pretooluse_write_guard.json",
-                    "install": "godkiller-write-guard install --target agents",
+                    "install": "godkiller-bootstrap --workspace .",
                     "honest": (
                         "Without host PreToolUse pointing at this CLI, native Write bypasses MCP. "
-                        "install copies config only — does not prove enforcement."
+                        "bootstrap writes portable .agents files — does not prove enforcement."
                     ),
                     "example_agents_hooks": {
                         "enabled": True,
@@ -466,51 +466,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     if args.cmd == "install":
+        # Full project materialization (preferred)
+        from godkiller_mcp.bootstrap import bootstrap_workspace
+
         ws = Path(args.workspace or os.getcwd()).resolve()
-        pkg_hook = Path(__file__).resolve().parent / "hooks" / "antigravity_pretooluse_write_guard.json"
-        if not pkg_hook.is_file():
-            pkg_hook = Path(__file__).resolve().parent / "hooks" / "pretooluse_write_guard.json"
-        if not pkg_hook.is_file():
-            print(json.dumps({"ok": False, "reason": f"missing package hook: {pkg_hook}"}))
-            return 1
-        if args.target == "agents":
-            dest_dir = ws / ".agents" / "hooks"
-            dest = dest_dir / "godkiller-write-guard.hooks.json"
-        elif args.target == "antigravity":
-            dest_dir = ws / ".agents" / "hooks"
-            dest = dest_dir / "godkiller-write-guard.hooks.json"
-        else:
-            dest_dir = ws / ".godkiller"
-            dest = dest_dir / "pretooluse_write_guard.json"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if dest.exists() and not args.force:
-            print(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "reason": f"exists: {dest} (pass --force)",
-                        "hint": "godkiller-write-guard install-hint",
-                    }
-                )
-            )
-            return 1
-        shutil.copy2(pkg_hook, dest)
-        marker = mark_write_guard_wired(source=f"install:{args.target}")
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "copied": str(dest),
-                    "marker": str(marker),
-                    "next": (
-                        "Merge into .agents/hooks.json PreToolUse, or point the host at "
-                        "godkiller-write-guard --stdin. Copying JSON is not enforcement proof."
-                    ),
-                },
-                indent=2,
-            )
-        )
-        return 0
+        result = bootstrap_workspace(ws, force_agents_md=False)
+        # Still drop legacy target copy for godkiller/ profile dirs when requested
+        if args.target == "godkiller":
+            pkg_hook = Path(__file__).resolve().parent / "hooks" / "antigravity_pretooluse_write_guard.json"
+            if not pkg_hook.is_file():
+                pkg_hook = Path(__file__).resolve().parent / "hooks" / "pretooluse_write_guard.json"
+            dest = ws / ".godkiller" / "pretooluse_write_guard.json"
+            if pkg_hook.is_file() and (args.force or not dest.exists()):
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(pkg_hook, dest)
+                result["godkiller_copy"] = str(dest)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0 if result.get("ok") else 1
 
     if args.path:
         decision = decide_write(

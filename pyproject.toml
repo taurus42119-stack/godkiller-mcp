@@ -49,6 +49,7 @@ all = [
 godkiller-mcp = "godkiller_mcp.server:main"
 godkiller-prove = "godkiller_mcp.prove:main"
 godkiller-write-guard = "godkiller_mcp.write_guard:main"
+godkiller-bootstrap = "godkiller_mcp.bootstrap:main"
 godkiller-restore = "godkiller_mcp.restore_cli:main"
 
 [project.urls]

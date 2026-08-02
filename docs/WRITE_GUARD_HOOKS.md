@@ -13,6 +13,19 @@ Full lock is **opt-in** on the IDE host. We ship templates; you enable them.
 
 ---
 
+## Project bootstrap (recommended)
+
+After `pip install godkiller-mcp`:
+
+```bash
+godkiller-bootstrap --workspace .
+```
+
+Writes portable `.agents/` files (constitution + write-guard hooks) plus a **gitignored** local interpreter pin so PreToolUse works even when `python` is not on PATH. Never commit `godkiller-write-guard.local.cmd` / `.local.sh`.  
+Reload the IDE, then prove deny/allow before setting `GODKILLER_WRITE_GUARD_PROVEN=1`.
+
+---
+
 ## Prerequisites
 
 ```bash

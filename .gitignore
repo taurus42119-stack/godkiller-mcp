@@ -1,3 +1,7 @@
+# Machine-local write-guard interpreter pin (never commit)
+**/godkiller-write-guard.local.cmd
+**/godkiller-write-guard.local.sh
+
 # Secrets / local runtime (never commit)
 .env
 .env.*
