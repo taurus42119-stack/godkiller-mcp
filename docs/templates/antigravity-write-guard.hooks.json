@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "PreToolUse": [
+    {
+      "matcher": "Write|Edit|NotebookEdit",
+      "command": "godkiller-write-guard --stdin",
+      "timeout": 15
+    }
+  ],
+  "_comment": "Copy/merge into Antigravity PreToolUse hooks. MCP alone does not block native Write. See docs/WRITE_GUARD_HOOKS.md"
+}

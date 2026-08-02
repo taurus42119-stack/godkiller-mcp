@@ -343,6 +343,8 @@ def write_guard_host_status() -> Dict[str, Any]:
         Path.cwd() / ".cursor" / "hooks" / "pretooluse_write_guard.json",
         Path.cwd() / ".claude" / "settings.json",
         Path.cwd() / ".godkiller" / "pretooluse_write_guard.json",
+        Path.cwd() / ".agents" / "hooks" / "godkiller-write-guard.hooks.json",
+        Path.cwd() / ".agents" / "hooks" / "antigravity_pretooluse_write_guard.json",
     ]
     needles = ("write_guard", "godkiller-write-guard", "pretooluse_write_guard")
     for p in scan_paths:

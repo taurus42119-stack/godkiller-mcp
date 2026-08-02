@@ -1,0 +1,11 @@
+{
+  "$schema": "https://ag-kit.dev/schemas/antigravity-hooks.schema.json",
+  "enabled": true,
+  "PreToolUse": [
+    {
+      "matcher": "Write|Edit|NotebookEdit",
+      "command": "godkiller-write-guard --stdin",
+      "timeout": 15
+    }
+  ]
+}

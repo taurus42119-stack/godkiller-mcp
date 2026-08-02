@@ -71,6 +71,9 @@ GODKILLER_WRITE_GUARD_PROVEN=1
 
 Without a proven host write-guard, do **not** claim native Write is forced.
 
+Antigravity opt-in template (merge into host PreToolUse — MCP does not auto-lock the IDE):  
+`docs/templates/antigravity-write-guard.hooks.json`
+
 See `docs/SEAL_KEY.md`, `docs/HOST_VS_MCP.md`, and `docs/WRITE_GUARD_HOOKS.md`.
 
 Generate a seal key:

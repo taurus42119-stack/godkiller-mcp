@@ -1,8 +1,41 @@
-# GODKILLER host write guard — Claude Code / Cursor-style PreToolUse
+# GODKILLER host write guard
 
-Wire this so **native Write/Edit** cannot bypass MCP plan envelope.
+Wire a **host PreToolUse hook** so native Write/Edit cannot bypass MCP.
 
-## Claude Code (`~/.claude/settings.json` or project `.claude/settings.json`)
+**Policy:** GODKILLER MCP does **not** silently lock your filesystem.  
+Full lock is **opt-in** on the IDE host. We ship templates; you enable them.
+
+| Layer | What it does |
+| --- | --- |
+| MCP only | Gates when `gk_*` is called. Native Write still free. |
+| + host write-guard | IDE asks `godkiller-write-guard` before Write/Edit. |
+| + `GODKILLER_WRITE_GUARD_PROVEN=1` | Only after a live deny/allow test — then ship claims may trust the hook. |
+
+---
+
+## Prerequisites
+
+```bash
+pip install godkiller-mcp
+# confirm CLI:
+godkiller-write-guard --help
+# or:
+python -m godkiller_mcp.write_guard --help
+```
+
+Allowlist before coding (from MCP or CLI):
+
+```text
+gk_guard.set_paths  paths=["src/app.py","tests/test_app.py"]  workspace="."
+```
+
+Paths land in `.godkiller/write_allow.json` under the workspace / `GODKILLER_HOME`.
+
+---
+
+## Claude Code
+
+`~/.claude/settings.json` or project `.claude/settings.json`:
 
 ```json
 {
@@ -23,38 +56,117 @@ Wire this so **native Write/Edit** cannot bypass MCP plan envelope.
 }
 ```
 
-The CLI reads hook JSON on stdin and exits **2** on deny (Claude Code block).
+Exit **2** = deny (Claude Code blocks the tool).
 
-Before coding, set allowlist from MCP:
+---
 
-```text
-gk_guard.set_paths  paths=["src/app.py","tests/test_app.py"]  workspace="."
-# or after swarm.collect — paths are written to .godkiller/write_allow.json
+## Cursor
+
+Project or user hooks (see Cursor Hooks docs). Minimal shape also ships as:
+
+[`src/godkiller_mcp/hooks/pretooluse_write_guard.json`](../src/godkiller_mcp/hooks/pretooluse_write_guard.json)
+
+Point PreToolUse at `godkiller-write-guard --stdin`.
+
+---
+
+## Antigravity (recommended full lock)
+
+### Why this is separate from MCP
+
+Antigravity can Write via native tools without calling GODKILLER.  
+`.agents/AGENTS.md` is soft law. Only a **host hook** closes that hole.
+
+We intentionally keep MCP non-hostile: **you** turn the lock on.
+
+### 1) Copy the template
+
+Tracked copies:
+
+- [`docs/templates/antigravity-write-guard.hooks.json`](templates/antigravity-write-guard.hooks.json)
+- [`src/godkiller_mcp/hooks/antigravity_pretooluse_write_guard.json`](../src/godkiller_mcp/hooks/antigravity_pretooluse_write_guard.json)
+
+```bash
+# from a clone of this repo:
+mkdir -p .agents/hooks
+cp docs/templates/antigravity-write-guard.hooks.json .agents/hooks/godkiller-write-guard.hooks.json
 ```
 
-## Antigravity
+Or paste:
 
-If the IDE exposes PreToolUse / equivalent: point it at the same command.  
-If not yet: use `gk_guard.write` from the agent **before** native writes, and treat deny as hard stop — weaker than a host hook.
+```json
+{
+  "enabled": true,
+  "PreToolUse": [
+    {
+      "matcher": "Write|Edit|NotebookEdit",
+      "command": "godkiller-write-guard --stdin",
+      "timeout": 15
+    }
+  ]
+}
+```
+
+### 2) Merge into Antigravity hooks config
+
+Exact filename/UI varies by Antigravity build. Goal:
+
+- Event: **PreToolUse** (before Write/Edit)
+- Matcher: `Write|Edit` (and NotebookEdit if present)
+- Command: `godkiller-write-guard --stdin`  
+  (or `python -m godkiller_mcp.write_guard --stdin` if the CLI is not on `PATH`)
+
+If the IDE uses a single hooks file, **merge** the `PreToolUse` entry — do not wipe unrelated hooks.
+
+Restart / reload Antigravity after saving.
+
+### 3) Prove the hook (required before ship claims)
+
+```bash
+# Deny (expect exit 2)
+echo '{"tool_name":"Write","tool_input":{"file_path":"evil.py"},"cwd":"."}' | godkiller-write-guard --stdin
+
+# Allow after set_paths includes src/ok.py (expect exit 0)
+echo '{"tool_name":"Write","tool_input":{"file_path":"src/ok.py"},"cwd":"."}' | godkiller-write-guard --stdin
+```
+
+Then in the IDE: ask the agent to Write a path **not** on the allowlist → must be blocked.
+
+Only then set:
+
+```text
+GODKILLER_WRITE_GUARD_PROVEN=1
+GODKILLER_PROFILE=ship
+```
+
+File markers / `GODKILLER_WRITE_GUARD_WIRED` alone are **not** enforcement proof.
+
+### 4) Weaker fallback (no host hook yet)
+
+Agent calls `gk_guard.write` / checks allowlist **before** native Write and treats deny as stop.  
+This is discipline-only — same class of failure as skipping ultradeep.
+
+---
 
 ## Threat model
 
-- With hook: native Write is gated by GODKILLER allowlist (MCP + host).
-- Without hook: MCP gates still apply only when tools are called — **do not say “enforce”**.
+- **With proven hook:** native Write gated by GODKILLER allowlist (MCP policy + host).
+- **Without hook:** do **not** say “enforce”, “OS lock”, or “100% forced”. Say “MCP path only”.
 
-## 30-second demo
+---
+
+## 30-second CLI demo
 
 ```bash
-# 1) Allow only one path
 python -c "from godkiller_mcp.write_guard import persist_allow_paths; persist_allow_paths('.', ['src/ok.py'])"
 
-# 2) Hook-style deny (exit 2)
 echo '{"tool_name":"Write","tool_input":{"file_path":"evil.py"},"cwd":"."}' | python -m godkiller_mcp.write_guard --stdin
-# → allowed:false  exit code 2
+# → allowed:false  exit 2
 
-# 3) Allow listed path
 echo '{"tool_name":"Write","tool_input":{"file_path":"src/ok.py"},"cwd":"."}' | python -m godkiller_mcp.write_guard --stdin
-# → allowed:true   exit code 0
+# → allowed:true   exit 0
 ```
 
 Claim path (separate): open a task, skip verify → `claim_done` / exit_checklist stays `blocked`.
+
+See also: [`HOST_VS_MCP.md`](HOST_VS_MCP.md) · [`SEAL_KEY.md`](SEAL_KEY.md) · [`SECURITY.md`](../SECURITY.md)

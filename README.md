@@ -122,9 +122,19 @@ From source: `pip install "git+https://github.com/taurus42119-stack/godkiller-mc
 Modes ship **inside the package** — a full `.agents/workflows` tree is **not** required.  
 One `GODKILLER_HOME` per concurrent host.
 
-**Ship tip:** wire host PreToolUse → `godkiller-write-guard`, then set `GODKILLER_WRITE_GUARD_PROVEN=1`.  
+**Ship tip:** wire host PreToolUse → `godkiller-write-guard`, then set `GODKILLER_WRITE_GUARD_PROVEN=1` **only after a live deny/allow test**.  
 Until that hook is real, native Write can still bypass MCP tools.  
 Details: [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md) · [`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)
+
+### Intensity (honest)
+
+| You installed | What you actually get |
+| --- | --- |
+| MCP only | Judge on the `gk_*` path. Native IDE Write is free. |
+| + `.agents/AGENTS.md` | Soft standing orders. Agents can still skip. |
+| + host write-guard (opt-in) | Native Write/Edit blocked unless allowlisted. |
+
+We do **not** ship a hostile filesystem lock inside MCP. Full lock is **your** PreToolUse hook — templates: [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json).
 
 ---
 
@@ -143,7 +153,17 @@ Install **GODKILLER MCP once** on the host (Antigravity / Cursor). For each new 
 2. Open the project in the host. MCP stays enabled at host level — **do not reinstall per folder**.
 3. Start with `/plan` (Mermaid + `### Phase N` only). Execute with `/ultradeep Phase N`. Finish with `/verify` → `claim_done`.
 
-That is enough: **`.agents/AGENTS.md` + host MCP**. Optional craft packs (`workflows/`, `skills/`) can come later.
+That is enough for **gated MCP workflow**: **`.agents/AGENTS.md` + host MCP**.
+
+### Full lock (optional — Antigravity)
+
+To stop native Write bypass (the DESKTOPLOVER-class hole):
+
+1. Copy [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json) into your Antigravity PreToolUse hooks (merge, don’t wipe other hooks).
+2. Prove deny/allow with `godkiller-write-guard --stdin` (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
+3. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
+
+Optional craft packs (`workflows/`, `skills/`) can come later.
 
 ---
 
