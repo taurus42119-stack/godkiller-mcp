@@ -90,17 +90,18 @@ goal → mode → plan → search/blast → gated edit
 
 ---
 
-## How to use (summary)
+## How to use
 
 | | Do this |
 | --- | --- |
-| **Once (machine)** | `pip install godkiller-mcp` · add the MCP server · set `GODKILLER_SEAL_KEY` |
+| **Once (machine)** | `pip install godkiller-mcp` · add MCP server · set `GODKILLER_SEAL_KEY` ([`docs/SEAL_KEY.md`](docs/SEAL_KEY.md)) |
 | **Once per project** | `godkiller-bootstrap --workspace .` · reload the IDE |
-| **Prove (optional full lock)** | deny/allow live test · then `GODKILLER_WRITE_GUARD_PROVEN=1` |
 | **Every task** | `/plan` → `gk_guard.set_paths` → `/ultradeep Phase N` → `/verify` → `claim_done` |
+| **Full lock (optional)** | Prove deny/allow, then `GODKILLER_WRITE_GUARD_PROVEN=1` — [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) |
 
-**Antigravity playbook (full):** [`docs/ANTIGRAVITY.md`](docs/ANTIGRAVITY.md)  
-**Write-guard details:** [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · **Host vs MCP:** [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md)
+`godkiller-bootstrap` writes `.agents/AGENTS.md` + portable write-guard hooks. Do **not** commit `godkiller-write-guard.local.cmd` / `.local.sh` (machine pin).
+
+MCP gates `gk_*` only. Native Write stays free until PreToolUse is wired. Details: [`docs/HOST_VS_MCP.md`](docs/HOST_VS_MCP.md).
 
 ---
 
@@ -148,65 +149,7 @@ Details: [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md) · [`docs/HOST
 | + `.agents/AGENTS.md` | Soft standing orders. Agents can still skip. |
 | + host write-guard (opt-in) | Native Write/Edit blocked unless allowlisted. |
 
-We do **not** ship a hostile filesystem lock inside MCP. Full lock is **your** PreToolUse hook — templates: [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json).
-
----
-
-## Recommended
-
-Full Antigravity steps: [`docs/ANTIGRAVITY.md`](docs/ANTIGRAVITY.md).
-
-Install **GODKILLER MCP once** on your MCP host. For each new repo:
-
-1. Copy the constitution into the project:
-   ```bash
-   mkdir -p .agents
-   # from this repo / installed package:
-   cp path/to/godkiller_mcp/bundled_agents/AGENTS.md .agents/AGENTS.md
-   ```
-   Or grab the tracked file:  
-   [`src/godkiller_mcp/bundled_agents/AGENTS.md`](src/godkiller_mcp/bundled_agents/AGENTS.md)
-2. Open the project in the host. MCP stays enabled at host level — **do not reinstall per folder**.
-3. Start with `/plan` (Mermaid + `### Phase N` only). Execute with `/ultradeep Phase N`. Finish with `/verify` → `claim_done`.
-
-That is enough for **gated MCP workflow**: **`.agents/AGENTS.md` + host MCP**.
-
-### Full lock (optional)
-
-Wire the **write-guard on the IDE host** (not inside MCP). Prefer one command after `pip install godkiller-mcp`:
-
-```bash
-godkiller-bootstrap --workspace .
-```
-
-This writes portable files only (no machine-specific paths in what you commit):
-
-- `.agents/AGENTS.md` (if missing)
-- `.agents/hooks.json` (merges Write|Edit PreToolUse; keeps other hooks)
-- `.agents/hooks/godkiller-write-guard.cmd` (Windows) or `.sh` (POSIX)
-- `.agents/hooks/godkiller-write-guard.local.cmd` / `.local.sh` — **machine pin** (gitignored; uses the Python that ran bootstrap)
-
-| Want | Do |
-| --- | --- |
-| **On (full lock)** | `godkiller-bootstrap` · reload IDE · prove deny/allow · then `WRITE_GUARD_PROVEN=1` |
-| **Off (normal IDE writes)** | Remove the Write|Edit PreToolUse entry from `.agents/hooks.json` · unset `WRITE_GUARD_PROVEN` |
-
-**Attach (on):**
-
-1. `godkiller-bootstrap --workspace .` (or copy templates from [`docs/templates/antigravity-write-guard.hooks.json`](docs/templates/antigravity-write-guard.hooks.json)).
-2. Ensure `python -m godkiller_mcp.write_guard --help` works on the host.
-3. Reload the IDE. Prove deny/allow (see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md)).
-4. Only then set `GODKILLER_WRITE_GUARD_PROVEN=1` and prefer `GODKILLER_PROFILE=ship`.
-
-Use the host’s **`.agents/`** layout.
-
-**Detach (off):**
-
-1. Delete the write-guard PreToolUse entry from `.agents/hooks.json`, or set `"enabled": false`.
-2. Unset `GODKILLER_WRITE_GUARD_PROVEN` (and relax `PROFILE=ship` if you no longer want ship posture).
-3. Reload the IDE. Turning off the GODKILLER MCP server alone does **not** remove the write-guard — remove the hook too.
-
-Optional craft packs (`workflows/`, `skills/`) can come later.
+We do **not** ship a hostile filesystem lock inside MCP. Full lock is **your** PreToolUse hook — see [`docs/WRITE_GUARD_HOOKS.md`](docs/WRITE_GUARD_HOOKS.md).
 
 ---
 

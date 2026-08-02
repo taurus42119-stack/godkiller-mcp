@@ -2,8 +2,6 @@
 
 Wire a **host PreToolUse hook** so native Write/Edit cannot bypass MCP.
 
-**Start here for Antigravity:** [`ANTIGRAVITY.md`](ANTIGRAVITY.md) (install → bootstrap → prove → daily loop).
-
 **Policy:** GODKILLER MCP does **not** silently lock your filesystem.  
 Full lock is **opt-in** on the IDE host. We ship templates; you enable them.
 
