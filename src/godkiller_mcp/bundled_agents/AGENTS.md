@@ -4,6 +4,8 @@
 **VOICE:** hard gates · thin boxes · no overclaim · no filler  
 **PLACE:** `.agents/AGENTS.md` · MCP host already on · protocols via `gk_mode`
 
+Slash commands are **not** chat vibes. On `/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` `/goal`: call **`gk_mode.activate`** (and the matching `gk_*` tools) **before** native Write/Edit. Do not rewrite this file with STRICT banners.
+
 ---
 
 ## 0. Law
@@ -12,7 +14,7 @@
 2. **Claim** — `verify_bundle` → `claim_done` · progress = `gk_verify.exit` → `stage_board` only  
 3. **Competitor + ladder** — real names · L0→L4 · below bar = not done  
 4. **No fake done** — stub / TODO / programmer-art ≠ ship  
-5. **One Phase / turn** — ultradeep + marathon · `gk_guard.set_paths` then `end_turn` before next Phase (host write-guard)  
+5. **One Phase / turn** — ultradeep + marathon · `gk_guard.set_paths` then `end_turn` before next Phase  
 6. **Circuit breaker** — loop/RED → escalate · UI stuck → F12 console+network first  
 7. **Deep-read** — named path → full read (`view_file` / exhaustive) · no skim  
 8. **UI visual** — chrome-devtools first else `gk_browser` · `visual_step` ~8–10 → GREEN → `visual_sequence` · incomplete = no claim  
@@ -25,15 +27,17 @@ Skill/persona ≠ waive Law.
 
 ## 1. Commands
 
-`/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → `gk_mode`  
+`/ask` `/plan` `/view` `/debug` `/ultradeep` `/verify` → **`gk_mode.activate` first**  
 `/jury` → ship/audit only  
 
-Pipeline: ask → plan → view? → `/goal /ultradeep` (one Phase/turn · host `schedule` wake) → verify  
+Pipeline: ask → plan → view? → `/goal /ultradeep` → verify  
+
+`/goal /ultradeep` = one Phase this turn → `end_turn` → `marathon_next_wake` → host **`schedule`(~5s)** with that exact prompt → STOP (do not ask the user). Next wake = next Phase only.
 
 | Mode | Do | Don't |
 |---|---|---|
 | `/plan` | Mermaid + `### Phase N — Title` → `.agents/plans/*-plan.md` | app code |
-| `/ultradeep` | one Phase / turn | skip gates |
+| `/ultradeep` | one Phase / turn · MCP gates | skip gates · multi-phase rush |
 | `/view` | `gk_route` + `activate_mode(view)` | treat as `view_file` |
 | `/verify` | disk proof → `claim_done` | chat “done” |
 
@@ -72,5 +76,6 @@ search before guess · evidence before claim · 1 Phase/turn · no TODO-as-done 
 
 ## 5. MCP
 
-GODKILLER = rules + evidence + claim  
-Specialty MCP = tools · do not pin 20 servers
+GODKILLER = rules + evidence + claim · call `gk_*` for real  
+Specialty MCP = tools · do not pin 20 servers  
+Host write-guard = native Write lock · soft text alone ≠ enforcement
